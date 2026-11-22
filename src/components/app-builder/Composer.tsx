@@ -8,6 +8,7 @@ import { MAX_PROMPT_CHARS } from "@/lib/new-jarvis/promptLimit";
 import { useRef, useState } from "react";
 import { ACCEPT, MAX_ITEMS, prepare, type PreparedMedia } from "@/lib/app-builder/media";
 import { SlashSkills, withSkill } from "../new-jarvis/SlashSkills";
+import { ChatVoiceAvatar } from "../voice/ChatVoiceAvatar";
 
 interface Props {
   busy: boolean;
@@ -161,6 +162,8 @@ export function Composer({ busy, onSend, placeholder, hero, sendLabel, autoFocus
           }}
         />
         </div>
+        {/* The one voice button: Jarvis's avatar, talking to the App Builder agent. */}
+        <ChatVoiceAvatar size="sm" busy={busy} />
         {hero ? (
           <button className="ab-primary" disabled={!canSend}>
             {busy ? (media.length ? "Watching…" : "Waking the agent…") : sendLabel ?? "Start building"}

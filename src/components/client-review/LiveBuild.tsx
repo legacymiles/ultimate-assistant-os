@@ -17,6 +17,7 @@
 import { MAX_PROMPT_CHARS } from "@/lib/new-jarvis/promptLimit";
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useVoiceTarget } from "../voice/VoiceProvider";
+import { ChatVoiceAvatar } from "../voice/ChatVoiceAvatar";
 import { waitForReply } from "@/lib/voice/harnessReply";
 import { phaseLabel } from "@/lib/app-builder/build";
 import { useBuild, type UseBuild } from "@/lib/app-builder/useBuild";
@@ -497,6 +498,8 @@ export function BuildSteer({ live }: { live: LiveBuild }) {
       />
       <div className="cr-row">
         <span className="cr-steer-hint">It reads this at its next step.</span>
+        {/* The one voice button: Jarvis's avatar, talking to this build. */}
+        <ChatVoiceAvatar size="sm" busy={sending} />
         <button className="cr-btn small" onClick={() => void send()} disabled={busy || !text.trim() || sending}>
           {sending ? "Sending…" : "Send to Claude Code"}
         </button>

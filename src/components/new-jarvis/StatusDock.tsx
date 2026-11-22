@@ -16,7 +16,7 @@
 // to run, because that is the moment the detail is worth the space.
 // ---------------------------------------------------------------------------
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { Icon } from "../icons";
 import {
   DEFAULT_VOICE_SETTINGS,
@@ -42,6 +42,8 @@ interface Props {
   /** Rows in the queue that are not finished. The one number worth a glance. */
   queued: number;
   onQueue: () => void;
+  /** Jarvis's avatar as the voice button, on tabs that have no chat box of their own. */
+  voiceSlot?: ReactNode;
 }
 
 export function StatusDock({
@@ -55,6 +57,7 @@ export function StatusDock({
   running,
   queued,
   onQueue,
+  voiceSlot,
 }: Props) {
   const [open, setOpen] = useState(false);
 
@@ -121,6 +124,7 @@ export function StatusDock({
             picture; this carries the fact, for anyone reading rather than
             watching. */}
         <span className="nj-dock__item">
+          {voiceSlot}
           <span
             className={`nj-dot ${voice.listening ? "bg-core" : "bg-ink-faint/50"}`}
             data-live={voice.state === "hearing" || voice.state === "speaking" ? "true" : undefined}

@@ -26,7 +26,8 @@ import { HudField, Reactor } from "./HudField";
 import { WorldField } from "./WorldField";
 
 import { StatusDock } from "./StatusDock";
-import { AvatarDock, JarvisAvatar, VoiceButton } from "./avatar/JarvisAvatar";
+import { JarvisAvatar, VoiceButton } from "./avatar/JarvisAvatar";
+import { ChatVoiceAvatar } from "../voice/ChatVoiceAvatar";
 import { QueueBoard } from "./QueueBoard";
 import { SiteErrorsPage } from "./SiteErrors";
 import { openConnections } from "./Connections";
@@ -287,7 +288,6 @@ export function NewJarvis() {
    */
   const [trust, setTrust] = useState<Trust>(DEFAULT_TRUST);
   const [allowed, setAllowed] = useState<string[]>([]);
-  const [speakReplies, setSpeakReplies] = useState(true);
 
   // Read by a run in progress, which must see the CURRENT answer rather than
   // the one that was true when the block started.
@@ -664,10 +664,8 @@ export function NewJarvis() {
   // have changed something.
   const hub = useHubVoice();
   const voice = hub!.voice;
-  const setHubSpeak = hub?.setSpeakReplies;
   // "Always listen for Jarvis" (the avatar stage's switch) is the hub's
   // Hands-free switch, so always-listening is the same opt-in on every page.
-  useEffect(() => setHubSpeak?.(speakReplies), [setHubSpeak, speakReplies]);
   useVoiceTarget({
     id: "jarvis-chat",
     label: "Jarvis chat",
@@ -1629,6 +1627,7 @@ ${reflex.best.excerpt ?? ""}`.trim()
                   // Start / stop: one request, then the microphone goes off.
                   onMic: () => void hub?.tap(),
                   voiceInHero: true,
+                  voiceSlot: <ChatVoiceAvatar busy={running} />,
                   busy: chatBlocks.some((b) => b.status === "running" || b.status === "waiting"),
                   model: chatModel,
                   onModel: setChatModel,
@@ -1735,6 +1734,7 @@ ${reflex.best.excerpt ?? ""}`.trim()
           panel parked where you never look. */}
       <StatusDock
         voice={voice}
+        voiceSlot={tab !== "console" ? <ChatVoiceAvatar size="sm" busy={running} /> : undefined}
         health={bridge.health}
         ready={bridge.ready}
         hasToken={bridge.hasToken}
@@ -1746,20 +1746,6 @@ ${reflex.best.excerpt ?? ""}`.trim()
         onQueue={() => go("queue")}
       />
 
-      {/* Jarvis's avatar. Big over the empty chat (ChatView's hero); here, a
-          pill top-right everywhere else in Jarvis, which expands into a side
-          stage holding the voice settings. The one voice button lives in it. */}
-      {(Boolean(harnessThread) || !(tab === "console" && chatBlocks.length === 0)) && (
-        <AvatarDock
-          voice={voice}
-          busy={running}
-          onTalk={() => void hub?.tap()}
-          handsFree={hub?.handsFree ?? false}
-          onHandsFree={(on) => hub?.setHandsFree(on)}
-          speakReplies={speakReplies}
-          onSpeakReplies={setSpeakReplies}
-        />
-      )}
 
       {/* A local agent's thread is a capability of Chat, not a second tab.
           The link from Chat or another app opens it over the one surface. */}

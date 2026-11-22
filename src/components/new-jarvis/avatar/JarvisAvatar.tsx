@@ -1,11 +1,11 @@
 "use client";
 
 // ---------------------------------------------------------------------------
-// The avatar, the one voice button, and the floating dock — the pieces every
-// Jarvis chat harness shows (picked by the owner 2026-11-22, mockup 3 "Bold":
-// a big avatar centred over the chat while it is empty, ONE big round voice
-// button, and a pill top-right once a conversation starts that expands into a
-// side stage). It transforms into a new form every few seconds by itself.
+// The avatar and the big voice button (picked by the owner 2026-11-22, mockup
+// 3 "Bold": a big avatar centred over the empty chat with ONE big round voice
+// button). Once a conversation starts the avatar lives inside the chat box as
+// its voice button instead (components/voice/ChatVoiceAvatar.tsx) — never in a
+// floating window over the page. It transforms every few seconds by itself.
 //
 // The Three.js scene is loaded only in the browser and only when shown
 // (dynamic import), and anything without WebGL gets a CSS glow instead of a
@@ -14,10 +14,8 @@
 
 import dynamic from "next/dynamic";
 import { useEffect, useState } from "react";
-import { Maximize2, Mic, Minimize2, Square } from "lucide-react";
-import { PRESETS } from "@/lib/new-jarvis/avatar/looks";
-import { avatarStore, useAvatar } from "@/lib/new-jarvis/avatar/store";
-import type { UseWakeVoice, VoiceState } from "@/lib/new-jarvis/useWakeVoice";
+import { Mic, Square } from "lucide-react";
+import type { VoiceState } from "@/lib/new-jarvis/useWakeVoice";
 import type { AvatarVariant, AvatarVoice } from "./AvatarScene";
 import "./avatar.css";
 
@@ -112,119 +110,5 @@ export function VoiceButton({
       </button>
       {label && <span className="jav-voice__label">{text}</span>}
     </div>
-  );
-}
-
-const DOCK_KEY = "jarvis-avatar:dock-open";
-
-/**
- * The avatar while a conversation is the focus: a pill top-right (face, what
- * it is doing, the voice button, expand), or a side stage when expanded.
- * Everything voice-related that is not the button lives in the stage, so the
- * page has exactly one voice control.
- */
-export function AvatarDock({
-  voice,
-  busy,
-  onTalk,
-  handsFree,
-  onHandsFree,
-  speakReplies,
-  onSpeakReplies,
-  where,
-}: {
-  voice: UseWakeVoice;
-  busy?: boolean;
-  onTalk: () => void;
-  handsFree: boolean;
-  onHandsFree: (on: boolean) => void;
-  speakReplies?: boolean;
-  onSpeakReplies?: (on: boolean) => void;
-  /** Where a spoken request goes, e.g. "Website Studio". */
-  where?: string;
-}) {
-  const [open, setOpen] = useState(false);
-  const av = useAvatar();
-  useEffect(() => {
-    try {
-      setOpen(window.localStorage.getItem(DOCK_KEY) === "1");
-    } catch {
-      /* private mode: starts as the pill */
-    }
-  }, []);
-  const toggle = (on: boolean) => {
-    setOpen(on);
-    try {
-      if (on) window.localStorage.setItem(DOCK_KEY, "1");
-      else window.localStorage.removeItem(DOCK_KEY);
-    } catch {
-      /* not remembered, still works */
-    }
-  };
-  const label = avatarStateLabel(voice.state, busy, handsFree);
-  const lookName = av.prefs.custom ? "Your look" : (PRESETS.find((p) => p.look === av.showing)?.name ?? "Transforming");
-  const bars = [0.5, 0.9, 0.65, 1, 0.55];
-
-  if (!open) {
-    return (
-      <div className="jav-pill" data-state={voice.state} data-hub-voice="">
-        <button type="button" className="jav-pill__face" onClick={() => toggle(true)} aria-label="Expand Jarvis">
-          <JarvisAvatar voice={voice} busy={busy} variant="pill" />
-        </button>
-        <span className="jav-pill__state" aria-live="polite">
-          {voice.error ? <span className="jav-pill__err">{voice.error}</span> : label}
-        </span>
-        <span className="jav-pill__wave" aria-hidden>
-          {bars.map((b, i) => (
-            <i key={i} style={{ transform: `scaleY(${0.2 + Math.min(1, voice.level * 1.6) * b})` }} />
-          ))}
-        </span>
-        <VoiceButton state={voice.state} supported={voice.supported} onTap={onTalk} size="small" label={false} />
-        <button type="button" className="jav-pill__expand" onClick={() => toggle(true)} aria-label="Expand" title="Expand">
-          <Maximize2 size={13} aria-hidden />
-        </button>
-      </div>
-    );
-  }
-
-  return (
-    <aside className="jav-stage" data-state={voice.state} data-hub-voice="" aria-label="Jarvis">
-      <header className="jav-stage__head">
-        <span className="jav-stage__dot" aria-hidden />
-        <span className="jav-stage__state" aria-live="polite">
-          {label}
-          {where ? <em> · {where}</em> : null}
-        </span>
-        <button type="button" className="jav-stage__min" onClick={() => toggle(false)} aria-label="Minimise" title="Minimise">
-          <Minimize2 size={13} aria-hidden />
-        </button>
-      </header>
-      <JarvisAvatar voice={voice} busy={busy} variant="panel" />
-      <p className="jav-stage__look">{lookName}</p>
-      {(voice.heard || voice.error) && <p className={`jav-stage__heard ${voice.error ? "is-err" : ""}`}>{voice.error || voice.heard}</p>}
-      <VoiceButton state={voice.state} supported={voice.supported} onTap={onTalk} />
-      <div className="jav-stage__opts">
-        <Switch on={av.prefs.cycle} onChange={(on) => avatarStore.apply([{ type: "cycle", on }])} label="Transform every few seconds" />
-        <Switch on={handsFree} onChange={onHandsFree} label="Always listen for “Jarvis”" />
-        {onSpeakReplies && <Switch on={speakReplies ?? true} onChange={onSpeakReplies} label="Speak answers aloud" />}
-        {av.prefs.custom && (
-          <button type="button" className="jav-stage__reset" onClick={() => avatarStore.apply([{ type: "reset" }])}>
-            Back to the usual look
-          </button>
-        )}
-      </div>
-      <p className="jav-stage__try">Try: “turn yourself into a blue holographic wolf” · “make your eyes glowing red” · “smaller and float”</p>
-    </aside>
-  );
-}
-
-function Switch({ on, onChange, label }: { on: boolean; onChange: (on: boolean) => void; label: string }) {
-  return (
-    <button type="button" role="switch" aria-checked={on} className="jav-switch" onClick={() => onChange(!on)}>
-      <span className="jav-switch__track" aria-hidden>
-        <span className="jav-switch__knob" />
-      </span>
-      {label}
-    </button>
   );
 }

@@ -72,6 +72,12 @@ export interface ComposerProps {
    * one voice button on screen, never two.
    */
   voiceInHero?: boolean;
+  /**
+   * The bar's voice button: Jarvis's avatar, live, as the one control that
+   * starts and stops talking (components/voice/ChatVoiceAvatar). Falls back to
+   * a plain mic where none is given.
+   */
+  voiceSlot?: ReactNode;
 }
 
 export function ChatView({
@@ -612,6 +618,7 @@ function Composer({
   fieldRef,
   docked,
   voiceInHero,
+  voiceSlot,
   onAttach,
   notice,
   above,
@@ -760,7 +767,9 @@ function Composer({
               <Icon.Sparkles width={15} height={15} />
             </button>
           )}
-          {!(voiceInHero && !docked) && (
+          {!(voiceInHero && !docked) && voiceSlot ? (
+            <span className={onEnhance ? "" : "ml-auto"}>{voiceSlot}</span>
+          ) : !(voiceInHero && !docked) && (
             <button
               type="button"
               onClick={onMic}

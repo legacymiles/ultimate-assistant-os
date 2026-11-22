@@ -32,7 +32,6 @@ import { ASK_EVENT } from "@/lib/new-jarvis/askEvent";
 import { useWakeVoice, type UseWakeVoice } from "@/lib/new-jarvis/useWakeVoice";
 import { pickTarget, register, shouldStopListening, speakable, touch, unregister, type Registered, type Registry, type VoiceTarget } from "@/lib/voice/targets";
 import { VoiceOrb } from "./VoiceOrb";
-import { AvatarDock } from "../new-jarvis/avatar/JarvisAvatar";
 import { avatarStore } from "@/lib/new-jarvis/avatar/store";
 
 /** Hands-free = always listening for "Jarvis". Off unless the owner turns it on. */
@@ -47,6 +46,8 @@ export interface HubVoice {
   allowed: boolean;
   registerTarget: (t: VoiceTarget) => () => void;
   touchTarget: (id: string) => void;
+  /** Read answers aloud (on by default). One switch for every chat. */
+  speakReplies: boolean;
   setSpeakReplies: (on: boolean) => void;
   /**
    * The start/stop button. Off → listen for ONE request (no wake word needed),
@@ -308,6 +309,7 @@ export function VoiceProvider({ children }: { children: ReactNode }) {
       allowed,
       registerTarget,
       touchTarget,
+      speakReplies,
       setSpeakReplies,
       tap,
       stop,
@@ -315,32 +317,17 @@ export function VoiceProvider({ children }: { children: ReactNode }) {
       handsFree,
       setHandsFree,
     }),
-    [voice, target, allowed, registerTarget, touchTarget, tap, stop, handsFree, setHandsFree],
+    [voice, target, allowed, registerTarget, touchTarget, speakReplies, tap, stop, handsFree, setHandsFree],
   );
 
   return (
     <Ctx.Provider value={value}>
       {children}
-      {/* The Jarvis avatar appears wherever a Jarvis chat harness is on the
-          page — a registered voice target (Website Studio, App Builder, a
-          running build, a harness thread, Profiles, the Dashboard agent) —
-          and nowhere else. Jarvis draws its own (hero + dock); every other
-          owner page keeps the small orb as its one voice button. */}
-      {allowed && !pathname.startsWith("/apps/jarvis") ? (
-        target ? (
-          <AvatarDock
-            voice={voice}
-            onTalk={() => void tap()}
-            handsFree={handsFree}
-            onHandsFree={setHandsFree}
-            speakReplies={speakReplies}
-            onSpeakReplies={setSpeakReplies}
-            where={target.label}
-          />
-        ) : voice.supported ? (
-          <VoiceOrb />
-        ) : null
-      ) : null}
+      {/* Pages with a Jarvis chat (a registered target) carry the avatar
+          INSIDE their chat box as its one voice button (ChatVoiceAvatar), so
+          nothing floats over the page. Every other owner page keeps the small
+          orb as its one voice button. */}
+      {allowed && voice.supported && !target && !pathname.startsWith("/apps/jarvis") ? <VoiceOrb /> : null}
     </Ctx.Provider>
   );
 }

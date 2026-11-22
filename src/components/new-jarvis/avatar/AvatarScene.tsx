@@ -25,7 +25,7 @@ import { Canvas, useFrame } from "@react-three/fiber";
 import { Component, Suspense, useEffect, useMemo, useRef, useState, type MutableRefObject, type ReactNode } from "react";
 import * as THREE from "three";
 import { useGLTF } from "@react-three/drei";
-import { PRESETS, faceBetween, formIndex, hexToRgb, materialIndex, nextPreset, surfacePoint, type AvatarLook, type Vec3 } from "@/lib/new-jarvis/avatar/looks";
+import { PRESETS, faceBetween, formIndex, hexToRgb, materialIndex, surfacePoint, type AvatarLook, type Vec3 } from "@/lib/new-jarvis/avatar/looks";
 import { avatarStore } from "@/lib/new-jarvis/avatar/store";
 import { emotionAt, expressionOf } from "@/lib/new-jarvis/avatar/state";
 import { REST, approach, visemeFromSpectrum, visemeFromText, type Viseme } from "@/lib/new-jarvis/avatar/visemes";
@@ -56,8 +56,20 @@ const MORPH_SECONDS = 1.7;
  * avatar on the page (there is only ever one or two).
  */
 const pointer = { x: 0, y: 0 };
-/** `performance.now()` of the last poke — a tap makes it transform at once. */
-let pokedAt = 0;
+/**
+ * Pokes so far. Each one moves EVERY avatar on the page one form ahead, so the
+ * face in a chat box and the big one in its popover never disagree.
+ */
+let pokes = 0;
+
+/**
+ * Which preset the cycle is on: one wall clock shared by every avatar on the
+ * page (and every tab), plus the pokes — not a timer per canvas, which drifted
+ * apart the moment two were on screen.
+ */
+function cycleIndex(seconds: number): number {
+  return (Math.floor(Date.now() / (seconds * 1000)) + pokes) % PRESETS.length;
+}
 const CAMERA_Z: Record<AvatarVariant, number> = { hero: 6, panel: 6.2, pill: 3.7 };
 
 // --- the look as numbers that can be blended -----------------------------------
@@ -244,7 +256,6 @@ function Rig({ voice, busy, variant, reduced }: AvatarSceneProps) {
     formA: 0,
     formB: 0,
     morphAt: -10,
-    lastCycleAt: 0,
     from: numOf(PRESETS[0].look),
     to: numOf(PRESETS[0].look),
     cur: numOf(PRESETS[0].look),
@@ -256,7 +267,6 @@ function Rig({ voice, busy, variant, reduced }: AvatarSceneProps) {
     lastGestureId: 0,
     speechAt: 0,
     interruptSeen: 0,
-    pokeSeen: 0,
     jolt: 0,
     rot: new THREE.Euler(),
     data: new Uint8Array(256),
@@ -275,16 +285,10 @@ function Rig({ voice, busy, variant, reduced }: AvatarSceneProps) {
 
     // 1. What should be showing: the owner's look, or the next form in the cycle.
     let want: AvatarLook;
-    const poke = pokedAt !== s.pokeSeen;
-    s.pokeSeen = pokedAt;
     if (av.prefs.cycle && !reduced) {
-      const due = poke || t - s.lastCycleAt >= av.prefs.seconds;
-      if (s.target === null) {
-        s.lastCycleAt = t;
-      } else if (due && !speaking && !hearing) {
-        s.preset = nextPreset(s.preset);
-        s.lastCycleAt = t;
-      }
+      // Held still while it listens or talks, so the mouth reads; then it
+      // catches up with the shared clock.
+      if (s.target === null || (!speaking && !hearing)) s.preset = cycleIndex(av.prefs.seconds);
       want = PRESETS[s.preset].look;
     } else {
       want = av.prefs.custom ? av.prefs.look : PRESETS[s.preset].look;
@@ -672,7 +676,7 @@ export default function AvatarScene(props: AvatarSceneProps) {
         camera={{ fov: 30, position: [0, 0, CAMERA_Z[props.variant]] }}
         onPointerDown={() => {
           // A poke: it flinches, and (while it transforms on its own) jumps to the next form.
-          pokedAt = performance.now();
+          pokes += 1;
           avatarStore.apply([
             { type: "gesture", gesture: "bounce" },
             { type: "emotion", emotion: "surprised", seconds: 1.2 },

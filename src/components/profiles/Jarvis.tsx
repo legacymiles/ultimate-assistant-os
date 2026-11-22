@@ -17,7 +17,7 @@
 
 import { AnimatePresence, motion } from "motion/react";
 import {
-  ArrowUp, ArrowUpRight, Check, ChevronDown, ChevronUp, Copy, Eye, Images, Mic, Minimize2, Move, Paperclip, Pencil, Plus, ShieldCheck, Trash2, Undo2, X,
+  ArrowUp, ArrowUpRight, Check, ChevronDown, ChevronUp, Copy, Eye, Images, Minimize2, Move, Paperclip, Pencil, Plus, ShieldCheck, Trash2, Undo2, X,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { ask } from "@/lib/profiles/brain";
@@ -29,9 +29,10 @@ import { findItem, hueOf, mediaUnder, pathTo, resolveNode, whereLabel } from "@/
 import type { AgentActions, Change, Media, ProfilesData } from "@/lib/profiles/types";
 import type { ProfilesStore } from "@/lib/profiles/useProfiles";
 import { useVoiceTarget } from "../voice/VoiceProvider";
+import { ChatVoiceAvatar } from "../voice/ChatVoiceAvatar";
 import { fileToMedia, MediaTile, Mark } from "./bits";
-
 import { describeIdentity, identifyImage } from "@/lib/identity/match";
+
 export type JarvisMode = "bar" | "full";
 
 interface Pending {
@@ -79,7 +80,6 @@ export function Jarvis(p: JarvisProps) {
   const [scope, setScope] = useState<"all" | "here">("all");
   const [busy, setBusy] = useState(false);
   const [reveal, setReveal] = useState<Set<string>>(new Set());
-  const [listening, setListening] = useState(false);
   const barInput = useRef<HTMLInputElement>(null);
   const area = useRef<HTMLTextAreaElement>(null);
   const thread = useRef<HTMLDivElement>(null);
@@ -259,23 +259,6 @@ export function Jarvis(p: JarvisProps) {
     setMode("full");
   };
 
-  const dictate = () => {
-    type Rec = { lang: string; interimResults: boolean; continuous: boolean; onresult: (e: { results: ArrayLike<{ 0: { transcript: string } }> }) => void; onend: () => void; start: () => void; stop: () => void };
-    const W = window as unknown as { SpeechRecognition?: new () => Rec; webkitSpeechRecognition?: new () => Rec };
-    const R = W.SpeechRecognition ?? W.webkitSpeechRecognition;
-    if (!R) return p.toast("This browser can't take dictation. Try Chrome or Safari.");
-    if (listening) return;
-    const r = new R();
-    r.lang = "en-US";
-    r.interimResults = true;
-    r.continuous = false;
-    const before = draft ? `${draft.trimEnd()} ` : "";
-    r.onresult = (e) => setDraft(before + Array.from(e.results).map((x) => x[0].transcript).join(""));
-    r.onend = () => setListening(false);
-    setListening(true);
-    r.start();
-  };
-
   const last = [...msgs].reverse().find((m): m is Extract<Msg, { role: "jarvis" }> => m.role === "jarvis");
   const waiting = [...msgs].reverse().find((m): m is Extract<Msg, { role: "jarvis" }> => m.role === "jarvis" && m.pending?.state === "waiting");
   const asks = hereNode?.asks?.length ? hereNode.asks : GLOBAL_ASKS;
@@ -423,9 +406,10 @@ export function Jarvis(p: JarvisProps) {
                     <button type="button" className="pf-ib" onClick={() => file.current?.click()} aria-label="Attach photos or videos">
                       <Paperclip />
                     </button>
-                    <button type="button" className={`pf-ib${listening ? " pf-rec" : ""}`} onClick={dictate} aria-label={listening ? "Listening" : "Dictate"}>
-                      <Mic />
-                    </button>
+                    {/* The one voice button: Jarvis's avatar (owner, 2026-11-22 —
+                        "there should only be 1 tts button"). It talks to this
+                        chat through the hub voice, replacing the old Dictate mic. */}
+                    <ChatVoiceAvatar size="sm" busy={busy} />
                     <span className="pf-hint">
                       <ShieldCheck />
                       Jarvis asks before saving anything
@@ -512,7 +496,8 @@ export function Jarvis(p: JarvisProps) {
                   setBar("");
                 }}
               >
-                <span className={`pf-orb${busy ? " busy" : ""}`} />
+                {/* Jarvis's avatar in place of the decorative orb: tap it to talk. */}
+                <ChatVoiceAvatar size="sm" busy={busy} />
                 <input
                   ref={barInput}
                   id="pf-bar"

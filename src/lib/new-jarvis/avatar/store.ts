@@ -79,10 +79,13 @@ export const avatarStore = {
     if (gesture) actions.push({ type: "gesture", gesture });
     if (actions.length) set(applyActions(state, actions, Date.now()), false);
   },
-  /** The renderer reports what is on screen, so commands build on it. Not saved. */
+  /** The renderer reports what is on screen, so commands build on it and panels can name it. Not saved. */
   setShowing(look: AvatarLook): void {
     if (state.showing === look) return;
     state = { ...state, showing: look };
+    // Once per transformation (every few seconds), so a panel naming the
+    // current form keeps up. Never per frame.
+    emit();
   },
   /** Drop gestures the renderer has played. */
   consumeGestures(beforeId: number): void {

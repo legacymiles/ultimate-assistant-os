@@ -17,6 +17,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useChatVoice } from "../voice/useChatVoice";
+import { ChatVoiceAvatar } from "../voice/ChatVoiceAvatar";
 import { frameAddress } from "@/lib/client-review/frame";
 import { useAppBuilder } from "@/lib/app-builder/useAppBuilder";
 import { DEPTH_BLURB, depthOf } from "@/lib/app-builder/depth";
@@ -440,6 +441,8 @@ export function DraftWorkspace({ draftId, onBack, onChanged }: Props) {
               {/* The model that builds it, in the panel you talk to it from. */}
               <ModelPicker value={harnessModel} onChange={setHarnessModel} up />
               <span className="ws-note faint">{accepted.length} accepted</span>
+              {/* The one voice button: Jarvis's avatar, talking to this draft's agent. */}
+              <ChatVoiceAvatar size="sm" busy={Boolean(ab.busy)} />
               <button
                 className="ws-btn small"
                 onClick={() => {

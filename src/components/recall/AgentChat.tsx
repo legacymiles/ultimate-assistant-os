@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useVoiceTarget } from "../voice/VoiceProvider";
+import { ChatVoiceAvatar } from "../voice/ChatVoiceAvatar";
 import { Icon } from "../icons";
 import { askAgent } from "@/lib/recall/agent";
 import { executeAction, folderPathString } from "@/lib/recall/store";
@@ -454,6 +455,8 @@ export function AgentChat({
             rows={1}
             className="max-h-24 flex-1 resize-none rounded-xl border border-line bg-canvas px-3 py-2 text-sm text-ink outline-none placeholder:text-ink-faint focus:border-brand focus:ring-2 focus:ring-brand/30"
           />
+          {/* The one voice button: Jarvis's avatar, talking to this agent. */}
+          <ChatVoiceAvatar size="sm" busy={busy} />
           <button
             onClick={() => send(input)}
             disabled={busy || !input.trim()}

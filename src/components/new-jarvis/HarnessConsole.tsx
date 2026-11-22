@@ -29,6 +29,7 @@ import { LiveActivity } from "./LiveActivity";
 import { routeOf, routeStates } from "@/lib/new-jarvis/harness/models";
 import { usePick } from "@/lib/new-jarvis/harness/usePick";
 import { useVoiceTarget } from "../voice/VoiceProvider";
+import { ChatVoiceAvatar } from "../voice/ChatVoiceAvatar";
 import { waitForReply } from "@/lib/voice/harnessReply";
 import { useHarness } from "@/lib/new-jarvis/harness/useHarness";
 import { countActions } from "@/lib/new-jarvis/harness/model";
@@ -904,6 +905,8 @@ export function HarnessConsole({
               aria-label="Tell the harness what to do"
               className="min-h-[22px] max-h-40 min-w-0 flex-1 resize-y bg-transparent font-mono text-[12.5px] leading-relaxed text-ink outline-none placeholder:text-ink-muted disabled:opacity-50"
             />
+            {/* The one voice button: Jarvis's avatar, talking to this thread. */}
+            <ChatVoiceAvatar size="sm" busy={thinking} />
             <button
               type="button"
               onClick={() => {
