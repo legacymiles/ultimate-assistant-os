@@ -16,6 +16,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Icon } from "../icons";
 import { ConfirmCard } from "./ConfirmCard";
+import { BillsPanel, type ShowFilter } from "./BillsPanel";
 import { EventDialog } from "../recall/calendar/EventDialog";
 import {
   createEvent,
@@ -37,6 +38,19 @@ import { uid } from "@/lib/jarvis/store";
 import type { CalEvent, JarvisStore, PendingAction } from "@/lib/jarvis/types";
 import { useBirthdays } from "@/lib/birthdays/store";
 import { birthdayEvents } from "@/lib/birthdays/engine";
+import { useBills } from "@/lib/bills/useBills";
+import {
+  billsByDay,
+  dueBills,
+  filterByOwner,
+  money,
+  moneyShort,
+  sortDueBills,
+  whenLabel,
+  type OwnerFilter,
+} from "@/lib/bills/view";
+import type { DueBill, SortMode } from "@/lib/bills/types";
+import { key, lastDayOfMonth } from "@/lib/finance/dates";
 
 const btn =
   "inline-flex items-center gap-1.5 rounded-lg border border-line px-2.5 py-1.5 text-xs font-medium text-ink-muted transition hover:bg-panel-2 hover:text-ink disabled:opacity-50";
@@ -77,8 +91,14 @@ export function CalendarTab({
   onBirthdays?: () => void;
 }) {
   const today = new Date();
+  const todayIso = localDate(today);
   const [cursor, setCursor] = useState({ y: today.getFullYear(), m: today.getMonth() });
   const [selected, setSelected] = useState(localDate(today));
+  /** Month grid, or the bills ledger. Both read the same month. */
+  const [view, setView] = useState<"month" | "bills">("month");
+  const [owner, setOwner] = useState<OwnerFilter>("all");
+  const [sort, setSort] = useState<SortMode>("due");
+  const [show, setShow] = useState<ShowFilter>("all");
   const [remote, setRemote] = useState<CalEvent[] | null>(null);
   const [apps, setApps] = useState<{ slug: string; name: string }[]>([]);
   const [note, setNote] = useState("");
@@ -175,6 +195,40 @@ export function CalendarTab({
     return map;
   }, [events]);
 
+  // --- bills ---------------------------------------------------------------
+  // Read, not copied: most of these live in the Profiles app, so a bill added
+  // to a profile is on this tab the next time it is opened, with no sync step.
+  const bills = useBills(todayIso);
+  const month = useMemo(
+    () => ({
+      from: key(cursor.y, cursor.m + 1, 1),
+      to: key(cursor.y, cursor.m + 1, lastDayOfMonth(cursor.y, cursor.m + 1)),
+    }),
+    [cursor],
+  );
+  /** The month's bills before the profile filter — what the pills count. */
+  const monthAll = useMemo(
+    () => dueBills(bills.bills, month.from, month.to, bills.data.paid, todayIso),
+    [bills.bills, bills.data.paid, month, todayIso],
+  );
+  const monthList = useMemo(() => {
+    let list = filterByOwner(monthAll, owner);
+    if (show === "unpaid") list = list.filter((d) => !d.paid);
+    if (show === "late") list = list.filter((d) => d.overdue);
+    return sortDueBills(list, sort);
+  }, [monthAll, owner, show, sort]);
+  /** The whole six-week grid, so the cells either side of the month are right. */
+  const billDays = useMemo(
+    () =>
+      billsByDay(
+        filterByOwner(
+          dueBills(bills.bills, localDate(grid[0]), localDate(grid[41]), bills.data.paid, todayIso),
+          owner,
+        ),
+      ),
+    [bills.bills, bills.data.paid, grid, owner, todayIso],
+  );
+
   const addManual = () => {
     if (!draft.title.trim()) return;
     const { events: next } = createEvent({
@@ -249,6 +303,22 @@ export function CalendarTab({
     <div className="p-3 sm:p-4">
       <div className="mb-2 flex flex-wrap items-center gap-2">
         <h2 className="text-xs font-semibold text-ink">{monthName}</h2>
+        <span className="inline-flex overflow-hidden rounded-lg border border-line" role="tablist" aria-label="Calendar view">
+          {(["month", "bills"] as const).map((v) => (
+            <button
+              key={v}
+              role="tab"
+              aria-selected={view === v}
+              onClick={() => setView(v)}
+              className={`px-3 py-1.5 text-xs font-semibold capitalize transition ${
+                view === v ? "bg-panel-2 text-ink" : "text-ink-faint hover:text-ink"
+              } ${v === "bills" ? "border-l border-line" : ""}`}
+            >
+              {v}
+              {v === "bills" && monthAll.length > 0 ? ` (${monthAll.length})` : ""}
+            </button>
+          ))}
+        </span>
         <button className={btn} onClick={() => setCursor((c) => (c.m === 0 ? { y: c.y - 1, m: 11 } : { ...c, m: c.m - 1 }))}>
           ‹
         </button>
@@ -265,7 +335,9 @@ export function CalendarTab({
           Today
         </button>
         <span className="text-[11px] text-ink-faint">
-          {loading
+          {view === "bills"
+            ? "Every bill Jarvis knows about — the ones filed in a profile keep themselves current"
+            : loading
             ? "Reading your calendar…"
             : apps.length
               ? `${apps.map((a) => a.name).join(", ")} connected${dashboard.length || store.events.length ? " · plus your own events" : ""}`
@@ -301,53 +373,54 @@ export function CalendarTab({
       </div>
       {note && <p className="mb-2 text-[11px] text-ink-muted">{note}</p>}
 
-      <div className="grid gap-3 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
+      {view === "bills" && (
+        <>
+          <BillsPanel
+            store={bills}
+            month={month}
+            monthLabel={new Date(cursor.y, cursor.m, 1).toLocaleDateString(undefined, { month: "long" })}
+            list={monthList}
+            all={monthAll}
+            owner={owner}
+            onOwner={setOwner}
+            sort={sort}
+            onSort={setSort}
+            show={show}
+            onShow={setShow}
+          />
+          <section className="mt-3 overflow-hidden rounded-xl border border-line bg-panel">
+            <MonthGrid
+              grid={grid}
+              cursorMonth={cursor.m}
+              today={localDate(today)}
+              selected={selected}
+              onSelect={(iso) => {
+                setSelected(iso);
+                setView("month");
+              }}
+              byDay={byDay}
+              clashes={clashes}
+              billDays={billDays}
+              compact
+            />
+          </section>
+        </>
+      )}
+
+      <div
+        className={`grid gap-3 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)] ${view === "bills" ? "hidden" : ""}`}
+      >
         <section className="overflow-hidden rounded-xl border border-line bg-panel">
-          <div className="grid grid-cols-7 border-b border-line text-center text-[10px] uppercase tracking-wide text-ink-faint">
-            {["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map((d) => (
-              <span key={d} className="py-1">
-                {d}
-              </span>
-            ))}
-          </div>
-          <div className="grid grid-cols-7">
-            {grid.map((d) => {
-              const iso = localDate(d);
-              const list = byDay.get(iso) ?? [];
-              const otherMonth = d.getMonth() !== cursor.m;
-              const isToday = iso === localDate(today);
-              return (
-                <button
-                  key={iso}
-                  onClick={() => setSelected(iso)}
-                  className={`min-h-[64px] border-b border-r border-line-soft p-1 text-left align-top transition hover:bg-panel-2 ${
-                    selected === iso ? "bg-panel-2" : ""
-                  } ${otherMonth ? "opacity-40" : ""}`}
-                >
-                  <span
-                    className={`text-[11px] ${isToday ? "rounded bg-sky-500/20 px-1 text-sky-200" : "text-ink-muted"}`}
-                  >
-                    {d.getDate()}
-                  </span>
-                  <span className="mt-0.5 block space-y-0.5">
-                    {list.slice(0, 3).map((e) => (
-                      <span
-                        key={e.id}
-                        className={`block truncate rounded px-1 text-[10px] ${
-                          clashes.has(e.id) ? "bg-amber-500/20 text-amber-200" : "bg-panel-2 text-ink-muted"
-                        }`}
-                      >
-                        {e.start || "•"} {e.title}
-                      </span>
-                    ))}
-                    {list.length > 3 && (
-                      <span className="block px-1 text-[10px] text-ink-faint">+{list.length - 3} more</span>
-                    )}
-                  </span>
-                </button>
-              );
-            })}
-          </div>
+          <MonthGrid
+            grid={grid}
+            cursorMonth={cursor.m}
+            today={localDate(today)}
+            selected={selected}
+            onSelect={setSelected}
+            byDay={byDay}
+            clashes={clashes}
+            billDays={billDays}
+          />
         </section>
 
         <section className="space-y-3">
@@ -416,6 +489,32 @@ export function CalendarTab({
                   </li>
                 ))}
               </ul>
+            )}
+            {(billDays.get(selected)?.length ?? 0) > 0 && (
+              <div className="mt-2.5 border-t border-line-soft pt-2.5">
+                <h4 className="mb-1.5 text-[10px] uppercase tracking-[0.08em] text-ink-faint">
+                  Bills due
+                </h4>
+                <ul className="space-y-1">
+                  {(billDays.get(selected) ?? []).map((d) => (
+                    <li key={`${d.bill.id}-${d.due}`} className="flex items-center gap-2 text-xs">
+                      <span
+                        aria-hidden
+                        className={`h-2 w-2 shrink-0 rounded-full ${
+                          d.paid ? "bg-green-500" : d.overdue ? "bg-rose-500" : "bg-ink-faint"
+                        }`}
+                      />
+                      <span className="min-w-0 flex-1 truncate text-ink">{d.bill.name}</span>
+                      <span className="shrink-0 tabular-nums text-ink-muted">
+                        {money(d.amount, d.bill.currency)}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+                <button className={`${btn} mt-2`} onClick={() => setView("bills")}>
+                  Open bills
+                </button>
+              </div>
             )}
           </div>
 
@@ -489,5 +588,120 @@ export function CalendarTab({
         </section>
       </div>
     </div>
+  );
+}
+
+/**
+ * The month, once, used by both views: the grid in Month and the strip under
+ * the ledger in Bills. Days carry their events and, under them, a chip per
+ * state of money — paid, late, still coming — so a day with a bill reads as
+ * one at a glance without opening anything.
+ */
+function MonthGrid({
+  grid,
+  cursorMonth,
+  today,
+  selected,
+  onSelect,
+  byDay,
+  clashes,
+  billDays,
+  compact,
+}: {
+  grid: Date[];
+  cursorMonth: number;
+  today: string;
+  selected: string;
+  onSelect: (iso: string) => void;
+  byDay: Map<string, CalEvent[]>;
+  clashes: Set<string>;
+  billDays: Map<string, DueBill[]>;
+  compact?: boolean;
+}) {
+  return (
+    <>
+      <div className="grid grid-cols-7 border-b border-line text-center text-[10px] uppercase tracking-wide text-ink-faint">
+        {["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map((d) => (
+          <span key={d} className="py-1">
+            {d}
+          </span>
+        ))}
+      </div>
+      <div className="grid grid-cols-7">
+        {grid.map((d) => {
+          const iso = localDate(d);
+          const list = byDay.get(iso) ?? [];
+          const due = billDays.get(iso) ?? [];
+          const otherMonth = d.getMonth() !== cursorMonth;
+          const isToday = iso === today;
+          // One chip per state, with that state's total: three small marks at
+          // most, however many bills land on the day.
+          const groups: { key: string; total: number; cls: string; title: string }[] = [];
+          const add = (key: string, rows: DueBill[], cls: string, title: string) => {
+            if (!rows.length) return;
+            groups.push({
+              key,
+              total: rows.reduce((n, r) => n + r.amount, 0),
+              cls,
+              title: `${rows.map((r) => r.bill.name).join(", ")} — ${title}`,
+            });
+          };
+          add("paid", due.filter((r) => r.paid), "bg-green-500/15 text-green-300", "paid");
+          add("late", due.filter((r) => !r.paid && r.overdue), "bg-rose-500/20 text-rose-300", "late");
+          add(
+            "due",
+            due.filter((r) => !r.paid && !r.overdue),
+            "bg-elevated text-ink-muted",
+            "still to pay",
+          );
+          return (
+            <button
+              key={iso}
+              onClick={() => onSelect(iso)}
+              className={`border-b border-r border-line-soft p-1 text-left align-top transition hover:bg-panel-2 ${
+                compact ? "min-h-[58px]" : "min-h-[64px]"
+              } ${selected === iso ? "bg-panel-2" : ""} ${otherMonth ? "opacity-40" : ""}`}
+            >
+              <span
+                className={`text-[11px] ${isToday ? "rounded bg-sky-500/20 px-1 text-sky-200" : "text-ink-muted"}`}
+              >
+                {d.getDate()}
+              </span>
+              {groups.map((g) => (
+                <span
+                  key={g.key}
+                  title={g.title}
+                  className={`ml-1 mt-1 inline-block rounded-full px-[7px] text-[10px] font-semibold tabular-nums ${g.cls}`}
+                >
+                  {moneyShort(g.total)}
+                </span>
+              ))}
+              {!compact && (
+                <span className="mt-0.5 block space-y-0.5">
+                  {list.slice(0, 3).map((e) => (
+                    <span
+                      key={e.id}
+                      className={`block truncate rounded px-1 text-[10px] ${
+                        clashes.has(e.id) ? "bg-amber-500/20 text-amber-200" : "bg-panel-2 text-ink-muted"
+                      }`}
+                    >
+                      {e.start || "•"} {e.title}
+                    </span>
+                  ))}
+                  {list.length > 3 && (
+                    <span className="block px-1 text-[10px] text-ink-faint">+{list.length - 3} more</span>
+                  )}
+                </span>
+              )}
+              {compact && list.length > 0 && (
+                <span className="mt-0.5 block truncate rounded bg-panel-2 px-1 text-[10px] text-ink-muted">
+                  {list[0].start || "•"} {list[0].title}
+                </span>
+              )}
+            </button>
+          );
+        })}
+      </div>
+    </>
   );
 }

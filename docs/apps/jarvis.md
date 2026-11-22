@@ -2,8 +2,9 @@
 
 Route: `/apps/jarvis` · Category: AI · Live
 
-Record reviewed: 2026-11-22 — the voice half rewritten by hand; the Features list below is still
-the seeded one and wants rewriting into plain features next time this app is edited.
+Record reviewed: 2026-11-22 — the Bills tab and the voice half written by hand; the rest of the
+Features list below is still the seeded one and wants rewriting into plain features next time this
+app is edited.
 
 > **This file is the truth about this app.** Read it before changing the app and update it in the
 > same commit. Everything above the "From the code" block is written by hand and kept; that block
@@ -16,6 +17,21 @@ Your memory, folders, photos, lists, calendar and Record in one place. Every req
 
 ## Features
 
+- **Bills, on the calendar (Nov 2026)** — the Calendar has a **Bills** tab beside Month, holding
+  every bill Jarvis knows about. Most are not typed here at all: they are read live out of the
+  **Profiles** app, so a payment filed under a profile — the girlfriend's car insurance, the DTF
+  printer's payment under Northside Prints — is on this tab without a sync step, and editing the
+  row in Profiles edits the bill. A row becomes a bill only when it has an amount AND a schedule,
+  so receipts and past purchases stay out. Filter pills per profile (plus **No profile**), order by
+  date, highest first or A–Z, and a Show filter for what is still owed or only what is late. A
+  **$ still to pay** statement leads, the unpaid bills sit under it as confirm cards, and every
+  bill is a ledger row. The big grey tick turns green only after a confirm card naming the bill,
+  the amount and the day — and the mark is per occurrence, so November's rent says nothing about
+  December's. Calendar days carry a small amount chip per state (green paid, rose late, grey still
+  coming) in both views, and the day panel lists that day's bills. Bills of your own are typed with
+  **Add a bill**; a profile bill whose due day was never written down says "day not set" and can be
+  corrected here without touching Profiles, and one that was never a bill can be taken off the list
+  while its row stays in the profile.
 - **One voice for the whole hub (Nov 2026)** — the always-listening voice no longer lives only in
   Chat: it is mounted once in the root layout (`src/components/voice/VoiceProvider.tsx`), keeps
   listening across pages, and shows as a small orb in the bottom-left of every owner page (Jarvis
@@ -72,6 +88,19 @@ _The flows a user would notice breaking. Sign-in, data rules, routes and keys ar
   and the browser's own voice speaks; the Voice stage says what to start, in plain words.
 - **A saved voice that no longer exists falls back.** `clampSettings` drops a name the catalog
   does not have rather than sending it on every line.
+- **A bill is never marked paid by one tap.** The tick opens a confirm card naming the bill, the
+  amount and the day; only the answer writes the mark, and it is keyed to that occurrence
+  (`billId|YYYY-MM-DD`) — never to the bill as a whole.
+- **Profiles stays the source for the bills it owns.** `src/lib/bills/fromProfiles.ts` derives
+  them on every read and never copies them into `jarvis-bills:v1`; the blob holds only typed
+  bills, paid marks and the owner's corrections. A bill taken off the tab leaves the profile row
+  alone.
+- **A row needs an amount and a schedule to be a bill.** "Gildan 5000 × 144 · $431.28 · Oct 30" is
+  a purchase and must stay off the tab; "Shopify plan · $39.00 · Monthly" is a bill. Guessing the
+  other way fills the calendar with things that are not bills.
+- **The month grid still shows events.** The grid moved into a shared `MonthGrid`, used by both
+  views; events, clashes, the today pill and the selected day behave exactly as before, with the
+  bill chips added under the date.
 
 ## Requested, not built yet
 
@@ -100,6 +129,7 @@ _Rewritten by `npm run apps:records` from the source — do not edit by hand. `n
 - `src/components/new-jarvis/`
 - `src/components/studio-home/`
 - `src/lib/armory/`
+- `src/lib/bills/`
 - `src/lib/finance/`
 - `src/lib/jarvis-profile/`
 - `src/lib/jarvis/`
@@ -206,6 +236,8 @@ _Rewritten by `npm run apps:records` from the source — do not edit by hand. `n
 - Table `jarvis_memories` (public.jarvis_memories) · RLS on — used in `src/lib/jarvis/server/memory.ts`, `src/lib/jarvis/server/skills.ts`
   - policy public.jarvis_memories · jarvis owner all — for all using (auth.uid() = user_id) with check (auth.uid() = user_id)
 - Database function `jarvis_search` — `src/lib/jarvis/server/memory.ts`
+- Saved data `jarvis-avatar:v1` — `src/lib/new-jarvis/avatar/state.ts`, `src/lib/new-jarvis/avatar/store.ts`
+- Saved data `jarvis-bills:v1` — `src/lib/bills/store.ts`
 - Saved data `jarvis-camera-watch:v1` — `src/lib/new-jarvis/useCameraWatch.ts`
 - Saved data `jarvis-ideas:v1` — `src/lib/new-jarvis/useIdeas.ts`
 - Saved data `jarvis-inbox-had:v1` — `src/lib/new-jarvis/inboxSync.ts`
@@ -240,7 +272,6 @@ _Rewritten by `npm run apps:records` from the source — do not edit by hand. `n
 - `JARVIS_GITHUB_TOKEN` — `src/app/api/new-jarvis/board/route.ts`, `src/app/api/new-jarvis/devops/route.ts`
 - `JARVIS_MCP_TOKEN` — `src/lib/jarvis/server/mcpAuth.ts`
 - `JARVIS_MCP_USER_ID` — `src/app/api/jarvis/sync-status/route.ts`, `src/lib/jarvis/server/mcpAuth.ts`
-- `JARVIS_SEARCH_MODEL` — `src/app/api/new-jarvis/web/route.ts`
 - `JARVIS_TYPING_MODEL` — `src/lib/new-jarvis/fastTyping.ts`
 - `JARVIS_UNCENSORED_MODELS` — `src/app/api/new-jarvis/agent/route.ts`, `src/lib/new-jarvis/fastTyping.ts`
 - `NEXT_PUBLIC_IPHONE_SETUP_VIDEO` — `src/components/new-jarvis/IphoneGuide.tsx`
@@ -248,7 +279,6 @@ _Rewritten by `npm run apps:records` from the source — do not edit by hand. `n
 - `NEXT_PUBLIC_SUPABASE_ANON_KEY` — `src/lib/new-jarvis/server/requestsAuth.ts`
 - `NEXT_PUBLIC_SUPABASE_URL` — `src/lib/new-jarvis/server/requestsAuth.ts`
 - `OPENROUTER_API_KEY` — `src/lib/jarvis/server/embed.ts`
-- `OPENROUTER_SITE_URL` — `src/app/api/new-jarvis/web/route.ts`
 - `PLAID_ENV` — `src/lib/finance/providers/plaid/client.ts`
 - `PLAID_WEBHOOK_URL` — `src/app/api/finance/link/route.ts`
 - `RECALL_DATA_DIR` — `src/lib/jarvis/record/inbox.ts`, `src/lib/jarvis/record/server/files.ts`
@@ -269,11 +299,13 @@ _Rewritten by `npm run apps:records` from the source — do not edit by hand. `n
 - `VERCEL_TEAM_ID` — `src/app/api/new-jarvis/devops/route.ts`
 - `VERCEL_TEAM_SLUG` — `src/app/api/new-jarvis/devops/route.ts`
 - `VERCEL_TOKEN` — `src/app/api/new-jarvis/devops/route.ts`
-- AI calls through `src/lib/ai/provider.ts` — `src/app/api/jarvis-profile/learn/route.ts`, `src/app/api/jarvis/record/extract/route.ts`, `src/app/api/jarvis/record/map/route.ts` +14 more
+- AI calls through `src/lib/ai/provider.ts` — `src/app/api/jarvis-profile/learn/route.ts`, `src/app/api/jarvis/record/extract/route.ts`, `src/app/api/jarvis/record/map/route.ts` +13 more
 
 ### Tests
 
 - `src/lib/armory/catalog.test.ts`
+- `src/lib/bills/fromProfiles.test.ts`
+- `src/lib/bills/view.test.ts`
 - `src/lib/finance/crypto.test.ts`
 - `src/lib/finance/dates.test.ts`
 - `src/lib/finance/findings.test.ts`
@@ -327,6 +359,7 @@ _Rewritten by `npm run apps:records` from the source — do not edit by hand. `n
 - `src/lib/new-jarvis/appBuilderWiring.test.ts`
 - `src/lib/new-jarvis/askEvent.test.ts`
 - `src/lib/new-jarvis/autopilotChat.test.ts`
+- `src/lib/new-jarvis/avatar/avatar.test.ts`
 - `src/lib/new-jarvis/board.test.ts`
 - `src/lib/new-jarvis/breath.test.ts`
 - `src/lib/new-jarvis/bridge.test.ts`
