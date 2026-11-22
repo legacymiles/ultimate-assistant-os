@@ -66,6 +66,12 @@ export interface ComposerProps {
   onScan?: () => void;
   /** Whether the local agent is connected. Both of the above need it. */
   paired?: boolean;
+  /**
+   * The empty chat shows the big voice button under the box (the avatar's
+   * hero), so the bar leaves its own mic out until a conversation starts —
+   * one voice button on screen, never two.
+   */
+  voiceInHero?: boolean;
 }
 
 export function ChatView({
@@ -85,7 +91,13 @@ export function ChatView({
   onRerun,
   onStop,
   onFix,
+  heroAvatar,
+  heroVoice,
 }: {
+  /** Jarvis's 3D avatar, shown big over the empty chat (in place of the reactor). */
+  heroAvatar?: ReactNode;
+  /** The one voice button, under the box on the empty chat. */
+  heroVoice?: ReactNode;
   threads: Thread[];
   /** The open conversation; null = a new one, not started yet. */
   active: string | null;
@@ -242,15 +254,20 @@ export function ChatView({
         </header>
 
         {empty ? (
-          <div className="njc-hero">
-            <div className="njc-hero__core" aria-hidden>
-              <Reactor busy={composer.busy} size={72} />
-            </div>
+          <div className="njc-hero" data-avatar={heroAvatar ? true : undefined}>
+            {heroAvatar ?? (
+              <div className="njc-hero__core" aria-hidden>
+                <Reactor busy={composer.busy} size={72} />
+              </div>
+            )}
             <h2 className="njc-hero__title">What are we doing?</h2>
-            <p className="njc-hero__sub">
-              Ask anything, hand Jarvis a job, or give it a picture, clip or recording and say what to do with it.
-            </p>
+            {!heroAvatar && (
+              <p className="njc-hero__sub">
+                Ask anything, hand Jarvis a job, or give it a picture, clip or recording and say what to do with it.
+              </p>
+            )}
             {bar}
+            {heroVoice}
             <div className="njc-hero__kinds" role="group" aria-label="Attach">
               <button type="button" className="njc-chip" style={{ "--i": 0 } as React.CSSProperties} onClick={() => pickKind("image/*")}>
                 <Icon.Image width={14} height={14} /> Pictures
@@ -594,6 +611,7 @@ function Composer({
   goalHint,
   fieldRef,
   docked,
+  voiceInHero,
   onAttach,
   notice,
   above,
@@ -742,17 +760,20 @@ function Composer({
               <Icon.Sparkles width={15} height={15} />
             </button>
           )}
-          <button
-            type="button"
-            onClick={onMic}
-            disabled={!micSupported}
-            className={`njc-icon ${onEnhance ? "" : "ml-auto"}`}
-            data-on={voiceState !== "off" || undefined}
-            title={!micSupported ? "This browser cannot listen. Chrome, Edge or Safari can." : voiceState === "off" ? 'Listen for "Jarvis"' : "Stop listening"}
-            aria-label={voiceState === "off" ? "Start listening" : "Stop listening"}
-          >
-            <Icon.Mic width={15} height={15} />
-          </button>
+          {!(voiceInHero && !docked) && (
+            <button
+              type="button"
+              onClick={onMic}
+              disabled={!micSupported}
+              className={`njc-icon njc-voice ${onEnhance ? "" : "ml-auto"}`}
+              data-on={voiceState !== "off" || undefined}
+              data-state={voiceState}
+              title={!micSupported ? "This browser cannot listen. Chrome, Edge or Safari can." : voiceState === "off" ? "Talk to Jarvis" : "Stop"}
+              aria-label={voiceState === "off" ? "Talk to Jarvis" : "Stop"}
+            >
+              {voiceState === "off" ? <Icon.Mic width={15} height={15} /> : <Icon.Square width={12} height={12} />}
+            </button>
+          )}
           <button type="button" className="njc-send" onClick={onSubmit} disabled={!canSend} aria-label="Send">
             {busy ? <Icon.Refresh width={13} height={13} className="animate-spin [animation-duration:1.4s]" /> : <Icon.Send width={13} height={13} />}
             <span>Send</span>

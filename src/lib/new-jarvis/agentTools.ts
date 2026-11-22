@@ -508,6 +508,33 @@ export const AGENT_TOOLS: AgentTool[] = [
       required: ["idea"],
     },
   },
+  {
+    name: "avatar",
+    kind: "hub",
+    route: "hub/avatar",
+    description:
+      "Change how YOU (Jarvis) look or act on screen: your animated 3D avatar. Use it whenever the owner asks you to change your appearance, colour, eyes, size, material, mood or a gesture — e.g. \"look like a sunset\", \"be a fire dragon\", \"make your eyes green\", \"look sad\", \"do a spin\", \"stop transforming\". Translate their words into the fields; set only what they asked for. A look is kept until they change it; an emotion passes after `seconds`. It changes instantly on their screen, so afterwards just confirm in one short line.",
+    parameters: {
+      type: "object",
+      properties: {
+        form: { type: "string", enum: ["humanoid", "robot", "wolf", "cat", "dragon", "alien", "orb", "crystal", "blob"], description: "Body shape." },
+        primary: str("Main colour: a colour name or #rrggbb."),
+        secondary: str("Second colour of the gradient: a colour name or #rrggbb."),
+        eye: str("Eye colour: a colour name or #rrggbb."),
+        material: { type: "string", enum: ["holo", "glass", "metal", "plasma", "matte", "wire"], description: "holo = hologram, glass, metal = chrome/futuristic, plasma = fire/energy, matte = solid, wire = wireframe." },
+        glow: { type: "number", description: "Rim glow 0–1.5." },
+        eyeGlow: { type: "number", description: "Eye brightness 0–2 (2 = glowing)." },
+        scale: { type: "number", description: "Size 0.5–1.4 (1 = normal)." },
+        float: { type: "number", description: "Floating 0–2 (0 = still, 2 = drifting high)." },
+        emotion: { type: "string", enum: ["neutral", "happy", "sad", "angry", "surprised", "thinking", "calm", "excited"] },
+        seconds: { type: "number", description: "How long the emotion lasts (default 12)." },
+        gesture: { type: "string", enum: ["nod", "shake", "tilt", "spin", "bounce", "wave"] },
+        transforming: { type: "boolean", description: "true = change into a new form every few seconds on your own; false = hold the current look." },
+        model: str("Optional: a https link to a .glb/.gltf 3D model to wear instead of your own body, only if the owner gives one."),
+        reset: { type: "boolean", description: "true = back to the default look." },
+      },
+    },
+  },
   // Cloud tools: run by the website itself, so a job never stops at "this
   // needs your PC". See src/lib/new-jarvis/web.ts and /api/new-jarvis/web.
   {

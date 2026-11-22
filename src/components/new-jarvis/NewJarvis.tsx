@@ -26,7 +26,7 @@ import { HudField, Reactor } from "./HudField";
 import { WorldField } from "./WorldField";
 
 import { StatusDock } from "./StatusDock";
-import { VoiceOrb } from "./VoiceOrb";
+import { AvatarDock, JarvisAvatar, VoiceButton } from "./avatar/JarvisAvatar";
 import { QueueBoard } from "./QueueBoard";
 import { SiteErrorsPage } from "./SiteErrors";
 import { openConnections } from "./Connections";
@@ -37,7 +37,8 @@ import { routeForFix, type ErrorFix } from "@/lib/new-jarvis/errorFix";
 import { PcConnect } from "./PcConnect";
 import { TOPIC_LABEL, topicOf } from "@/lib/new-jarvis/felix";
 import { useQueue } from "@/lib/new-jarvis/useQueue";
-import type { ReactorMode } from "@/lib/new-jarvis/reactor";
+import { avatarStore } from "@/lib/new-jarvis/avatar/store";
+import { actionsFromToolArgs } from "@/lib/new-jarvis/avatar/commands";
 
 import { useBridge } from "@/lib/new-jarvis/useBridge";
 import { takePendingVoiceAsk, useHubVoice, useVoiceTarget } from "../voice/VoiceProvider";
@@ -285,8 +286,6 @@ export function NewJarvis() {
   const [trust, setTrust] = useState<Trust>(DEFAULT_TRUST);
   const [allowed, setAllowed] = useState<string[]>([]);
   const [speakReplies, setSpeakReplies] = useState(true);
-  /** Which face the Reactor is showing. Theirs to pick; it is the thing they look at most. */
-  const [reactorMode, setReactorMode] = useState<ReactorMode>("ring");
 
   // Read by a run in progress, which must see the CURRENT answer rather than
   // the one that was true when the block started.
@@ -658,12 +657,8 @@ export function NewJarvis() {
   const hub = useHubVoice();
   const voice = hub!.voice;
   const setHubSpeak = hub?.setSpeakReplies;
-  // Jarvis's own orb: "Wait for the name" is the hub's Hands-free switch, so
-  // always-listening is the same opt-in here as on every other page.
-  const orbVoice = useMemo(
-    () => (hub ? { ...voice, toggle: () => hub.setHandsFree(!hub.handsFree) } : voice),
-    [hub, voice],
-  );
+  // "Always listen for Jarvis" (the avatar stage's switch) is the hub's
+  // Hands-free switch, so always-listening is the same opt-in on every page.
   useEffect(() => setHubSpeak?.(speakReplies), [setHubSpeak, speakReplies]);
   useVoiceTarget({
     id: "jarvis-chat",
@@ -788,6 +783,14 @@ export function NewJarvis() {
           ],
         });
         return { proposed: title, note: "Waiting for your yes on the Memory tab." };
+      }
+
+      if (tool === "avatar") {
+        // Jarvis's own 3D avatar: the model translated the owner's words into
+        // these fields; actionsFromToolArgs checks every one of them.
+        const cmd = actionsFromToolArgs(args);
+        avatarStore.apply(cmd.actions);
+        return { done: cmd.reply, note: "The avatar on their screen has changed already. Say it in one short line." };
       }
 
       if (tool === "app_builder") {
@@ -987,6 +990,24 @@ export function NewJarvis() {
         return;
       }
 
+      // "Turn yourself into a blue holographic wolf" — the avatar changes the
+      // instant the sentence ends, with no model and no PC. Anything the fast
+      // reader does not understand goes to the agent, which has the `avatar`
+      // tool for it.
+      if (!attached.length) {
+        const look = avatarStore.command(command);
+        if (look) {
+          setInput("");
+          const block = newBlock({ command, mode: runMode, source, thread });
+          setBlocks((bs) => [{ ...block, status: "done" as const, ms: 1, answer: look.reply }, ...bs]);
+          if (source === "voice") {
+            voice.markAnswered();
+            void voice.speak(look.reply);
+          } else if (voice.listening) voice.setState("waiting");
+          return;
+        }
+      }
+
       // The reflex gets first refusal.
       //
       // Only for typed input, only when the owner has not already said "ask
@@ -1113,6 +1134,10 @@ ${reflex.best.excerpt ?? ""}`.trim()
       // how you end up believing a job succeeded.
       if (outcome.status === "done" && outcome.answer && source === "voice") {
         void voice.speak(outcome.answer);
+      } else if (outcome.status === "done" && outcome.answer) {
+        // Typed: nothing is read aloud, but the face still answers in kind.
+        avatarStore.react(outcome.answer);
+        if (voice.listening) voice.setState("waiting");
       } else if (voice.listening) {
         voice.setState("waiting");
       }
@@ -1538,6 +1563,16 @@ ${reflex.best.excerpt ?? ""}`.trim()
               />
             ) : tab === "console" ? (
               <ChatView
+                heroAvatar={
+                  <div className="jav-hero">
+                    <JarvisAvatar voice={voice} busy={running} variant="hero" />
+                  </div>
+                }
+                heroVoice={
+                  <div className="jav-hero__voice">
+                    <VoiceButton state={voice.state} supported={voice.supported} onTap={() => void hub?.tap()} />
+                  </div>
+                }
                 threads={threads}
                 active={activeThread}
                 blocks={chatBlocks}
@@ -1583,6 +1618,7 @@ ${reflex.best.excerpt ?? ""}`.trim()
                   micSupported: voice.supported,
                   // Start / stop: one request, then the microphone goes off.
                   onMic: () => void hub?.tap(),
+                  voiceInHero: true,
                   busy: chatBlocks.some((b) => b.status === "running" || b.status === "waiting"),
                   model: chatModel,
                   onModel: setChatModel,
@@ -1700,13 +1736,20 @@ ${reflex.best.excerpt ?? ""}`.trim()
         onQueue={() => go("queue")}
       />
 
-      <VoiceOrb
-        voice={orbVoice}
-        mode={reactorMode}
-        onMode={setReactorMode}
-        speakReplies={speakReplies}
-        onSpeakReplies={setSpeakReplies}
-      />
+      {/* Jarvis's avatar. Big over the empty chat (ChatView's hero); here, a
+          pill top-right everywhere else in Jarvis, which expands into a side
+          stage holding the voice settings. The one voice button lives in it. */}
+      {(Boolean(harnessThread) || !(tab === "console" && chatBlocks.length === 0)) && (
+        <AvatarDock
+          voice={voice}
+          busy={running}
+          onTalk={() => void hub?.tap()}
+          handsFree={hub?.handsFree ?? false}
+          onHandsFree={(on) => hub?.setHandsFree(on)}
+          speakReplies={speakReplies}
+          onSpeakReplies={setSpeakReplies}
+        />
+      )}
 
       {/* A local agent's thread is a capability of Chat, not a second tab.
           The link from Chat or another app opens it over the one surface. */}

@@ -1,0 +1,207 @@
+/* ---------------------------------------------------------------------------
+   Jarvis's avatar — mockup 3 "Bold" (picked 2026-11-22). Design skill:
+   interactive-web-studio. Cyan #47e8ff on the HUD dark, violet #7c5cff aura.
+   Every animation here is gated by prefers-reduced-motion at the bottom.
+   --------------------------------------------------------------------------- */
+
+.jav, .jav-voice, .jav-pill, .jav-stage {
+  --jav-cyan: #47e8ff;
+  --jav-violet: #7c5cff;
+  --jav-rose: #ff5d73;
+}
+.jav {
+  position: relative;
+  isolation: isolate;
+}
+.jav--hero { width: min(340px, 70vw); aspect-ratio: 1; }
+.jav--panel { width: 100%; height: 280px; }
+.jav--pill { width: 44px; height: 44px; border-radius: 50%; overflow: hidden; }
+
+.jav-canvas, .jav-canvas > div { position: absolute; inset: 0; }
+.jav-canvas canvas { display: block; touch-action: manipulation; cursor: pointer; }
+
+/* The aura — wide on the hero, a tight glow in the pill. Breathes, and
+   tightens while it listens. */
+.jav-aura {
+  position: absolute;
+  inset: -30% -55%;
+  z-index: -1;
+  pointer-events: none;
+  background:
+    radial-gradient(closest-side, rgb(71 232 255 / 0.2), transparent 70%),
+    radial-gradient(closest-side at 72% 62%, rgb(124 92 255 / 0.16), transparent 70%);
+  animation: jav-breathe 6s ease-in-out infinite;
+  transition: opacity 0.6s ease, transform 0.6s cubic-bezier(0.2, 0.9, 0.3, 1.2);
+}
+.jav--pill .jav-aura, .jav--panel .jav-aura { inset: -10%; }
+.jav[data-state="hearing"] .jav-aura { transform: scale(0.82); opacity: 1.2; }
+.jav[data-state="speaking"] .jav-aura { animation-duration: 1.6s; }
+.jav[data-state="thinking"] .jav-aura { filter: hue-rotate(40deg); }
+
+/* No WebGL (or still loading): a glowing core, never an empty box. */
+.jav-fallback {
+  position: absolute;
+  inset: 22%;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, #bff8ff, var(--jav-cyan) 40%, #1a6f9e 75%, transparent 76%);
+  box-shadow: 0 0 60px rgb(71 232 255 / 0.5);
+  animation: jav-breathe 4s ease-in-out infinite;
+}
+.jav--pill .jav-fallback { inset: 14%; }
+
+@keyframes jav-breathe {
+  0%, 100% { transform: scale(1); opacity: 0.9; }
+  50% { transform: scale(1.05); opacity: 1; }
+}
+
+/* --- the one voice button -------------------------------------------------- */
+
+.jav-voice { display: flex; flex-direction: column; align-items: center; gap: 8px; }
+.jav-voice__btn {
+  position: relative;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  color: #05080f;
+  background: radial-gradient(circle at 35% 30%, #c8faff, var(--jav-cyan) 48%, #1a7fae);
+  box-shadow: 0 0 0 8px rgb(71 232 255 / 0.08), 0 0 40px rgb(71 232 255 / 0.55);
+  transition: transform 0.25s cubic-bezier(0.2, 0.9, 0.3, 1.4), box-shadow 0.3s ease, background 0.3s ease;
+}
+.jav-voice--big .jav-voice__btn { width: 68px; height: 68px; }
+.jav-voice--small .jav-voice__btn { width: 30px; height: 30px; box-shadow: 0 0 16px rgb(71 232 255 / 0.5); }
+.jav-voice__btn:hover:not(:disabled) { transform: scale(1.07); }
+.jav-voice__btn:active:not(:disabled) { transform: scale(0.94); }
+.jav-voice__btn:focus-visible { outline: 2px solid #fff; outline-offset: 4px; }
+.jav-voice__btn:disabled { opacity: 0.45; cursor: not-allowed; filter: grayscale(0.6); }
+.jav-voice[data-live] .jav-voice__btn {
+  color: #fff;
+  background: radial-gradient(circle at 35% 30%, #ffb3be, var(--jav-rose) 55%, #b3263d);
+  box-shadow: 0 0 0 8px rgb(255 93 115 / 0.1), 0 0 40px rgb(255 93 115 / 0.55);
+}
+.jav-voice--small[data-live] .jav-voice__btn { box-shadow: 0 0 16px rgb(255 93 115 / 0.55); }
+.jav-voice__ring {
+  position: absolute;
+  inset: -6px;
+  border-radius: 50%;
+  border: 1px solid rgb(71 232 255 / 0.5);
+  opacity: 0;
+  pointer-events: none;
+}
+.jav-voice[data-state="hearing"] .jav-voice__ring { border-color: rgb(255 93 115 / 0.7); animation: jav-ring 1.2s ease-out infinite; }
+.jav-voice[data-state="off"] .jav-voice--big .jav-voice__ring,
+.jav-voice--big[data-state="off"] .jav-voice__ring { animation: jav-ring 2.8s ease-out infinite; }
+@keyframes jav-ring {
+  0% { transform: scale(0.9); opacity: 0.9; }
+  100% { transform: scale(1.5); opacity: 0; }
+}
+.jav-voice__label { font-size: 12px; color: rgb(154 163 181); letter-spacing: 0.01em; }
+
+/* --- the pill (top-right, mid-conversation) ------------------------------- */
+
+.jav-pill {
+  position: fixed;
+  top: 52px;
+  right: 16px;
+  z-index: 60;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 5px 8px 5px 5px;
+  border-radius: 999px;
+  border: 1px solid rgb(71 232 255 / 0.35);
+  background: rgb(6 10 18 / 0.9);
+  backdrop-filter: blur(12px);
+  box-shadow: 0 0 30px -10px var(--jav-cyan, #47e8ff), 0 18px 40px -20px #000;
+  animation: jav-in 0.5s cubic-bezier(0.2, 0.9, 0.3, 1.2);
+  color: #e9ecf3;
+}
+.jav-pill__face { border-radius: 50%; display: block; }
+.jav-pill__face:focus-visible, .jav-pill__expand:focus-visible { outline: 2px solid #47e8ff; outline-offset: 2px; }
+.jav-pill__state {
+  font: 600 10px/1 ui-monospace, SFMono-Regular, Menlo, monospace;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: #47e8ff;
+  min-width: 70px;
+}
+.jav-pill[data-state="hearing"] .jav-pill__state { color: #ff8a9b; }
+.jav-pill__err { color: #ff8a9b; text-transform: none; letter-spacing: 0; font-family: inherit; font-size: 11px; display: inline-block; max-width: 180px; white-space: normal; line-height: 1.3; }
+.jav-pill__wave { display: flex; align-items: center; gap: 2px; height: 18px; }
+.jav-pill__wave i { display: block; width: 3px; height: 18px; border-radius: 2px; background: #47e8ff; transform-origin: center; transition: transform 0.1s linear; }
+.jav-pill[data-state="hearing"] .jav-pill__wave i { background: #ff8a9b; }
+.jav-pill__expand { color: rgb(154 163 181); border-left: 1px solid rgb(255 255 255 / 0.1); padding: 4px 2px 4px 8px; }
+.jav-pill__expand:hover { color: #e9ecf3; }
+
+/* --- the side stage (expanded) -------------------------------------------- */
+
+.jav-stage {
+  position: fixed;
+  top: 52px;
+  right: 16px;
+  z-index: 60;
+  width: 320px;
+  max-height: calc(100vh - 100px);
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 14px 14px;
+  border-radius: 24px;
+  border: 1px solid rgb(71 232 255 / 0.25);
+  background: linear-gradient(180deg, rgb(71 232 255 / 0.07), rgb(6 10 18 / 0.94) 40%);
+  backdrop-filter: blur(14px);
+  box-shadow: 0 30px 60px -24px #000, 0 0 50px -20px #47e8ff;
+  color: #e9ecf3;
+  animation: jav-in 0.45s cubic-bezier(0.2, 0.9, 0.3, 1.15);
+}
+.jav-stage__head { display: flex; align-items: center; gap: 8px; width: 100%; }
+.jav-stage__dot { width: 7px; height: 7px; border-radius: 50%; background: #47e8ff; box-shadow: 0 0 10px #47e8ff; }
+.jav-stage[data-state="hearing"] .jav-stage__dot { background: #ff5d73; box-shadow: 0 0 10px #ff5d73; }
+.jav-stage__state { font: 600 10px/1 ui-monospace, SFMono-Regular, Menlo, monospace; letter-spacing: 0.16em; text-transform: uppercase; color: #47e8ff; }
+.jav-stage__state em { font-style: normal; color: rgb(154 163 181); letter-spacing: 0.06em; text-transform: none; font-family: inherit; }
+.jav-stage__min { margin-left: auto; color: rgb(154 163 181); padding: 6px; border-radius: 8px; border: 1px solid rgb(255 255 255 / 0.1); }
+.jav-stage__min:hover { color: #e9ecf3; }
+.jav-stage__look { font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase; color: rgb(154 163 181); margin-top: -4px; }
+.jav-stage__heard { font-size: 13px; color: #e9ecf3; text-align: center; line-height: 1.4; }
+.jav-stage__heard.is-err { color: #ff8a9b; }
+.jav-stage__opts { display: flex; flex-direction: column; gap: 8px; width: 100%; padding-top: 10px; border-top: 1px solid rgb(255 255 255 / 0.07); }
+.jav-stage__reset { align-self: flex-start; font-size: 12px; color: #47e8ff; text-decoration: underline; text-underline-offset: 3px; }
+.jav-stage__try { font-size: 11px; color: rgb(107 115 133); line-height: 1.45; text-align: center; }
+
+.jav-switch { display: flex; align-items: center; gap: 10px; font-size: 12.5px; color: #c9d0dc; text-align: left; }
+.jav-switch__track { position: relative; width: 30px; height: 17px; border-radius: 999px; background: rgb(255 255 255 / 0.12); transition: background 0.2s ease; flex: none; }
+.jav-switch__knob { position: absolute; top: 2px; left: 2px; width: 13px; height: 13px; border-radius: 50%; background: #e9ecf3; transition: transform 0.25s cubic-bezier(0.2, 0.9, 0.3, 1.4); }
+.jav-switch[aria-checked="true"] .jav-switch__track { background: #47e8ff; }
+.jav-switch[aria-checked="true"] .jav-switch__knob { transform: translateX(13px); background: #05080f; }
+.jav-switch:focus-visible { outline: 2px solid #47e8ff; outline-offset: 3px; border-radius: 6px; }
+
+@keyframes jav-in {
+  from { opacity: 0; transform: translateY(-8px) scale(0.92); }
+  to { opacity: 1; transform: none; }
+}
+
+/* --- the hero (empty chat) ------------------------------------------------- */
+
+.jav-hero { display: flex; flex-direction: column; align-items: center; }
+.jav-hero__caption {
+  margin-top: -6px;
+  font: 600 10px/1 ui-monospace, SFMono-Regular, Menlo, monospace;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: #47e8ff;
+  opacity: 0.8;
+}
+.jav-hero__voice { margin-top: 16px; }
+
+@media (max-width: 640px) {
+  .jav--hero { width: min(240px, 62vw); }
+  .jav-pill { top: 48px; right: 8px; }
+  .jav-pill__wave { display: none; }
+  .jav-stage { right: 8px; left: 8px; width: auto; top: 48px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .jav-aura, .jav-fallback, .jav-voice__ring, .jav-pill, .jav-stage { animation: none !important; }
+  .jav-voice__btn, .jav-switch__knob, .jav-aura { transition: none; }
+}

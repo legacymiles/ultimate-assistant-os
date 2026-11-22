@@ -32,6 +32,7 @@ import {
   restartDelayMs,
   shouldEndpoint,
 } from "./wake";
+import { loadVoiceSettings, ttsBody } from "@/lib/voice-settings/settings";
 
 export type VoiceState = "off" | "waiting" | "hearing" | "thinking" | "speaking";
 
@@ -91,6 +92,13 @@ export interface UseWakeVoice {
   wakeAt: MutableRefObject<number>;
   /** `performance.now()` of the last real sound. Drives the idle wind-down. */
   lastSoundAt: MutableRefObject<number>;
+  /**
+   * What is being said aloud and when it started — the avatar's lip sync reads
+   * it when there is no audio to analyse (the browser voice), using the word
+   * boundaries the browser reports. `interruptedAt` is stamped when an answer
+   * is cut off, so the face reacts to being talked over.
+   */
+  speech: MutableRefObject<SpeechClock>;
   /** Milliseconds from the owner finishing speaking to the answer arriving, or null. */
   latencyMs: number | null;
   error: string;
@@ -110,6 +118,15 @@ export interface UseWakeVoice {
   setState: (s: VoiceState) => void;
   /** Tell the hook the answer has arrived, so it can report the round trip. */
   markAnswered: () => void;
+}
+
+export interface SpeechClock {
+  text: string;
+  /** `performance.now()` when the audio actually started, 0 when idle. */
+  startedAt: number;
+  /** The last word boundary the browser voice reported, in ms after `startedAt`. */
+  boundary?: { charIndex: number; atMs: number };
+  interruptedAt: number;
 }
 
 export interface WakeVoiceOptions {
@@ -156,6 +173,7 @@ export function useWakeVoice({ onCommand, onInterrupt, speakReplies = true }: Wa
   const ttsAnalyser = useRef<AnalyserNode | null>(null);
   const ttsSource = useRef<MediaElementAudioSourceNode | null>(null);
 
+  const speech = useRef<SpeechClock>({ text: "", startedAt: 0, interruptedAt: 0 });
   const wakeAt = useRef(0);
   const lastSoundAt = useRef(0);
   const askedAt = useRef(0);
@@ -239,6 +257,7 @@ export function useWakeVoice({ onCommand, onInterrupt, speakReplies = true }: Wa
   // --- speaking -----------------------------------------------------------
 
   const hush = useCallback(() => {
+    if (speakingText.current) speech.current = { ...speech.current, startedAt: 0, interruptedAt: performance.now() };
     speakingText.current = "";
     if (typeof window !== "undefined") window.speechSynthesis?.cancel();
     if (audioEl.current) {
@@ -256,13 +275,16 @@ export function useWakeVoice({ onCommand, onInterrupt, speakReplies = true }: Wa
       speakingText.current = say;
       setState("speaking");
 
-      // The owner's own voice first (fish.audio via /api/tts), the browser's
-      // as the fallback that always exists.
+      // The owner's own voice first (Phonon via /api/tts), the browser's as
+      // the fallback that always exists. The body is `ttsBody` with the voice
+      // picked on the Voice stage — the same one its preview sends — so what
+      // the owner auditioned is what answers. (It used to send the text
+      // alone, which made every spoken answer Phonon's default voice.)
       try {
         const res = await fetch("/api/tts", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ text: say.slice(0, 2000) }),
+          body: JSON.stringify(ttsBody(say.slice(0, 2000), loadVoiceSettings())),
         });
         if (res.ok && (res.headers.get("content-type") ?? "").startsWith("audio")) {
           const url = URL.createObjectURL(await res.blob());
@@ -312,12 +334,14 @@ export function useWakeVoice({ onCommand, onInterrupt, speakReplies = true }: Wa
           }
 
           await el.play();
+          speech.current = { text: say, startedAt: performance.now(), interruptedAt: speech.current.interruptedAt };
           await new Promise<void>((done) => {
             el.onended = () => done();
             el.onerror = () => done();
           });
           URL.revokeObjectURL(url);
           audioEl.current = null;
+          speech.current = { ...speech.current, startedAt: 0 };
           try {
             ttsSource.current?.disconnect();
           } catch {
@@ -348,11 +372,20 @@ export function useWakeVoice({ onCommand, onInterrupt, speakReplies = true }: Wa
       const u = new SpeechSynthesisUtterance(say);
       u.rate = 1.04;
       u.pitch = 0.96;
+      u.onstart = () => {
+        speech.current = { text: say, startedAt: performance.now(), interruptedAt: speech.current.interruptedAt };
+      };
+      // Word timing, when the browser gives it — the avatar's mouth follows it.
+      u.onboundary = (e) => {
+        const at = speech.current.startedAt;
+        if (at) speech.current = { ...speech.current, boundary: { charIndex: e.charIndex, atMs: performance.now() - at } };
+      };
       await new Promise<void>((done) => {
         u.onend = () => done();
         u.onerror = () => done();
         window.speechSynthesis.speak(u);
       });
+      speech.current = { ...speech.current, startedAt: 0 };
       analyser.current = micAnalyser.current;
       speakingText.current = "";
       if (stateRef.current === "speaking") setState(wantOn.current ? "waiting" : "off");
@@ -628,6 +661,7 @@ export function useWakeVoice({ onCommand, onInterrupt, speakReplies = true }: Wa
     analyser,
     wakeAt,
     lastSoundAt,
+    speech,
     latencyMs,
     error,
     wakeWords,

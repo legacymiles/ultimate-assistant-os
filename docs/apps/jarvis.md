@@ -2,7 +2,7 @@
 
 Route: `/apps/jarvis` · Category: AI · Live
 
-Record reviewed: 2026-11-22 — the Bills tab and the voice half written by hand; the rest of the
+Record reviewed: 2026-11-22 — the Bills tab, the voice half and the avatar written by hand; the rest of the
 Features list below is still the seeded one and wants rewriting into plain features next time this
 app is edited.
 
@@ -46,6 +46,35 @@ Your memory, folders, photos, lists, calendar and Record in one place. Every req
   listening and speaking at once. Always listening for "Jarvis" is **Hands-free**, an opt-in
   switch remembered on this device (Jarvis's "Wait for the name" is the same switch), so it
   never picks up a conversation in the room and starts a task.
+- **A living 3D avatar, and one voice button (Nov 2026)** — picked from three mockups (3, "Bold").
+  On an empty chat a big Three.js avatar floats over the box with ONE round voice button under it
+  (the bar has no mic of its own until a conversation starts); once a conversation starts it
+  shrinks into a pill top-right (face, what it is doing, a live wave, the voice button, expand)
+  that opens into a side stage. The old orb, the voice chamber and its Talk / "Wait for the name" /
+  "Speak answers aloud" buttons are gone — "Always listen for Jarvis", "Speak answers aloud" and
+  "Transform every few seconds" are switches in the stage. It is one procedural body that melts
+  between nine forms (human, robot, wolf, cat, dragon, alien, orb, crystal, liquid blob) and six
+  materials (hologram, glass, metal, plasma, solid, wireframe), with an energy surge at each change;
+  on its own it transforms every 5 s, and a tap makes it flinch and change at once. It breathes,
+  blinks and floats; its eyes follow the pointer anywhere on the page; it leans in while
+  listening, its motes spin while it thinks, and its mouth is driven by the real Phonon audio
+  (viseme from the analyser, word timing from the browser voice) with the answer's tone as a
+  passing emotion; talked over, it flinches and shuts its mouth at once. Say or type "turn
+  yourself into a blue holographic wolf", "change your eyes to glowing red", "make yourself
+  smaller and float", "look happier", "keep transforming", "go back to normal" — the fast reader
+  (`lib/new-jarvis/avatar/commands.ts`) does it with no model and no PC, and anything else goes to
+  the agent's `avatar` tool. A chosen look is kept per account (`jarvis-avatar:v1`); emotions pass.
+  A GLB/GLTF link can be worn instead of the body (loaded only then; viseme/blink morph targets and
+  an idle/talk clip are driven if the file has them). **It appears wherever a Jarvis chat harness
+  is on the page — a registered voice target: Jarvis chat, Profiles, a harness thread, Website
+  Studio drafts, App Builder, a running Client Review build, the Dashboard agent — and nowhere
+  else**; other owner pages keep the small orb. Code: `src/components/new-jarvis/avatar/`
+  (`AvatarScene.tsx` renderer, `shaders.ts`, `JarvisAvatar.tsx` hero / voice button / dock),
+  logic + tests `src/lib/new-jarvis/avatar/`. Off-screen or hidden it stops drawing; reduced
+  motion stops the transforming; no WebGL shows a glowing core.
+- **Answers speak in the voice you picked** — the hub voice sent `/api/tts` the text alone, so
+  every spoken answer was Phonon's default voice; it now sends `ttsBody` with the Voice stage's
+  voice, speed, expression and consistency, like the preview does.
 
 _Seeded from this app's edit log. Rewrite it into plain features the next time the app is edited, then set Record reviewed._
 
@@ -78,12 +107,24 @@ _Seeded from this app's edit log. Rewrite it into plain features the next time t
 
 _The flows a user would notice breaking. Sign-in, data rules, routes and keys are listed from the code below by themselves._
 
-- **Jarvis still speaks.** `useVoice.speak` posts to `/api/tts` and plays the audio through an
+- **Jarvis still speaks.** `useWakeVoice.speak` (and the older `useVoice.speak`) posts to `/api/tts` and plays the audio through an
   AudioContext, so the Reactor meter reads the voice and not the microphone. A media element that
   is routed into a context but never connected to `ctx.destination` goes silent.
 - **The voice is always on, not a button.** Wake word, talk-over mid-answer and the echo test are
   untouched by the Voice stage; the dock still says the voice *state* in words (off / waiting for
   its name / listening / thinking / speaking), with the chosen voice's name after it.
+- **One voice button on screen.** The empty chat has the big round button under the box and no mic
+  in the bar; mid-conversation the bar has it and the pill has the same control. Never two
+  different things that both start listening.
+- **The avatar never blocks the chat.** It is lazy-loaded, stops drawing off screen and in a
+  hidden tab, and a page with no WebGL gets a glowing core, not a blank box or a crash.
+- **"Become a better cook" is not an avatar command.** The fast reader only takes a sentence that
+  addresses the avatar ("yourself", "your eyes", "turn into a <form>"…); everything else goes to
+  the chat unchanged (`avatar.test.ts` pins the cases).
+- **A chosen look survives a reload and another device**, and "go back to normal" returns to the
+  transforming default.
+- **Spoken answers use the picked Phonon voice.** `useWakeVoice.speak` sends `ttsBody(…,
+  loadVoiceSettings())`, never the text alone.
 - **No backend is not a crash.** With nothing configured, `/api/tts` answers `{ fallback: true }`
   and the browser's own voice speaks; the Voice stage says what to start, in plain words.
 - **A saved voice that no longer exists falls back.** `clampSettings` drops a name the catalog

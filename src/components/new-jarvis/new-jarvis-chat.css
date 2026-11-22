@@ -638,3 +638,13 @@
 .pcc__first b { color: var(--color-ink); }
 @keyframes pcc-pulse { 50% { opacity: 0.35; } }
 @media (prefers-reduced-motion: reduce) { .pcc__dot.is-busy { animation: none; } }
+
+/* --- the avatar hero (mockup 3 "Bold", 2026-11-22) ------------------------
+   The avatar fills the top of the empty chat, the title steps down to make
+   room, and the one voice button sits under the box. */
+.njc-hero[data-avatar] { gap: 0; padding-top: 4px; justify-content: safe center; }
+.njc-hero[data-avatar] .jav--hero { width: min(340px, 70vw, 40vh); }
+.njc-hero[data-avatar] .njc-hero__title { font-size: clamp(26px, 3.2vw, 34px); margin-top: 6px; margin-bottom: 14px; }
+.njc-hero[data-avatar] .jav-hero__voice { margin: 16px 0 6px; }
+/* Mid-conversation the bar's voice button turns rose while it is live. */
+.njc-voice[data-on] { color: #fff; background: #ff5d73; border-radius: 999px; box-shadow: 0 0 16px rgb(255 93 115 / 0.5); }

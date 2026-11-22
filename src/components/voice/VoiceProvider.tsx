@@ -32,6 +32,8 @@ import { ASK_EVENT } from "@/lib/new-jarvis/askEvent";
 import { useWakeVoice, type UseWakeVoice } from "@/lib/new-jarvis/useWakeVoice";
 import { pickTarget, register, shouldStopListening, speakable, touch, unregister, type Registered, type Registry, type VoiceTarget } from "@/lib/voice/targets";
 import { VoiceOrb } from "./VoiceOrb";
+import { AvatarDock } from "../new-jarvis/avatar/JarvisAvatar";
+import { avatarStore } from "@/lib/new-jarvis/avatar/store";
 
 /** Hands-free = always listening for "Jarvis". Off unless the owner turns it on. */
 const HANDS_FREE_KEY = "hub-voice:hands-free";
@@ -155,8 +157,20 @@ export function VoiceProvider({ children }: { children: ReactNode }) {
         else if (voice.listening) voice.setState("waiting");
       };
 
-      // 1. a chat or harness thread on this page
+      // 0. "Jarvis, turn yourself into a robot" is for the avatar itself,
+      // on whichever page it was said — never a request for that page's chat.
+      // (Jarvis's own chat handles it in its submit, so it shows as a block.)
       const target = pickTarget(regRef.current);
+      if (!target?.speaksForItself) {
+        const look = avatarStore.command(words);
+        if (look) {
+          voice.markAnswered();
+          await say(look.reply);
+          return;
+        }
+      }
+
+      // 1. a chat or harness thread on this page
       if (target?.speaksForItself) {
         try {
           await target.send(words);
@@ -307,8 +321,26 @@ export function VoiceProvider({ children }: { children: ReactNode }) {
   return (
     <Ctx.Provider value={value}>
       {children}
-      {/* Jarvis draws its own reactor for the same voice; everywhere else gets the orb. */}
-      {allowed && voice.supported && !pathname.startsWith("/apps/jarvis") ? <VoiceOrb /> : null}
+      {/* The Jarvis avatar appears wherever a Jarvis chat harness is on the
+          page — a registered voice target (Website Studio, App Builder, a
+          running build, a harness thread, Profiles, the Dashboard agent) —
+          and nowhere else. Jarvis draws its own (hero + dock); every other
+          owner page keeps the small orb as its one voice button. */}
+      {allowed && !pathname.startsWith("/apps/jarvis") ? (
+        target ? (
+          <AvatarDock
+            voice={voice}
+            onTalk={() => void tap()}
+            handsFree={handsFree}
+            onHandsFree={setHandsFree}
+            speakReplies={speakReplies}
+            onSpeakReplies={setSpeakReplies}
+            where={target.label}
+          />
+        ) : voice.supported ? (
+          <VoiceOrb />
+        ) : null
+      ) : null}
     </Ctx.Provider>
   );
 }
