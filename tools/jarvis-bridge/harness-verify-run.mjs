@@ -909,15 +909,34 @@ const lastLine = (text) => String(text ?? "").trim().split(/\r?\n/).filter(Boole
  */
 export async function lookAtDesign({ url, design, dir, src = "", signal, limit = LIMITS.design, launch: open = launch, check = designCheck }) {
   let browser = null;
+  let launching = null;
+  let closing = null;
   let cut = "";
-  const close = () => (browser ? within(10_000, browser.close()).catch(() => {}) : Promise.resolve());
+  // Shuts the browser, waiting first for one that is still starting.
+  // `limit` is often shorter than a cold Chromium takes to open, so the
+  // timeout used to land while `browser` was still null, close nothing, and
+  // leave the browser that arrived a moment later running for good — the very
+  // leak the comment above promises there isn't. Closing twice is a no-op.
+  const close = async () => {
+    if (!browser && launching) browser = await within(10_000, launching).catch(() => null);
+    if (!browser) return;
+    closing = closing ?? within(10_000, browser.close()).catch(() => {});
+    return closing;
+  };
+  // Shut one we already hold, right now: that is what makes a check that is
+  // still working give up. One still starting is left to the unwind below,
+  // because the check takes its own handle on the browser the moment `launch`
+  // returns, and closing it first would go around whatever it set up.
+  const closeIfOpen = () => {
+    if (browser) void close();
+  };
   let timer = null;
   let onAbort = null;
   const stopped = new Promise((resolve) => {
     const end = (why) => {
       if (cut) return;
       cut = why;
-      void close();
+      closeIfOpen();
       resolve();
     };
     timer = setTimeout(() => end("time"), limit);
@@ -939,9 +958,8 @@ export async function lookAtDesign({ url, design, dir, src = "", signal, limit =
     },
     {
       launch: async () => {
-        browser = await open();
-        // Called off while the browser was starting: nothing else will close it.
-        if (cut) void close();
+        launching = open();
+        browser = await launching;
         return browser;
       },
     },
@@ -951,6 +969,9 @@ export async function lookAtDesign({ url, design, dir, src = "", signal, limit =
     if (cut || !first) {
       // Let it unwind on the closed browser before the app under it is stopped.
       await within(5_000, run).catch(() => {});
+      // A browser that finished starting after we gave up is still ours to
+      // shut, and this is the last moment anything here can do it.
+      await within(10_000, close()).catch(() => {});
       return { cut: cut || "abort" };
     }
     return first;
