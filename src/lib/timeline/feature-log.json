@@ -1,5 +1,95 @@
 [
  {
+  "id": "cb74dc2:jarvis",
+  "date": "2026-11-22",
+  "slug": "jarvis",
+  "title": "Jarvis looks things up on the web, and asks machines the right questions",
+  "detail": "The Profiles chat could only ever answer from the owner's own outline — its prompt said \"answer from the outline below only\" and \"do not use tools\", and the cloud route was a single completion. So \"how do I set up the RIP software for my DTF printer\" was not answered badly, it was refused. The profi",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "cb74dc2:profiles",
+  "date": "2026-11-22",
+  "slug": "profiles",
+  "title": "Jarvis looks things up on the web, and asks machines the right questions",
+  "detail": "The Profiles chat could only ever answer from the owner's own outline — its prompt said \"answer from the outline below only\" and \"do not use tools\", and the cloud route was a single completion. So \"how do I set up the RIP software for my DTF printer\" was not answered badly, it was refused. The profi",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "cb74dc2:web",
+  "date": "2026-11-22",
+  "slug": "web",
+  "title": "Jarvis looks things up on the web, and asks machines the right questions",
+  "detail": "The Profiles chat could only ever answer from the owner's own outline — its prompt said \"answer from the outline below only\" and \"do not use tools\", and the cloud route was a single completion. So \"how do I set up the RIP software for my DTF printer\" was not answered badly, it was refused. The profi",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "668a446:app-builder",
+  "date": "2026-11-22",
+  "slug": "app-builder",
+  "title": "One voice on every page, with start and stop, talking to whichever chat or harness you're in",
+  "detail": "The always-listening voice moves out of Jarvis's Chat tab into the root layout (components/voice/VoiceProvider), so one microphone serves every owner page and keeps going across pages. A small orb sits bottom-left (Jarvis keeps its own reactor for the same voice).",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "668a446:client-review",
+  "date": "2026-11-22",
+  "slug": "client-review",
+  "title": "One voice on every page, with start and stop, talking to whichever chat or harness you're in",
+  "detail": "The always-listening voice moves out of Jarvis's Chat tab into the root layout (components/voice/VoiceProvider), so one microphone serves every owner page and keeps going across pages. A small orb sits bottom-left (Jarvis keeps its own reactor for the same voice).",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "668a446:jarvis",
+  "date": "2026-11-22",
+  "slug": "jarvis",
+  "title": "One voice on every page, with start and stop, talking to whichever chat or harness you're in",
+  "detail": "The always-listening voice moves out of Jarvis's Chat tab into the root layout (components/voice/VoiceProvider), so one microphone serves every owner page and keeps going across pages. A small orb sits bottom-left (Jarvis keeps its own reactor for the same voice).",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "668a446:profiles",
+  "date": "2026-11-22",
+  "slug": "profiles",
+  "title": "One voice on every page, with start and stop, talking to whichever chat or harness you're in",
+  "detail": "The always-listening voice moves out of Jarvis's Chat tab into the root layout (components/voice/VoiceProvider), so one microphone serves every owner page and keeps going across pages. A small orb sits bottom-left (Jarvis keeps its own reactor for the same voice).",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "668a446:dashboard",
+  "date": "2026-11-22",
+  "slug": "dashboard",
+  "title": "One voice on every page, with start and stop, talking to whichever chat or harness you're in",
+  "detail": "The always-listening voice moves out of Jarvis's Chat tab into the root layout (components/voice/VoiceProvider), so one microphone serves every owner page and keeps going across pages. A small orb sits bottom-left (Jarvis keeps its own reactor for the same voice).",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "668a446:voice",
+  "date": "2026-11-22",
+  "slug": "voice",
+  "title": "One voice on every page, with start and stop, talking to whichever chat or harness you're in",
+  "detail": "The always-listening voice moves out of Jarvis's Chat tab into the root layout (components/voice/VoiceProvider), so one microphone serves every owner page and keeps going across pages. A small orb sits bottom-left (Jarvis keeps its own reactor for the same voice).",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "668a446:website-studio",
+  "date": "2026-11-22",
+  "slug": "website-studio",
+  "title": "One voice on every page, with start and stop, talking to whichever chat or harness you're in",
+  "detail": "The always-listening voice moves out of Jarvis's Chat tab into the root layout (components/voice/VoiceProvider), so one microphone serves every owner page and keeps going across pages. A small orb sits bottom-left (Jarvis keeps its own reactor for the same voice).",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
   "id": "c9ca9d9:jarvis",
   "date": "2026-11-22",
   "slug": "jarvis",
