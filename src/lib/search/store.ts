@@ -18,8 +18,8 @@ import "server-only";
 
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { after } from "next/server";
-import { SEARCH_LIMITS } from "./config";
-import type { Caller, Scope, SearchResponse } from "./types";
+import { SEARCH_LIMITS, isPlan } from "./config";
+import type { Caller, Plan, Scope, SearchResponse } from "./types";
 
 /**
  * Keep a background write alive past the response.
@@ -302,6 +302,9 @@ export interface UsageEvent {
   callerId: string;
   callerKind: Caller["kind"];
   callerLabel: string;
+  /** The person the calling key belongs to, when it belongs to one. */
+  ownerEmail?: string | null;
+  plan?: Plan;
   /** The app or agent that said it was calling, from `label` on the request. */
   app: string | null;
   kind: string;
@@ -339,6 +342,8 @@ export function recordUsage(event: UsageEvent): void {
       caller_id: row.callerId,
       caller_kind: row.callerKind,
       caller_label: row.callerLabel,
+      owner_email: row.ownerEmail ?? null,
+      plan: row.plan ?? null,
       app: row.app,
       kind: row.kind,
       query: row.query,
@@ -369,6 +374,8 @@ export interface UsageSummary {
   byKind: { kind: string; count: number }[];
   byCaller: { label: string; kind: string; count: number; failed: number }[];
   byApp: { app: string; count: number }[];
+  /** One row per person a key was issued to. Owner's own calls are grouped as "you". */
+  byPerson: { email: string; plan: string; count: number; failed: number; lastAt: string }[];
   topQueries: { query: string; count: number }[];
   recent: (UsageEvent & { at: string })[];
   /** Per-hour counts, oldest first, for the sparkline. */
@@ -380,6 +387,8 @@ interface RawUsageRow {
   caller_id: string;
   caller_kind: string;
   caller_label: string | null;
+  owner_email: string | null;
+  plan: string | null;
   app: string | null;
   kind: string;
   query: string;
@@ -418,7 +427,7 @@ export async function usageSummary(windowHours = 24): Promise<UsageSummary> {
     const { data } = await db
       .from("search_usage")
       .select(
-        "caller_id, caller_kind, caller_label, app, kind, query, provider, location, cached, degraded, ms, result_count, extracted, ok, error, created_at",
+        "caller_id, caller_kind, caller_label, owner_email, plan, app, kind, query, provider, location, cached, degraded, ms, result_count, extracted, ok, error, created_at",
       )
       .gte("created_at", since.toISOString())
       .order("created_at", { ascending: false })
@@ -431,6 +440,8 @@ export async function usageSummary(windowHours = 24): Promise<UsageSummary> {
         caller_id: row.callerId,
         caller_kind: row.callerKind,
         caller_label: row.callerLabel,
+        owner_email: row.ownerEmail ?? null,
+        plan: row.plan ?? null,
         app: row.app,
         kind: row.kind,
         query: row.query,
@@ -508,6 +519,27 @@ export async function usageSummary(windowHours = 24): Promise<UsageSummary> {
       app: value,
       count,
     })),
+    byPerson: (() => {
+      const people = new Map<string, { email: string; plan: string; count: number; failed: number; lastAt: string }>();
+      for (const row of rows) {
+        // A row with no owner_email is the owner's own traffic — their agents,
+        // their hub pages. Grouping it under one name keeps the table about
+        // "who else is using this", which is the question it exists to answer.
+        const email = row.owner_email ?? "you";
+        const entry = people.get(email) ?? {
+          email,
+          plan: row.plan ?? "owner",
+          count: 0,
+          failed: 0,
+          lastAt: row.created_at,
+        };
+        entry.count += 1;
+        if (!row.ok) entry.failed += 1;
+        if (row.created_at > entry.lastAt) entry.lastAt = row.created_at;
+        people.set(email, entry);
+      }
+      return [...people.values()].sort((a, b) => b.count - a.count);
+    })(),
     topQueries: tally(rows.map((row) => row.query))
       .slice(0, 12)
       .map(({ value, count }) => ({ query: value, count })),
@@ -515,6 +547,8 @@ export async function usageSummary(windowHours = 24): Promise<UsageSummary> {
       callerId: row.caller_id,
       callerKind: row.caller_kind as Caller["kind"],
       callerLabel: row.caller_label || row.caller_id,
+      ownerEmail: row.owner_email,
+      plan: isPlan(row.plan) ? row.plan : undefined,
       app: row.app,
       kind: row.kind,
       query: row.query,
@@ -550,7 +584,19 @@ export interface ServiceKeyRow {
   lastUsedAt: string | null;
   revokedAt: string | null;
   callsTotal: number;
+  /** Who it was issued to. Null = one of the owner's own keys. */
+  ownerEmail: string | null;
+  /** Set the first time that person signs in with the address it was issued to. */
+  ownerUserId: string | null;
+  plan: Plan;
+  /** When it stops working, if the owner set an expiry. */
+  expiresAt: string | null;
+  note: string | null;
 }
+
+/** Every column a ServiceKeyRow is built from — named once so a select cannot drift. */
+const KEY_COLUMNS =
+  "id, name, prefix, scopes, per_minute, per_day, created_at, last_used_at, revoked_at, calls_total, owner_email, owner_user_id, plan, expires_at, note";
 
 interface RawKeyRow {
   id: string;
@@ -563,6 +609,11 @@ interface RawKeyRow {
   last_used_at: string | null;
   revoked_at: string | null;
   calls_total: number | null;
+  owner_email: string | null;
+  owner_user_id: string | null;
+  plan: string | null;
+  expires_at: string | null;
+  note: string | null;
 }
 
 function toKeyRow(raw: RawKeyRow): ServiceKeyRow {
@@ -577,6 +628,11 @@ function toKeyRow(raw: RawKeyRow): ServiceKeyRow {
     lastUsedAt: raw.last_used_at,
     revokedAt: raw.revoked_at,
     callsTotal: raw.calls_total ?? 0,
+    ownerEmail: raw.owner_email,
+    ownerUserId: raw.owner_user_id,
+    plan: isPlan(raw.plan) ? raw.plan : "owner",
+    expiresAt: raw.expires_at,
+    note: raw.note,
   };
 }
 
@@ -585,7 +641,7 @@ export async function listKeys(): Promise<ServiceKeyRow[]> {
   if (!db) return [];
   const { data } = await db
     .from("search_api_keys")
-    .select("id, name, prefix, scopes, per_minute, per_day, created_at, last_used_at, revoked_at, calls_total")
+    .select(KEY_COLUMNS)
     .order("created_at", { ascending: false });
   return ((data ?? []) as RawKeyRow[]).map(toKeyRow);
 }
@@ -597,6 +653,10 @@ export async function insertKey(row: {
   scopes: Scope[];
   perMinute: number;
   perDay: number;
+  ownerEmail?: string | null;
+  plan?: Plan;
+  expiresAt?: string | null;
+  note?: string | null;
 }): Promise<ServiceKeyRow | null> {
   const db = serviceClient();
   if (!db) return null;
@@ -609,8 +669,14 @@ export async function insertKey(row: {
       scopes: row.scopes,
       per_minute: row.perMinute,
       per_day: row.perDay,
+      // Lowercased on the way in: the lookup indexes are on lower(owner_email),
+      // and a key issued to "Sam@x.com" must be found by "sam@x.com".
+      owner_email: row.ownerEmail ? row.ownerEmail.trim().toLowerCase() : null,
+      plan: row.plan ?? "owner",
+      expires_at: row.expiresAt ?? null,
+      note: row.note ?? null,
     })
-    .select("id, name, prefix, scopes, per_minute, per_day, created_at, last_used_at, revoked_at, calls_total")
+    .select(KEY_COLUMNS)
     .single();
   if (error || !data) return null;
   return toKeyRow(data as RawKeyRow);
@@ -627,17 +693,56 @@ export async function revokeKey(id: string): Promise<boolean> {
   return !error;
 }
 
-/** Look a presented key up by its hash. Revoked keys resolve to null. */
+/**
+ * Look a presented key up by its hash. Revoked or expired keys resolve to null.
+ *
+ * Expiry is checked here as well as swept in the background, because the sweep
+ * is opportunistic and a key must stop working the moment it expires — not the
+ * next time something happens to run the sweep.
+ */
 export async function findKeyByHash(keyHash: string): Promise<ServiceKeyRow | null> {
   const db = serviceClient();
   if (!db) return null;
   const { data } = await db
     .from("search_api_keys")
-    .select("id, name, prefix, scopes, per_minute, per_day, created_at, last_used_at, revoked_at, calls_total")
+    .select(KEY_COLUMNS)
     .eq("key_hash", keyHash)
     .is("revoked_at", null)
     .maybeSingle();
-  return data ? toKeyRow(data as RawKeyRow) : null;
+  if (!data) return null;
+  const row = toKeyRow(data as RawKeyRow);
+  if (row.expiresAt && new Date(row.expiresAt).getTime() <= Date.now()) {
+    // Tidy it away so the dashboard shows it as revoked rather than live.
+    keepAlive(db.rpc("search_keys_expire"));
+    return null;
+  }
+  return row;
+}
+
+/** Every live key issued to one person, by the address it was issued to. */
+export async function listKeysForEmail(email: string): Promise<ServiceKeyRow[]> {
+  const db = serviceClient();
+  if (!db) return [];
+  const { data } = await db
+    .from("search_api_keys")
+    .select(KEY_COLUMNS)
+    .eq("owner_email", email.trim().toLowerCase())
+    .order("created_at", { ascending: false });
+  return ((data ?? []) as RawKeyRow[]).map(toKeyRow);
+}
+
+/**
+ * Attach any keys issued to this address to the account that just signed in.
+ *
+ * The owner issues a key before the person has an account — that is the normal
+ * order — so the link is made on their first sign-in. Never moves a key that
+ * already belongs to an account, so a second sign-up on the same address
+ * cannot take one over.
+ */
+export function claimKeysFor(email: string, userId: string): void {
+  const db = serviceClient();
+  if (!db) return;
+  keepAlive(db.rpc("search_key_claim", { p_email: email.trim().toLowerCase(), p_user_id: userId }));
 }
 
 /** Stamp last-used and bump the lifetime counter. Fire-and-forget. */

@@ -64,6 +64,54 @@ enough for the owner's own machines, which is all it is for.
 service key cannot mint another service key, and one caller cannot throw away
 every other caller's cache.
 
+## Giving someone else access
+
+The service is multi-tenant. A key is issued **to an email address**, carries
+its own ceiling, and can be set to expire.
+
+| Plan | Per minute | Per day | For |
+|---|---|---|---|
+| `owner` | 60 | 2000 | your own agents, crons and repos |
+| `member` | 20 | 500 | someone you have given access to |
+| `trial` | 5 | 50 | someone trying it out |
+
+A member's ceiling is deliberately not "slightly less than yours" — it is small
+enough that one person cannot empty a paid provider's balance on their own. All
+six numbers are overridable (`SEARCH_MEMBER_PER_DAY` and friends), and the owner
+can also set an explicit `perMinute`/`perDay` on one key to lift one person
+above their plan without inventing a fourth plan for them.
+
+**Issuing one.** In the console's Service keys panel, switch *For* from **me**
+to **member** or **trial**, give the address, optionally set an expiry, and
+Issue. The key is shown once; send it to them.
+
+A key issued to someone else can never land on the `owner` plan, even if the
+request asks for it — far more likely a mistake than an intention, and the cost
+of honouring it is your whole Tavily balance. That rule is
+`planForRecipient()` and it has its own test.
+
+**Keyed on the address, not the account.** You issue a key before the person
+has signed in — that is the normal order. The key attaches itself to their
+account the first time they sign in with that address, and never moves between
+accounts afterwards, so a second sign-up on the same address cannot take one
+over.
+
+**What they see.** `/apps/search-access` — reachable without the owner gate,
+because the people it exists for are by definition not the owner. Signed out it
+shows a sign-in prompt; signed in it shows what they hold, their ceiling, what
+they have used, and the lines that call the API. It never shows a key (there is
+nothing to show — keys are stored as hashes), never names a provider, and never
+hints that anyone else exists. A signed-in account with no key gets told to ask
+you for one; having a hub account is not the same as having been given access.
+
+**What you see.** The console's People panel: one row per person, their plan,
+their calls, their failures and when they last called. Usage rows carry the
+address, so that survives the key being revoked and replaced.
+
+**Revoking.** Revoke in the console and it stops working immediately. An
+expired key is treated as revoked at the moment it expires, not whenever a
+sweep next runs.
+
 ## Endpoints
 
 Every search endpoint takes the same body on `POST`, or the same fields as
@@ -78,7 +126,8 @@ query parameters on `GET` (`q` or `query`).
 | `GET /api/search/providers` | provider status, free, from what the last real searches learned |
 | `POST /api/search/providers` | probe them for real (`{"probeTavily": true}` to spend a credit on Tavily too) |
 | `GET /api/search/usage?hours=24` | totals, cache hit rate, latency percentiles, breakdowns |
-| `GET POST DELETE /api/search/keys` | list, mint, revoke — owner only |
+| `GET POST DELETE /api/search/keys` | list, issue, revoke — owner only |
+| `GET /api/search/account` | what the signed-in person holds — any account, not just the owner |
 | `DELETE /api/search/cache` | empty it — owner only |
 
 ### Request
@@ -262,6 +311,8 @@ On the **hub** (`.env.local` locally, Vercel in production):
 | `TAVILY_API_KEY` | no | the paid fallback, and advanced depth for research |
 | `SEARCH_ENABLE_DUCKDUCKGO` | no | on by default; `false` drops it from the chain |
 | `SEARCH_SERVICE_KEY` | no | one shared bearer token, for when there is no database yet |
+| `SEARCH_MEMBER_PER_MINUTE` / `_PER_DAY` | no | the `member` ceiling (20 / 500) |
+| `SEARCH_TRIAL_PER_MINUTE` / `_PER_DAY` | no | the `trial` ceiling (5 / 50) |
 | `SUPABASE_SERVICE_ROLE_KEY` | no | shared cache, service keys, rate limits, usage history |
 
 Tunables, all with sane defaults — `SEARCH_CACHE_TTL_SECONDS` (3600),
@@ -292,7 +343,13 @@ nothing at all and only the server, holding the service-role key, touches them.
 | `search_cache` | one row per distinct search, payload and all |
 | `search_api_keys` | name, prefix, SHA-256 hash, scopes, limits, call count |
 | `search_rate_counters` | one row per caller per window, bumped atomically by `search_rate_bump()` |
-| `search_usage` | one row per call — caller, app, provider, cached, ms, result count, error |
+| `search_usage` | one row per call — caller, the person it belongs to, app, provider, cached, ms, result count, error |
+
+`20261122140000_search_members.sql` adds the multi-tenant half: `owner_email`,
+`owner_user_id`, `plan` and `expires_at` on keys, the same two on usage rows, and
+`search_key_claim()` / `search_keys_expire()`. **Both migrations have to be applied
+before a key can be issued** — until then the console says so and disables the form
+rather than failing on submit.
 
 The rate limiter is a Postgres function rather than a read-then-write from the
 app, because ten parallel searches from one agent would otherwise all read the
@@ -318,12 +375,72 @@ before, and becoming a provider is all it took.
 | Profiles research | `lib/web/fetchPublic` → `lib/search/client` |
 | Money Agents — campaign finder | `lib/search/client` (`searchWeb`) |
 | Money Agents — Opportunity Radar | `lib/search/client` (`searchNews`), as the backup when the RSS feed fails |
+| BuildFlip 2 — material prices | `lib/buildflip-2/ai/web-context` → `research` (`extract: 2`), one search per material, `app: "buildflip-2/price"` |
+| BuildFlip 2 — sold comps | `lib/buildflip-2/ai/web-context` → `research` (`extract: 4`), two sold-listing queries, `app: "buildflip-2/comps"` |
+| TikTok Dances — the daily dance | `lib/dances/daily` → `searchNews` (`freshness: "week"`, web at a month as the floor), `app: "dances/daily"` |
 | the dashboard's test bench | `/api/search` — the same public endpoint an app uses |
 
-Two apps still have the model do their searching inline, through OpenRouter's
-web plugin rather than this service: **Buildflip 2** (live prices and sold
-comps) and **TikTok Dances** (the daily dance). That is a model feature rather
-than a search call — the model searches mid-generation and cites what it found
-— so moving them means restructuring the generation itself, which is a separate
-change with real behaviour risk. They are the remaining two, and they are
-deliberate.
+Nothing on this hub searches the web any other way. Both of the apps that used
+to — BuildFlip 2 and TikTok Dances, which passed OpenRouter's web plugin and a
+`:online` model id and let the MODEL search mid-generation — were restructured
+into search-then-generate on 2026-11-22: search here, read the pages, hand the
+model the text. A grep for `plugins: [{ id: "web"` or `:online` over `src/`
+returns nothing but the comments explaining their absence.
+
+### What the restructure changed, measured honestly
+
+Worth writing down, because "the model searches for itself" is a real feature
+and giving it up has to buy something.
+
+**BuildFlip 2 came out better**, for one reason that matters more than the rest:
+the URLs. Its prompts used to have to *beg* the model not to produce a
+plausible-looking product URL it had never seen, because only the model knew
+what it had looked at and nothing could check. Now every citable URL came out of
+a search response, and `allowedUrl` drops anything that is not one — so a buy
+link on a plan either resolves or is not shown, which is the whole promise of
+the app. A price is also a figure that lives *inside* a product page rather than
+in a snippet, so `extract` on the top two results per material reads better than
+the plugin's result list did. It costs more searches (one per material, capped
+at 16, four at a time) but they are free on SearXNG, shared through the cache,
+and the model call drops from a search-premium model to a plain completion that
+any provider in the hub's retry ladder can serve — the old body carried an
+OpenRouter-only field, so a retry onto the gateway failed the plan outright.
+
+**TikTok Dances is roughly even**, and the one place to watch. One model that
+searches as it answers is genuinely good at "what is trending this week", and a
+news search plus a cheap reader is a slightly blunter instrument: it depends on
+a dance having been *written about*, where the model's own search could surface
+a video or a post. What makes it acceptable is that the app never trusted the
+model's answer anyway — every name goes through `resolveVideo`, the same gate
+the seed passed, so a bad name dies before it reaches the vault — and the
+keyless YouTube path is still there underneath, which is a different slice of
+the internet and needs no key at all. It is cheaper, it is cached, and it is in
+the usage log. If a month of picks come back thin, the honest fix is a better
+query or Tavily's news depth, not a search model back inside the generation.
+
+**Two things the first live run taught us**, both now fixed in BuildFlip rather
+than assumed away. DuckDuckGo's results can lead with a sponsored
+click-through — `duckduckgo.com/y.js?ad_domain=amazon.com&…`, 1,200 characters
+of tracking — and left alone that becomes a "buy link" on a plan and eats the
+item's character budget, so `usable()` in `web-context.ts` drops search-engine
+and ad hosts and anything over 400 characters before the model sees it. (The
+cleaner home for that is the DuckDuckGo adapter itself; it is filtered
+app-side for now.) And a model asked to *explain* an estimate writes long: a
+300-character `note` and a 700-character `marketNote` each threw a ZodError
+that cost the whole pass its answer, so `schema.ts` now trims those fields
+instead of rejecting them. One chatty sentence must not cost a plan its prices.
+
+**On a machine with no SearXNG, expect the degrade path.** DuckDuckGo
+rate-limits after a handful of queries — sixteen material searches is well past
+that — and its answer is then an empty page, which the chain reports as every
+provider having failed. That is the whole argument for `SEARXNG_URL` being the
+one required variable: without it these two apps work, but mostly by degrading.
+
+**Both degrade instead of throwing.** `research` and `searchNews` raise on a
+dead provider chain; every call site here catches that and carries on with an
+empty context. BuildFlip then prices from market knowledge with every row
+marked low-confidence, no URL, and a line on the plan saying these are
+estimates rather than today's shelf prices — it does not fall to the demo
+catalog, because the spec is real. Comps come back empty with a market note,
+and the existing rule that an empty answer never overwrites comps already held
+does the rest. Dances hands the day to the keyless YouTube path.

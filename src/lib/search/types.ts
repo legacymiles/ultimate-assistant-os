@@ -164,17 +164,30 @@ export class SearchError extends Error {
 
 /** Who is calling, resolved before anything is spent on their behalf. */
 export interface Caller {
-  /** `key` for a service key, `session` for the signed-in owner in a browser. */
+  /** `key` for a service key, `session` for a signed-in person in a browser. */
   kind: "key" | "session";
   /** Stable id used for rate-limit buckets and usage rows. */
   id: string;
-  /** Shown in the dashboard: the key's name, or the owner's email. */
+  /** Shown in the dashboard: the key's name, or the person's email. */
   label: string;
   perMinute: number;
   perDay: number;
   /** What this caller may do. A key can be read-only on extraction, say. */
   scopes: Scope[];
+  /**
+   * Which plan's ceiling applies. `owner` is the hub owner's own agents;
+   * `member` and `trial` are people the owner has given access to.
+   */
+  plan: Plan;
+  /**
+   * The person a key was issued to, when it was issued to someone. Null for
+   * the owner's own keys. Carried onto every usage row so "what is this member
+   * costing me" survives the key being revoked and replaced.
+   */
+  ownerEmail: string | null;
 }
+
+export type Plan = "owner" | "member" | "trial";
 
 export type Scope = "search" | "extract" | "admin";
 

@@ -14,20 +14,36 @@ import { Copy, KeyRound, Plus, Trash2 } from "lucide-react";
 import type { ServiceKeyRow } from "@/lib/search/store";
 import { Button, Chip, Empty, Panel, ago } from "./shared";
 
+export interface PlanLimit {
+  plan: string;
+  perMinute: number;
+  perDay: number;
+}
+
+/** The ceiling for a plan, so the form can say what a key will allow before it exists. */
+function planFor(plans: PlanLimit[], plan: string): PlanLimit | undefined {
+  return plans.find((entry) => entry.plan === plan);
+}
+
 export function KeysPanel({
   keys,
   storageShared,
   defaults,
+  plans,
   onChange,
 }: {
   keys: ServiceKeyRow[];
   storageShared: boolean;
   defaults: { perMinute: number; perDay: number };
+  plans: PlanLimit[];
   onChange: () => void;
 }) {
   const [name, setName] = useState("");
+  const [forEmail, setForEmail] = useState("");
+  const [plan, setPlan] = useState<"owner" | "member" | "trial">("owner");
+  const [expiresInDays, setExpiresInDays] = useState(0);
   const [minting, setMinting] = useState(false);
-  const [fresh, setFresh] = useState<{ key: string; name: string } | null>(null);
+  const [fresh, setFresh] = useState<{ key: string; name: string; forEmail: string | null } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
 
@@ -39,15 +55,21 @@ export function KeysPanel({
       const response = await fetch("/api/search/keys", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: name.trim() }),
+        body: JSON.stringify({
+          name: name.trim(),
+          ownerEmail: plan === "owner" ? null : forEmail.trim(),
+          plan,
+          expiresInDays: expiresInDays > 0 ? expiresInDays : null,
+        }),
       });
       const payload = (await response.json()) as { key?: string; error?: string };
       if (!response.ok || !payload.key) {
         setError(payload.error ?? `The service returned ${response.status}.`);
         return;
       }
-      setFresh({ key: payload.key, name: name.trim() });
+      setFresh({ key: payload.key, name: name.trim(), forEmail: plan === "owner" ? null : forEmail.trim() });
       setName("");
+      setForEmail("");
       onChange();
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Minting the key failed.");
@@ -96,20 +118,84 @@ export function KeysPanel({
         </p>
       ) : null}
 
-      <div className="flex flex-wrap items-center gap-2 border-b border-line-soft p-3">
-        <input
-          value={name}
-          onChange={(event) => setName(event.target.value)}
-          onKeyDown={(event) => {
-            if (event.key === "Enter") void mint();
-          }}
-          placeholder="What is it for? e.g. jarvis-harness, money-agents cron"
-          disabled={!storageShared}
-          className="min-w-0 flex-1 rounded-md border border-line bg-canvas px-2.5 py-1.5 text-[12px] text-ink placeholder:text-ink-faint focus:border-brand focus:outline-none disabled:opacity-45"
-        />
-        <Button variant="primary" onClick={mint} disabled={!storageShared || !name.trim() || minting}>
-          <Plus size={11} aria-hidden /> {minting ? "Issuing…" : "Issue key"}
-        </Button>
+      <div className="border-b border-line-soft p-3">
+        <div className="flex flex-wrap items-center gap-2">
+          <input
+            value={name}
+            onChange={(event) => setName(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === "Enter") void mint();
+            }}
+            placeholder="What is it for? e.g. jarvis-harness, Sam's research bot"
+            disabled={!storageShared}
+            className="min-w-0 flex-1 rounded-md border border-line bg-canvas px-2.5 py-1.5 text-[12px] text-ink placeholder:text-ink-faint focus:border-brand focus:outline-none disabled:opacity-45"
+          />
+          <Button
+            variant="primary"
+            onClick={mint}
+            disabled={!storageShared || !name.trim() || (plan !== "owner" && !forEmail.trim()) || minting}
+          >
+            <Plus size={11} aria-hidden /> {minting ? "Issuing…" : "Issue key"}
+          </Button>
+        </div>
+
+        <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-2">
+          <div className="flex items-center gap-1.5">
+            <span className="text-[11.5px] text-ink-muted">For</span>
+            <div className="flex items-center gap-0.5 rounded-md border border-line p-0.5">
+              {(["owner", "member", "trial"] as const).map((option) => (
+                <button
+                  key={option}
+                  type="button"
+                  onClick={() => setPlan(option)}
+                  disabled={!storageShared}
+                  className={`rounded-[4px] px-2 py-[2px] text-[10.5px] font-medium tracking-wide transition max-sm:min-h-[32px] max-sm:px-3 ${
+                    plan === option ? "bg-brand-2 text-white" : "text-ink-muted hover:text-ink"
+                  }`}
+                >
+                  {option === "owner" ? "me" : option}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {plan !== "owner" ? (
+            <>
+              <input
+                value={forEmail}
+                onChange={(event) => setForEmail(event.target.value)}
+                type="email"
+                placeholder="their email address"
+                disabled={!storageShared}
+                className="min-w-0 flex-1 rounded-md border border-line bg-canvas px-2.5 py-1 font-mono text-[11.5px] text-ink placeholder:text-ink-faint focus:border-brand focus:outline-none max-sm:min-h-[32px]"
+              />
+              <label className="flex items-center gap-1.5 text-[11.5px] text-ink-muted">
+                Expires
+                <select
+                  value={expiresInDays}
+                  onChange={(event) => setExpiresInDays(Number(event.target.value))}
+                  className="rounded-[4px] border border-line bg-canvas px-1.5 py-[2px] font-mono text-[11.5px] text-ink max-sm:min-h-[32px]"
+                >
+                  <option value={0}>never</option>
+                  <option value={7}>in 7 days</option>
+                  <option value={30}>in 30 days</option>
+                  <option value={90}>in 90 days</option>
+                </select>
+              </label>
+            </>
+          ) : null}
+        </div>
+
+        {plan !== "owner" ? (
+          <p className="mt-2 text-[11.5px] leading-snug text-ink-faint">
+            Issued to an address, not an account — they may not have one yet. When they sign in with
+            that address at <code className="font-mono text-ink-muted">/apps/search-access</code> the key
+            appears there, with what it allows and how to call it.{" "}
+            {planFor(plans, plan)
+              ? `A ${plan} key is capped at ${planFor(plans, plan)!.perMinute}/min and ${planFor(plans, plan)!.perDay}/day.`
+              : ""}
+          </p>
+        ) : null}
       </div>
 
       {error ? (
@@ -121,6 +207,7 @@ export function KeysPanel({
           <p className="text-[12px] font-medium text-ink">
             <KeyRound size={11} className="mr-1 inline" aria-hidden />
             {fresh.name} — copy this now
+            {fresh.forEmail ? <span className="font-normal text-ink-muted"> and send it to {fresh.forEmail}</span> : null}
           </p>
           <p className="mt-0.5 text-[11.5px] leading-snug text-ink-faint">
             It&rsquo;s stored as a hash, so this is the only time it can be shown. Lose it and you revoke
@@ -146,8 +233,9 @@ export function KeysPanel({
           <thead className="bg-panel-2">
             <tr className="text-[10.5px] font-medium uppercase tracking-wide text-ink-muted">
               <th className="px-3 py-1.5 font-medium">Name</th>
+              <th className="px-2 py-1.5 font-medium">For</th>
               <th className="px-2 py-1.5 font-medium">Key</th>
-              <th className="px-2 py-1.5 font-medium">Can</th>
+              <th className="px-2 py-1.5 font-medium">Allows</th>
               <th className="px-2 py-1.5 text-right font-medium">Calls</th>
               <th className="px-2 py-1.5 text-right font-medium">Last used</th>
               <th className="px-3 py-1.5 text-right font-medium">
@@ -158,14 +246,28 @@ export function KeysPanel({
           <tbody className="divide-y divide-line-soft">
             {live.map((row) => (
               <tr key={row.id}>
-                <td className="px-3 py-1.5 text-[12px] text-ink">{row.name}</td>
-                <td className="px-2 py-1.5 font-mono text-[11.5px] text-ink-faint">{row.prefix}…</td>
+                <td className="px-3 py-1.5 text-[12px] text-ink">
+                  {row.name}
+                  {row.expiresAt ? (
+                    <span className="ml-1.5">
+                      <Chip tone="warn">expires {new Date(row.expiresAt).toLocaleDateString()}</Chip>
+                    </span>
+                  ) : null}
+                </td>
                 <td className="px-2 py-1.5">
-                  <span className="flex flex-wrap gap-1">
-                    {row.scopes.map((scope) => (
-                      <Chip key={scope}>{scope}</Chip>
-                    ))}
-                  </span>
+                  {row.ownerEmail ? (
+                    <span className="flex flex-wrap items-center gap-1">
+                      <span className="font-mono text-[11.5px] text-ink-muted">{row.ownerEmail}</span>
+                      <Chip tone={row.plan === "trial" ? "warn" : "brand"}>{row.plan}</Chip>
+                      {row.ownerUserId ? null : <Chip>not signed in yet</Chip>}
+                    </span>
+                  ) : (
+                    <span className="text-[11.5px] text-ink-faint">you</span>
+                  )}
+                </td>
+                <td className="px-2 py-1.5 font-mono text-[11.5px] text-ink-faint">{row.prefix}…</td>
+                <td className="px-2 py-1.5 font-mono text-[11.5px] tabular-nums text-ink-faint">
+                  {row.perMinute}/min · {row.perDay}/day
                 </td>
                 <td className="px-2 py-1.5 text-right font-mono text-[11.5px] tabular-nums text-ink-muted">
                   {row.callsTotal.toLocaleString()}

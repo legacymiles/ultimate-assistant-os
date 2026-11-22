@@ -53,6 +53,8 @@ async function run(request: Request, urls: string[], app: string | null): Promis
     callerId: caller.id,
     callerKind: caller.kind,
     callerLabel: caller.label,
+    ownerEmail: caller.ownerEmail,
+    plan: caller.plan,
     app,
     kind: "extract",
     query: urls[0],

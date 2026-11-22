@@ -22,7 +22,7 @@
 // on the next deploy in production without a code change.
 // ---------------------------------------------------------------------------
 
-import type { EndpointLocation, SearchKind } from "./types";
+import type { EndpointLocation, Plan, SearchKind } from "./types";
 
 /** Every provider the service knows how to speak to. */
 export type ProviderId = "searxng" | "duckduckgo" | "tavily";
@@ -251,6 +251,48 @@ export const SEARCH_LIMITS = {
     return num("SEARCH_EXTRACT_CONCURRENCY", 3);
   },
 } as const;
+
+/**
+ * What a key is allowed to do, by who it was issued to.
+ *
+ * Three, because there are three real answers: the owner's own agents, someone
+ * the owner has given access to, and someone trying it out. The numbers are
+ * deliberately far apart — a member's ceiling is not "slightly less than the
+ * owner's", it is small enough that one person cannot empty a Tavily balance.
+ *
+ * Each is overridable by environment, so raising a member's allowance is a
+ * config change rather than a deploy of new code.
+ */
+export const PLANS: Plan[] = ["owner", "member", "trial"];
+
+export function planLimits(plan: Plan): { perMinute: number; perDay: number } {
+  switch (plan) {
+    case "member":
+      return {
+        perMinute: num("SEARCH_MEMBER_PER_MINUTE", 20),
+        perDay: num("SEARCH_MEMBER_PER_DAY", 500),
+      };
+    case "trial":
+      return {
+        perMinute: num("SEARCH_TRIAL_PER_MINUTE", 5),
+        perDay: num("SEARCH_TRIAL_PER_DAY", 50),
+      };
+    default:
+      return { perMinute: SEARCH_LIMITS.perMinute, perDay: SEARCH_LIMITS.perDay };
+  }
+}
+
+/** What a plan may do. Only the owner's own keys may read usage or status. */
+export function planScopes(plan: Plan): ("search" | "extract")[] {
+  // Every plan searches and reads pages — that is the product. The difference
+  // between them is how much, not what.
+  void plan;
+  return ["search", "extract"];
+}
+
+export function isPlan(value: unknown): value is Plan {
+  return typeof value === "string" && (PLANS as string[]).includes(value);
+}
 
 /** Default result count per kind. */
 export function defaultLimit(kind: SearchKind): number {

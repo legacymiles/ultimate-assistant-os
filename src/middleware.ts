@@ -124,6 +124,12 @@ const TOKEN_AUTH_PATHS = new Set([
   "/api/search/extract",
   "/api/search/providers",
   "/api/search/usage",
+  // A member's own page. Reachable by ANY signed-in account, not just the
+  // owner, so the owner-only gate below would lock out exactly the people it
+  // exists for. The route resolves the session itself and only ever returns
+  // that person's own keys and their own usage — never the provider list,
+  // never anyone else's keys.
+  "/api/search/account",
 ]);
 
 /** Stamp (or clear) the account id the browser is allowed to render as. */

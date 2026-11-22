@@ -108,4 +108,41 @@ describe("the downloads folder", () => {
     expect(routeAccess("/apps/baby-no-scroll/manifest.webmanifest/x", none)).toBe("owner");
     expect(routeAccess("/baby-no-scroll-sw.js", none)).toBe("public");
   });
+  it("lets anyone reach the page where a search-key holder finds their key", () => {
+    // The people this page exists for are by definition NOT the owner, so an
+    // owner gate here would bounce every one of them to Friends Night Out.
+    // Signed out it shows a sign-in prompt and nothing else.
+    expect(routeAccess("/apps/search-access", none)).toBe("public");
+  });
+
+  it("keeps the owner's search console and its admin routes owner-only", () => {
+    // The console names the provider hostnames and lists everyone's keys.
+    expect(routeAccess("/apps/search-infrastructure", none)).toBe("owner");
+    expect(routeAccess("/api/search/keys", none)).toBe("owner");
+    expect(routeAccess("/api/search/cache", none)).toBe("owner");
+    // The member page is an exact path, so nothing beneath it rides along.
+    expect(routeAccess("/apps/search-access/anything", none)).toBe("owner");
+    expect(routeAccess("/apps/search-access-2", none)).toBe("owner");
+  });
+
+  it("exempts the search endpoints from the session gate, by exact path only", () => {
+    // They are token-authenticated: agents and crons are not browsers and have
+    // no session here. Each verifies the key in the route.
+    const search = new Set([
+      "/api/search",
+      "/api/search/news",
+      "/api/search/research",
+      "/api/search/extract",
+      "/api/search/providers",
+      "/api/search/usage",
+      "/api/search/account",
+    ]);
+    for (const path of search) expect(routeAccess(path, search)).toBe("token");
+    // Minting a credential is never token-authenticated, so a leaked agent key
+    // can spend quota and never issue more.
+    expect(routeAccess("/api/search/keys", search)).toBe("owner");
+    expect(routeAccess("/api/search/cache", search)).toBe("owner");
+    // Exempt by exact match: nothing underneath an exempt path rides along.
+    expect(routeAccess("/api/search/account/all", search)).toBe("owner");
+  });
 });

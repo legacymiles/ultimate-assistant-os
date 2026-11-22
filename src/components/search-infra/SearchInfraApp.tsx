@@ -16,7 +16,7 @@ import Link from "next/link";
 import { ArrowLeft, Database, RefreshCw, Trash2 } from "lucide-react";
 import type { ServiceKeyRow, UsageSummary } from "@/lib/search/store";
 import type { ProviderStatus, SearchResponse } from "@/lib/search/types";
-import { KeysPanel } from "./KeysPanel";
+import { KeysPanel, type PlanLimit } from "./KeysPanel";
 import { RoutingRail } from "./RoutingRail";
 import { TestBench } from "./TestBench";
 import { UsagePanel } from "./UsagePanel";
@@ -37,6 +37,7 @@ export function SearchInfraApp() {
   const [usage, setUsage] = useState<UsageSummary | null>(null);
   const [keys, setKeys] = useState<ServiceKeyRow[]>([]);
   const [keyDefaults, setKeyDefaults] = useState({ perMinute: 60, perDay: 2000 });
+  const [plans, setPlans] = useState<PlanLimit[]>([]);
   const [hours, setHours] = useState(24);
   const [probing, setProbing] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -76,9 +77,11 @@ export function SearchInfraApp() {
       const payload = (await response.json()) as {
         keys: ServiceKeyRow[];
         defaults: { perMinute: number; perDay: number };
+        plans?: PlanLimit[];
       };
       setKeys(payload.keys ?? []);
       if (payload.defaults) setKeyDefaults(payload.defaults);
+      if (payload.plans) setPlans(payload.plans);
     } catch {
       /* The keys panel says so itself when storage is missing. */
     }
@@ -271,6 +274,7 @@ export function SearchInfraApp() {
           keys={keys}
           storageShared={report?.storage.shared ?? false}
           defaults={keyDefaults}
+          plans={plans}
           onChange={loadKeys}
         />
 

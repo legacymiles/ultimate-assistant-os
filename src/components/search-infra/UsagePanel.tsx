@@ -108,6 +108,50 @@ export function UsagePanel({
         />
       </div>
 
+      <Panel
+        title="People"
+        hint="Everyone holding a key, and what they've used. Your own apps are grouped as “you”."
+      >
+        {usage && usage.byPerson.length > 0 ? (
+          <table className="w-full border-collapse text-left">
+            <thead className="bg-panel-2">
+              <tr className="text-[10.5px] font-medium uppercase tracking-wide text-ink-muted">
+                <th className="px-3 py-1.5 font-medium">Who</th>
+                <th className="px-2 py-1.5 font-medium">Plan</th>
+                <th className="px-2 py-1.5 text-right font-medium">Calls</th>
+                <th className="px-2 py-1.5 text-right font-medium">Failed</th>
+                <th className="px-3 py-1.5 text-right font-medium">Last</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-line-soft">
+              {usage.byPerson.map((person) => (
+                <tr key={person.email}>
+                  <td className="px-3 py-1.5 font-mono text-[11.5px] text-ink">{person.email}</td>
+                  <td className="px-2 py-1.5">
+                    <Chip tone={person.plan === "trial" ? "warn" : person.plan === "member" ? "brand" : "muted"}>
+                      {person.plan}
+                    </Chip>
+                  </td>
+                  <td className="px-2 py-1.5 text-right font-mono text-[11.5px] tabular-nums text-ink">
+                    {person.count.toLocaleString()}
+                  </td>
+                  <td className="px-2 py-1.5 text-right font-mono text-[11.5px] tabular-nums">
+                    <span className={person.failed > 0 ? "text-[#f87171]" : "text-ink-faint"}>
+                      {person.failed}
+                    </span>
+                  </td>
+                  <td className="whitespace-nowrap px-3 py-1.5 text-right text-[11.5px] text-ink-faint">
+                    {ago(person.lastAt)}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        ) : (
+          <Empty>Nothing in this window. Issue someone a key and their calls land here.</Empty>
+        )}
+      </Panel>
+
       <div className="grid gap-3 lg:grid-cols-2">
         <Panel title="Most asked" hint="Repeats here are what the cache is for">
           {usage && usage.topQueries.length > 0 ? (

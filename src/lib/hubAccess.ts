@@ -49,6 +49,26 @@ export const LEGAL_PAGES = "/legal";
  */
 export const AI_RANKINGS_PUBLIC = ["/apps/ai-rankings", "/api/ai-rankings/board"];
 
+/**
+ * Where someone the owner gave a search key goes to find it.
+ *
+ * Public as a ROUTE, not as a page with anything on it: signed out it shows a
+ * sign-in prompt and nothing else, and signed in it fetches
+ * /api/search/account, which returns only that person's own keys and usage.
+ * It has to be reachable without the owner gate, because the people it exists
+ * for are by definition not the owner — the alternative is bouncing every
+ * member to Friends Night Out.
+ *
+ * The owner's console stays at /apps/search-infrastructure, owner-only like
+ * the rest of the hub.
+ *
+ * EXACT, not a prefix. It is one page with nothing beneath it, and a prefix
+ * also opens everything that merely starts with it — the same reasoning that
+ * keeps the crash-reporter script and the install manifests out of the prefix
+ * list. Adding a second member page means adding a second exact path here.
+ */
+export const SEARCH_MEMBER_PUBLIC = ["/apps/search-access"];
+
 const PUBLIC_PREFIXES = [
   PUBLIC_HOME,
   "/api/fno",
@@ -78,7 +98,7 @@ export const INSTALL_PUBLIC = [
   "/baby-no-scroll-sw.js",
 ];
 
-const PUBLIC_EXACT = [ERROR_SCRIPT, ...INSTALL_PUBLIC];
+const PUBLIC_EXACT = [ERROR_SCRIPT, ...INSTALL_PUBLIC, ...SEARCH_MEMBER_PUBLIC];
 const AUTH_PREFIXES = ["/login", "/auth"];
 
 function underPrefix(path: string, prefix: string): boolean {

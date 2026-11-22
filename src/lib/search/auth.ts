@@ -20,9 +20,9 @@
 import "server-only";
 
 import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
-import { SEARCH_LIMITS } from "./config";
-import { findKeyByHash, insertKey, touchKey } from "./store";
-import { type Caller, type Scope, SearchError } from "./types";
+import { SEARCH_LIMITS, planLimits } from "./config";
+import { claimKeysFor, findKeyByHash, insertKey, listKeysForEmail, touchKey } from "./store";
+import { type Caller, type Plan, type Scope, SearchError } from "./types";
 import { isOwner, parseOwnerEmails } from "@/lib/hubAccess";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
 
@@ -54,16 +54,35 @@ export async function createServiceKey(options: {
   scopes?: Scope[];
   perMinute?: number;
   perDay?: number;
+  /** Issue it TO someone. Omitted = one of the owner's own keys. */
+  ownerEmail?: string | null;
+  plan?: Plan;
+  /** Days until it stops working. Omitted = no expiry. */
+  expiresInDays?: number | null;
+  note?: string | null;
 }): Promise<{ key: string; row: NonNullable<Awaited<ReturnType<typeof insertKey>>> }> {
   const name = options.name.trim().slice(0, 80) || "Unnamed key";
   const key = mintKeyString();
+  const plan = planForRecipient(options.ownerEmail, options.plan);
+  const limits = planLimits(plan);
+  const expiresAt =
+    options.expiresInDays && options.expiresInDays > 0
+      ? new Date(Date.now() + options.expiresInDays * 86_400_000).toISOString()
+      : null;
+
   const row = await insertKey({
     name,
     prefix: keyPrefixOf(key),
     keyHash: hashKey(key),
     scopes: options.scopes?.length ? options.scopes : ["search", "extract"],
-    perMinute: options.perMinute ?? SEARCH_LIMITS.perMinute,
-    perDay: options.perDay ?? SEARCH_LIMITS.perDay,
+    // An explicit number wins, so the owner can raise one person above their
+    // plan without inventing a fourth plan for them.
+    perMinute: options.perMinute ?? limits.perMinute,
+    perDay: options.perDay ?? limits.perDay,
+    ownerEmail: options.ownerEmail ?? null,
+    plan,
+    expiresAt,
+    note: options.note ?? null,
   });
   if (!row) {
     throw new SearchError(
@@ -72,6 +91,26 @@ export async function createServiceKey(options: {
     );
   }
   return { key, row };
+}
+
+/**
+ * Which plan a new key lands on.
+ *
+ * A key issued TO someone defaults to `member`, never to the owner's own
+ * allowance — getting this backwards would hand a stranger the whole Tavily
+ * balance, so the default follows who it is for rather than what was passed.
+ * Exported and pure because it is the one rule here worth a test of its own.
+ */
+export function planForRecipient(ownerEmail: string | null | undefined, asked?: Plan): Plan {
+  // An explicit `owner` plan on a key issued to someone else is refused rather
+  // than honoured: it is far more likely to be a mistake than an intention.
+  if (ownerEmail && (!asked || asked === "owner")) return "member";
+  if (!ownerEmail && asked && asked !== "owner") {
+    // A member/trial plan with nobody to give it to is also a mistake, but the
+    // route catches that earlier with a clearer message; default safely here.
+    return asked;
+  }
+  return asked ?? "owner";
 }
 
 /** Constant-time compare, so a wrong key leaks nothing through timing. */
@@ -129,6 +168,8 @@ export async function resolveCaller(request: Request): Promise<Caller> {
         perMinute: SEARCH_LIMITS.perMinute,
         perDay: SEARCH_LIMITS.perDay,
         scopes: ["search", "extract"],
+        plan: "owner",
+        ownerEmail: null,
       };
     }
 
@@ -147,6 +188,8 @@ export async function resolveCaller(request: Request): Promise<Caller> {
       perMinute: row.perMinute,
       perDay: row.perDay,
       scopes: row.scopes,
+      plan: row.plan,
+      ownerEmail: row.ownerEmail,
     };
   }
 
@@ -163,6 +206,8 @@ export async function resolveCaller(request: Request): Promise<Caller> {
       perMinute: SEARCH_LIMITS.perMinute,
       perDay: SEARCH_LIMITS.perDay,
       scopes: ["search", "extract", "admin"],
+      plan: "owner",
+      ownerEmail: null,
     };
   }
 
@@ -176,7 +221,37 @@ export async function resolveCaller(request: Request): Promise<Caller> {
     );
   }
   if (!isOwner(user.email, parseOwnerEmails(process.env.HUB_OWNER_EMAILS))) {
-    throw new SearchError("This endpoint is private.", { status: 403, code: "not_owner" });
+    // A signed-in person who is not the owner used to be refused outright.
+    // Now they are a member — but only if the owner has actually issued them a
+    // key. Having a hub account is not the same as having been given access to
+    // the owner's search providers, and conflating the two would open the
+    // service to anyone who can sign up.
+    const email = user.email ?? "";
+    const keys = email ? await listKeysForEmail(email) : [];
+    const live = keys.filter((key) => !key.revokedAt);
+    if (live.length === 0) {
+      throw new SearchError(
+        "You don't have access to this search service yet. Ask the owner to issue you a key.",
+        { status: 403, code: "no_access" },
+      );
+    }
+    // First sign-in after being issued a key: link the keys to this account so
+    // their own page can find them by account rather than by address.
+    if (live.some((key) => !key.ownerUserId)) claimKeysFor(email, user.id);
+
+    // The most generous live key they hold decides their ceiling — holding two
+    // keys should not mean being limited by the weaker one.
+    const best = live.reduce((a, b) => (b.perDay > a.perDay ? b : a));
+    return {
+      kind: "session",
+      id: `user:${user.id}`,
+      label: email || "Member",
+      perMinute: best.perMinute,
+      perDay: best.perDay,
+      scopes: best.scopes.filter((scope) => scope !== "admin"),
+      plan: best.plan,
+      ownerEmail: email.toLowerCase(),
+    };
   }
 
   return {
@@ -186,6 +261,34 @@ export async function resolveCaller(request: Request): Promise<Caller> {
     perMinute: SEARCH_LIMITS.perMinute,
     perDay: SEARCH_LIMITS.perDay,
     scopes: ["search", "extract", "admin"],
+    plan: "owner",
+    ownerEmail: null,
+  };
+}
+
+/**
+ * The signed-in person, whoever they are, for the member's own page.
+ *
+ * Separate from resolveCaller because that one answers "may you spend my
+ * search quota", and this one answers "who are you, so I can show you your own
+ * keys" — a person with no key yet must reach the second without passing the
+ * first, or they can never see the page that tells them they have no key.
+ */
+export async function requireSignedIn(): Promise<{ id: string; email: string; isOwner: boolean }> {
+  const supabase = await getSupabaseServerClient();
+  if (!supabase) {
+    return { id: "local:dev", email: "local@dev", isOwner: true };
+  }
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) {
+    throw new SearchError("Sign in to see your key.", { status: 401, code: "no_auth" });
+  }
+  return {
+    id: user.id,
+    email: (user.email ?? "").toLowerCase(),
+    isOwner: isOwner(user.email, parseOwnerEmails(process.env.HUB_OWNER_EMAILS)),
   };
 }
 

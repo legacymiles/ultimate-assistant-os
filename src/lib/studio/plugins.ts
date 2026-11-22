@@ -50,6 +50,7 @@ export const PLUGIN_SLUGS = [
   "workflow-maker",
   "custom-video-swap",
   "buildflip-2",
+  "search-infrastructure",
 ] as const;
 
 /**
@@ -146,6 +147,12 @@ function firstSentence(text: string): string {
 }
 
 const WHY: Record<string, string> = {
+  "search-infrastructure":
+    "The one plugin every other plugin uses without knowing it. Each of these searches the web at some "
+    + "point — for a price, a campaign, a headline, a fact — and none of them holds a provider or a key: "
+    + "they all call this, which tries your own SearXNG first and only reaches a paid provider when "
+    + "nothing you run is up. Come here to see which instance is answering, what every app has been "
+    + "spending, and to hand someone a key of their own.",
   "money-agent-studio":
     "Agents that make videos that make money: clip the best moments out of long videos, run faceless channels, and work paid "
     + "clipping campaigns. Your PC makes them, you approve every one, Personas Studio posts them, and the money shows in Financial Bible.",

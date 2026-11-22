@@ -52,6 +52,10 @@ function internalCaller(app: string | undefined): Caller {
     perMinute: Math.max(SEARCH_LIMITS.perMinute, 120),
     perDay: Math.max(SEARCH_LIMITS.perDay, 5000),
     scopes: ["search", "extract"],
+    // The hub calling its own service on its own providers: the owner's plan,
+    // and no person to bill it to.
+    plan: "owner",
+    ownerEmail: null,
   };
 }
 

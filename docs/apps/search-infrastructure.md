@@ -68,6 +68,20 @@ Full API reference: [`docs/search-api.md`](../search-api.md). SearXNG install:
   and a pulse that replays the last test search along the path it travelled.
 - **Test bench** — runs a real search against the same public endpoint an app uses, with the
   provider pinnable and the cache skippable, and shows the attempts that drive the rail.
+- **Keys that belong to people** — a key is issued to an email address with its own plan
+  (`owner` / `member` / `trial`), its own per-minute and per-day ceiling, and an optional expiry.
+  A member's ceiling is far below the owner's on purpose: small enough that one person cannot
+  empty a paid provider's balance. A key issued to someone else can never land on the owner plan
+  even if the request asks for it.
+- **Issued before they have an account** — the key attaches to their Supabase account the first
+  time they sign in with the address it was issued to, and never moves between accounts after
+  that, so a second sign-up on the same address cannot take one over.
+- **A member's own page** (`/apps/search-access`) — reachable without the owner gate, because the
+  people it exists for are by definition not the owner. Shows what they hold, their ceiling, what
+  they have used and how to call the API. Never a key, never a provider name, never a hint that
+  anyone else exists.
+- **The People panel** — one row per person holding a key: plan, calls, failures, last seen. Usage
+  rows carry the address, so it survives the key being revoked and replaced.
 - **Demo mode that is honest** — with no Supabase service-role key the service still searches and
   still caches; the dashboard says the cache and counters are per-instance and keys cannot be
   issued, rather than failing oddly.
@@ -88,15 +102,26 @@ Full API reference: [`docs/search-api.md`](../search-api.md). SearXNG install:
   owner-session only, and stay out of middleware's token-auth list.
 - **`searchWeb` in `fetchPublic` never throws.** Both callers are AI tool loops where a thrown
   error fails a whole turn but an empty result lets the model try another way.
+- **A key issued to someone else is never on the owner plan.** `planForRecipient()` enforces it
+  and has its own test; honouring an explicit `owner` on a key for another address would hand a
+  stranger the whole paid-provider balance.
+- **`/apps/search-access` stays an EXACT public path**, never a prefix — a prefix opens everything
+  beneath it. The owner's console at `/apps/search-infrastructure` stays owner-only.
+- **`/api/search/account` returns only the caller's own keys and usage.** Never the provider list
+  (it would leak the VPS hostname), never anyone else's keys.
+- **A hub account is not access.** A signed-in non-owner is a caller only if the owner has issued
+  them a key; otherwise they are told to ask for one.
 - **The SearXNG 403 keeps its own message.** "Add json to the formats list" rather than "the VPS is
   down" — it is the mistake everybody makes once, and naming it is worth a branch.
 
 ## Requested, not built yet
 
-- **Buildflip 2 and TikTok Dances still search through OpenRouter's web plugin**, inline in a model
-  call, rather than through this service. That is a model feature rather than a search call — the
-  model searches mid-generation and cites what it found — so moving them means restructuring the
-  generation. Deliberately left.
+- **Members can't rotate their own key.** Today only the owner issues and revokes; a member who
+  loses a key has to ask. Self-serve rotation is the obvious next step.
+- **No sign-up flow.** Access is granted by the owner issuing a key to an address, not by anyone
+  requesting one. There is no "request access" button and no email to them — you send the key.
+- **No billing.** Plans are ceilings, not prices; nothing charges anyone and nothing is wired to
+  Stripe.
 - **Embeddings / semantic recall over past searches.** The usage table already holds every query;
   nothing reads it back as a corpus yet.
 - **A per-app quota rather than a per-caller one.** Today an app's ceiling is the ceiling of
@@ -124,6 +149,7 @@ _Rewritten by `npm run apps:records` from the source — do not edit by hand. `n
 | Methods | Route | Who can call it |
 |---|---|---|
 | GET POST | `/api/search` | per-account key (no session) |
+| GET | `/api/search/account` | per-account key (no session) |
 | POST DELETE | `/api/search/cache` | owner's sign-in |
 | GET POST | `/api/search/extract` | per-account key (no session) |
 | GET POST DELETE | `/api/search/keys` | owner's sign-in |
@@ -137,7 +163,9 @@ _Rewritten by `npm run apps:records` from the source — do not edit by hand. `n
 - Table `search_api_keys` (public.search_api_keys) · RLS on — used in `src/lib/search/store.ts`
 - Table `search_cache` (public.search_cache) · RLS on — used in `src/lib/search/store.ts`
 - Table `search_usage` (public.search_usage) · RLS on — used in `src/lib/search/store.ts`
+- Database function `search_key_claim` — `src/lib/search/store.ts`
 - Database function `search_key_touch` — `src/lib/search/store.ts`
+- Database function `search_keys_expire` — `src/lib/search/store.ts`
 - Database function `search_rate_bump` — `src/lib/search/store.ts`
 
 ### Keys & outside services
@@ -146,6 +174,7 @@ _Rewritten by `npm run apps:records` from the source — do not edit by hand. `n
 - `JARVIS_SEARCH_KEY` — `src/components/search-infra/KeysPanel.tsx`, `src/lib/search/remote.ts`
 - `JARVIS_SEARCH_URL` — `src/lib/search/remote.ts`
 - `NEXT_PUBLIC_SUPABASE_URL` — `src/lib/search/store.ts`
+- `SEARCH_KEY` — `src/components/search-infra/SearchAccess.tsx`
 - `SEARCH_SERVICE_KEY` — `src/lib/search/auth.ts`
 - `SUPABASE_SERVICE_ROLE_KEY` — `src/lib/search/store.ts`
 

@@ -21,6 +21,8 @@ function caller(overrides: Partial<Caller> = {}): Caller {
     perMinute: 3,
     perDay: 5,
     scopes: ["search", "extract"],
+    plan: "owner",
+    ownerEmail: null,
     ...overrides,
   };
 }
@@ -81,5 +83,42 @@ describe("rate limits", () => {
     const mode = storageMode();
     expect(mode.shared).toBe(false);
     expect(mode.detail).toMatch(/in-memory/i);
+  });
+});
+
+describe("which plan a new key lands on", () => {
+  it("never gives a stranger the owner's allowance", async () => {
+    const { planForRecipient } = await import("./auth");
+    // Issued to someone with no plan named: member, not owner.
+    expect(planForRecipient("sam@example.com")).toBe("member");
+    // And an explicit "owner" on a key for someone else is refused — far more
+    // likely a mistake than an intention, and the cost of honouring it is the
+    // whole Tavily balance.
+    expect(planForRecipient("sam@example.com", "owner")).toBe("member");
+  });
+
+  it("honours a narrower plan that was asked for", async () => {
+    const { planForRecipient } = await import("./auth");
+    expect(planForRecipient("sam@example.com", "trial")).toBe("trial");
+    expect(planForRecipient("sam@example.com", "member")).toBe("member");
+  });
+
+  it("keeps the owner's own keys on the owner plan", async () => {
+    const { planForRecipient } = await import("./auth");
+    expect(planForRecipient(null)).toBe("owner");
+    expect(planForRecipient(undefined)).toBe("owner");
+    expect(planForRecipient("", "owner")).toBe("owner");
+  });
+
+  it("gives each plan a ceiling, and the member one is far below the owner's", async () => {
+    const { planLimits } = await import("./config");
+    const owner = planLimits("owner");
+    const member = planLimits("member");
+    const trial = planLimits("trial");
+    // Not "slightly less": small enough that one person cannot empty a paid
+    // provider's balance on their own.
+    expect(member.perDay).toBeLessThan(owner.perDay / 2);
+    expect(trial.perDay).toBeLessThan(member.perDay);
+    expect(trial.perMinute).toBeLessThan(member.perMinute);
   });
 });
