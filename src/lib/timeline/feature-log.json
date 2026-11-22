@@ -1,5 +1,59 @@
 [
  {
+  "id": "c9ca9d9:jarvis",
+  "date": "2026-11-22",
+  "slug": "jarvis",
+  "title": "Choose how it sounds — 37 voices, accent filters and the dials",
+  "detail": "A Voice stage at the top of the Dashboard, above the memory core. The owner was shown three coded mockups and picked this one (\"Voice stage\"): a 52px headline, the orb naming the live voice, accent pills, and the voice grid.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "c9ca9d9:voice-settings",
+  "date": "2026-11-22",
+  "slug": "voice-settings",
+  "title": "Choose how it sounds — 37 voices, accent filters and the dials",
+  "detail": "A Voice stage at the top of the Dashboard, above the memory core. The owner was shown three coded mockups and picked this one (\"Voice stage\"): a 52px headline, the orb naming the live voice, accent pills, and the voice grid.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "c9ca9d9:voice-studio",
+  "date": "2026-11-22",
+  "slug": "voice-studio",
+  "title": "Choose how it sounds — 37 voices, accent filters and the dials",
+  "detail": "A Voice stage at the top of the Dashboard, above the memory core. The owner was shown three coded mockups and picked this one (\"Voice stage\"): a 52px headline, the orb naming the live voice, accent pills, and the voice grid.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "baf69ed:jarvis",
+  "date": "2026-11-18",
+  "slug": "jarvis",
+  "title": "One Profiles app, synced with Folders, Memory and Photos, and new profiles ask the right questions",
+  "detail": "Jarvis › Profile and the Dashboard's Profiles tab now open the same Profiles app as /apps/profiles. Who you are, Business & personal, Life record and How you work leave the Jarvis Profile tab; Connections, the Backend checklist, Finish setup and Saved documents move into Profiles › Settings.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "baf69ed:profiles",
+  "date": "2026-11-18",
+  "slug": "profiles",
+  "title": "One Profiles app, synced with Folders, Memory and Photos, and new profiles ask the right questions",
+  "detail": "Jarvis › Profile and the Dashboard's Profiles tab now open the same Profiles app as /apps/profiles. Who you are, Business & personal, Life record and How you work leave the Jarvis Profile tab; Connections, the Backend checklist, Finish setup and Saved documents move into Profiles › Settings.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "baf69ed:dashboard",
+  "date": "2026-11-18",
+  "slug": "dashboard",
+  "title": "One Profiles app, synced with Folders, Memory and Photos, and new profiles ask the right questions",
+  "detail": "Jarvis › Profile and the Dashboard's Profiles tab now open the same Profiles app as /apps/profiles. Who you are, Business & personal, Life record and How you work leave the Jarvis Profile tab; Connections, the Backend checklist, Finish setup and Saved documents move into Profiles › Settings.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
   "id": "a4f4a5e:ai-rankings",
   "date": "2026-11-18",
   "slug": "ai-rankings",
