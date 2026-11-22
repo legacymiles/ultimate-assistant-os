@@ -1,5 +1,50 @@
 [
  {
+  "id": "d77ebe9:jarvis",
+  "date": "2026-11-22",
+  "slug": "jarvis",
+  "title": "Every bill you know about, on the calendar",
+  "detail": "The Calendar gets a Bills tab beside Month. Most bills are not typed there at all: they are read live out of the Profiles app on every render, so a payment filed under a profile is on the tab with no sync step, and editing the row in Profiles edits the bill. A row counts as a bill only when it has a",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "dce9b25:money-agents",
+  "date": "2026-11-22",
+  "slug": "money-agents",
+  "title": "One web search endpoint for every app and agent",
+  "detail": "No app holds a search provider or a key any more. A request walks one chain — SearXNG on this machine, SearXNG on the VPS, DuckDuckGo, then Tavily — and stops at the first that answers, so searches are free and private while the laptop is on, keep working from the VPS when it is not, and only reach ",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "dce9b25:jarvis",
+  "date": "2026-11-22",
+  "slug": "jarvis",
+  "title": "One web search endpoint for every app and agent",
+  "detail": "No app holds a search provider or a key any more. A request walks one chain — SearXNG on this machine, SearXNG on the VPS, DuckDuckGo, then Tavily — and stops at the first that answers, so searches are free and private while the laptop is on, keep working from the VPS when it is not, and only reach ",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "dce9b25:search-infrastructure",
+  "date": "2026-11-22",
+  "slug": "search-infrastructure",
+  "title": "One web search endpoint for every app and agent",
+  "detail": "No app holds a search provider or a key any more. A request walks one chain — SearXNG on this machine, SearXNG on the VPS, DuckDuckGo, then Tavily — and stops at the first that answers, so searches are free and private while the laptop is on, keep working from the VPS when it is not, and only reach ",
+  "group": "core",
+  "source": "git"
+ },
+ {
+  "id": "dce9b25:web",
+  "date": "2026-11-22",
+  "slug": "web",
+  "title": "One web search endpoint for every app and agent",
+  "detail": "No app holds a search provider or a key any more. A request walks one chain — SearXNG on this machine, SearXNG on the VPS, DuckDuckGo, then Tavily — and stops at the first that answers, so searches are free and private while the laptop is on, keep working from the VPS when it is not, and only reach ",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
   "id": "cb74dc2:jarvis",
   "date": "2026-11-22",
   "slug": "jarvis",
