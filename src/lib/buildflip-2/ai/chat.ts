@@ -1,11 +1,14 @@
-import { DEFAULT_MODEL, aiConfigured as hubAiConfigured, aiEndpoint, aiFetch, describeFailure } from "@/lib/ai/provider";
+import { DEFAULT_MODEL, aiConfigured as hubAiConfigured, aiFetch, describeFailure } from "@/lib/ai/provider";
 import { log } from "../log";
 
 /**
- * The planning model, two jobs:
- *  1. reason over the user's idea (vision + text) to produce a build spec
- *  2. search the live web for current prices and completed sales, with the
- *     URL citations that let every number show its source
+ * The planning model: one request, one answer, no tools.
+ *
+ * It has two jobs — reason over the user's idea (vision + text) to produce a
+ * build spec, and read prices and completed sales off web pages it is handed.
+ * It does NOT search. Web search on this hub belongs to one service, and
+ * `./web-context` runs it before this is called, so what arrives here is
+ * already a stack of fetched pages with their URLs.
  *
  * Moved into the hub: this used to be BuildFlip's own OpenRouter client with
  * its own key, model names and retry ladder. All of that now belongs to
@@ -33,8 +36,6 @@ export interface ChatOptions {
   system: string;
   user: string;
   images?: ChatImage[];
-  /** Turn on live web search with N results. Costs money per call. */
-  webSearchResults?: number;
   maxTokens?: number;
   temperature?: number;
   timeoutMs?: number;
@@ -69,13 +70,12 @@ export function aiConfigured() {
 /**
  * One request, through the hub's provider.
  *
- * The web-search plugin is OpenRouter's, not a standard chat-completions field,
- * so it is only attached when OpenRouter is the endpoint in use — the same rule
- * the hub's own web search follows (src/app/api/new-jarvis/web/route.ts). If
- * OpenRouter then fails for a reason `aiFetch` retries elsewhere, the gateway
- * rejects the unknown field and this call fails; the caller falls back to the
- * demo catalog and labels every number that came from it, which is the honest
- * answer rather than silently pricing a build off nothing.
+ * Nothing provider-specific is sent, which is the point: the body used to carry
+ * OpenRouter's `plugins: [{ id: "web" }]`, so a plan could only be priced while
+ * OpenRouter was the endpoint in use — and a retry onto the gateway, which
+ * rejects the unknown field, failed the call outright. With search moved into
+ * `./web-context`, this is a plain chat completion and every provider in the
+ * hub's retry ladder can serve it.
  */
 export async function chat(opts: ChatOptions): Promise<ChatResult> {
   if (!aiConfigured()) throw new AiUnavailableError("No AI key is configured.");
@@ -97,9 +97,6 @@ export async function chat(opts: ChatOptions): Promise<ChatResult> {
     max_tokens: opts.maxTokens ?? 8000,
     temperature: opts.temperature ?? 0.2,
   };
-  if (opts.webSearchResults && aiEndpoint()?.provider === "openrouter") {
-    body.plugins = [{ id: "web", max_results: opts.webSearchResults }];
-  }
 
   const timeoutMs = opts.timeoutMs ?? 90_000;
   const controller = new AbortController();

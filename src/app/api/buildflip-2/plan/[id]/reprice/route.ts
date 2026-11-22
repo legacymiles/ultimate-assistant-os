@@ -11,6 +11,12 @@ import {
   pricingUser,
 } from "@/lib/buildflip-2/ai/prompts";
 import { compsResult, pricingResult } from "@/lib/buildflip-2/ai/schema";
+import {
+  allowedUrl,
+  compsContext,
+  keepRealLinks,
+  priceContext,
+} from "@/lib/buildflip-2/ai/web-context";
 import { estimateResale, money, recostMaterials } from "@/lib/buildflip-2/calc";
 import type { Comp, Material } from "@/lib/buildflip-2/types";
 
@@ -62,28 +68,43 @@ export const POST = withLogging("plan_reprice", async (_req: Request, ctx: Param
           : "The pricing search didn't answer. Nothing was changed — try again in a minute.";
   };
 
+  // Search first, through the hub's search service, then re-price from the
+  // pages it returns. `priceContext`/`compsContext` never throw — a search that
+  // finds nothing comes back empty, and the prompts then ask for honest
+  // estimates instead of invented listings.
   const [priceOut, compsOut] = await Promise.all([
-    chat({
-      system: PRICING_SYSTEM,
-      user: pricingUser(repriceable),
-      webSearchResults: Math.min(12, Math.max(6, repriceable.length)),
-      maxTokens: 6000,
-      timeoutMs: 110_000,
-    })
-      .then((r) => pricingResult.parse(extractJson(r.text)).materials)
+    priceContext(repriceable)
+      .then(async (ctx) => {
+        const r = await chat({
+          system: PRICING_SYSTEM,
+          user: pricingUser(repriceable, ctx),
+          maxTokens: 6000,
+          timeoutMs: 110_000,
+        });
+        return {
+          materials: keepRealLinks(pricingResult.parse(extractJson(r.text)).materials, ctx.urls),
+          estimated: ctx.empty,
+        };
+      })
       .catch(async (err) => {
         await log({ level: "warn", event: "reprice_prices_failed", message: (err as Error)?.message });
         noteFailure(err);
         return null;
       }),
-    chat({
-      system: COMPS_SYSTEM,
-      user: compsUser(project),
-      webSearchResults: 10,
-      maxTokens: 4000,
-      timeoutMs: 110_000,
-    })
-      .then((r) => compsResult.parse(extractJson(r.text)))
+    compsContext(project)
+      .then(async (ctx) => {
+        const r = await chat({
+          system: COMPS_SYSTEM,
+          user: compsUser(project, ctx),
+          maxTokens: 4000,
+          timeoutMs: 110_000,
+        });
+        const parsed = compsResult.parse(extractJson(r.text));
+        return {
+          ...parsed,
+          comps: parsed.comps.map((c) => ({ ...c, url: allowedUrl(c.url, ctx.urls) })),
+        };
+      })
       .catch(async (err) => {
         await log({ level: "warn", event: "reprice_comps_failed", message: (err as Error)?.message });
         noteFailure(err);
@@ -98,6 +119,15 @@ export const POST = withLogging("plan_reprice", async (_req: Request, ctx: Param
     );
   }
 
+  // The model answered, but off no pages: a re-price that writes market
+  // estimates over listing-backed prices has to say so, or a plan that was
+  // checked against real listings quietly becomes a guess with today's date on
+  // it.
+  if (priceOut?.estimated && !failure) {
+    failure =
+      "The web search didn't return any listings, so these prices are market estimates rather than today's shelf prices.";
+  }
+
   let changed = 0;
   let materials: Material[] = project.materials;
 
@@ -105,7 +135,7 @@ export const POST = withLogging("plan_reprice", async (_req: Request, ctx: Param
     const norm = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
     materials = project.materials.map((m) => {
       if (m.userOverride) return m;
-      const hit = priceOut.find((p) => norm(p.name) === norm(m.name));
+      const hit = priceOut.materials.find((p) => norm(p.name) === norm(m.name));
       if (!hit) return m;
       const unitPrice = money(hit.unitPrice);
       if (unitPrice > 0 && Math.abs(unitPrice - m.unitPrice) > 0.009) changed++;

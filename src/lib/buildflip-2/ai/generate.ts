@@ -14,6 +14,7 @@ import { estimateResale } from "../calc";
 import { pickDemoPlan } from "./demo-catalog";
 import { readLink, type LinkRead } from "./link-reader";
 import { aiConfigured, chat, extractJson } from "./chat";
+import { allowedUrl, compsContext, keepRealLinks, priceContext } from "./web-context";
 import {
   buildSpec,
   compsResult,
@@ -37,7 +38,10 @@ import {
  *
  *   1. READ    — open the pasted link, resize-checked photos in hand
  *   2. SPEC    — vision + reasoning produce the buildable spec
- *   3. PRICE ∥ COMPS — one live web search each, running at the same time
+ *   3. PRICE ∥ COMPS — search the web through the hub's search service, read
+ *                      the pages, then have the model price from them. Both
+ *                      halves run at the same time; neither lets the model
+ *                      browse (see ./web-context).
  *   4. VERDICT — pure arithmetic in calc.ts, no model involved
  *
  * The verdict is deliberately NOT model-generated. The numbers are computed
@@ -303,22 +307,33 @@ export async function generatePlan(args: GenerateArgs): Promise<GenerateResult> 
 
   const demoPlan = pickDemoPlan(`${args.prompt} ${spec.title}`);
 
-  const pricePromise: Promise<{ priced: PricedMaterial[]; demo: boolean; cost: number }> =
+  const pricePromise: Promise<{
+    priced: PricedMaterial[];
+    demo: boolean;
+    /** True when nothing was found to read, so every price is a market estimate. */
+    estimated: boolean;
+    cost: number;
+  }> =
     demo || !live
-      ? Promise.resolve({ priced: demoPlan.prices, demo: true, cost: 0 })
-      : chat({
-          system: PRICING_SYSTEM,
-          user: pricingUser(spec.materials),
-          webSearchResults: Math.min(12, Math.max(6, spec.materials.length)),
-          maxTokens: 6000,
-          timeoutMs: 110_000,
-          signal: args.signal,
-        })
-          .then((res) => ({
-            priced: pricingResult.parse(extractJson(res.text)).materials,
-            demo: false,
-            cost: res.costUsd,
-          }))
+      ? Promise.resolve({ priced: demoPlan.prices, demo: true, estimated: false, cost: 0 })
+      : // Search first, through the hub's one search service, then price from
+        // the pages it returned. The model never searches: see ./web-context.
+        priceContext(spec.materials)
+          .then(async (ctx) => {
+            const res = await chat({
+              system: PRICING_SYSTEM,
+              user: pricingUser(spec.materials, ctx),
+              maxTokens: 6000,
+              timeoutMs: 110_000,
+              signal: args.signal,
+            });
+            return {
+              priced: keepRealLinks(pricingResult.parse(extractJson(res.text)).materials, ctx.urls),
+              demo: false,
+              estimated: ctx.empty,
+              cost: res.costUsd,
+            };
+          })
           .catch(async (err) => {
             await log({
               level: "warn",
@@ -335,7 +350,7 @@ export async function generatePlan(args: GenerateArgs): Promise<GenerateResult> 
              * built from zeros reads as a huge margin and a confident
              * "Build it". An unpriced plan is honest; a cheap one is a lie.
              */
-            return { priced: [] as PricedMaterial[], demo: true, cost: 0 };
+            return { priced: [] as PricedMaterial[], demo: true, estimated: false, cost: 0 };
           });
 
   const compsPromise: Promise<{
@@ -346,19 +361,25 @@ export async function generatePlan(args: GenerateArgs): Promise<GenerateResult> 
   }> =
     demo || !live
       ? Promise.resolve({ comps: demoPlan.comps, demo: true, cost: 0 })
-      : chat({
-          system: COMPS_SYSTEM,
-          user: compsUser(spec),
-          webSearchResults: 10,
-          maxTokens: 4000,
-          timeoutMs: 110_000,
-          signal: args.signal,
-        })
-          .then((res) => {
+      : compsContext(spec)
+          .then(async (ctx) => {
+            const res = await chat({
+              system: COMPS_SYSTEM,
+              user: compsUser(spec, ctx),
+              maxTokens: 4000,
+              timeoutMs: 110_000,
+              signal: args.signal,
+            });
             const parsed = compsResult.parse(extractJson(res.text));
             return {
-              comps: parsed.comps,
-              marketNote: parsed.marketNote,
+              // A comp with no verifiable link is still evidence — it is shown
+              // with its source and no href, exactly as before. What is not
+              // allowed is a link that goes nowhere.
+              comps: parsed.comps.map((c) => ({ ...c, url: allowedUrl(c.url, ctx.urls) })),
+              marketNote: ctx.empty
+                ? (parsed.marketNote ??
+                  "The web search didn't return any sold listings, so there is no completed-sale evidence for this one yet.")
+                : parsed.marketNote,
               demo: false,
               cost: res.costUsd,
             };
@@ -376,6 +397,17 @@ export async function generatePlan(args: GenerateArgs): Promise<GenerateResult> 
   const [priceOut, compsOut] = await Promise.all([pricePromise, compsPromise]);
   costUsd += priceOut.cost + compsOut.cost;
   const anyDemo = demo || priceOut.demo || compsOut.demo;
+
+  /**
+   * The search service answered with nothing, and the plan was priced from the
+   * model's market knowledge instead. Not a demo plan — the spec is real and
+   * every row is labelled low-confidence — but the user is owed the difference
+   * between "checked a listing today" and "knows roughly what this costs".
+   */
+  if (priceOut.estimated && !fallbackReason) {
+    fallbackReason =
+      "The web search didn't return any listings, so these prices are market estimates rather than today's shelf prices. Re-price the plan to try the search again.";
+  }
 
   await report({
     stage: "comps",
