@@ -44,9 +44,16 @@ if [ -z "${BASH_VERSION:-}" ]; then
 fi
 set -euo pipefail
 
-# --- EDIT THESE TWO LINES --------------------------------------------------
-SEARX_HOST="search.example.com"       # DNS A record must already point here
-SEARX_EMAIL="you@example.com"         # Let's Encrypt sends expiry warnings
+# --- Set these two BEFORE running, as environment variables ----------------
+#
+#   export SEARX_HOST=search.yourdomain.com
+#   export SEARX_EMAIL=you@yourdomain.com
+#
+# Editing them in the file works too, but the environment is easier when the
+# script is piped straight into bash, and it means nobody has to find a text
+# editor on a fresh box.
+SEARX_HOST="${SEARX_HOST:-search.example.com}"   # DNS A record must point here
+SEARX_EMAIL="${SEARX_EMAIL:-you@example.com}"    # Let's Encrypt expiry warnings
 # ---------------------------------------------------------------------------
 
 say()  { printf '\n\033[1m== %s\033[0m\n' "$*"; }
@@ -55,7 +62,8 @@ die()  { printf '\033[31mxx %s\033[0m\n' "$*" >&2; exit 1; }
 
 [ "$(id -u)" = "0" ] || die "Run as root. On WSL that is: wsl -d Ubuntu -u root"
 case "$SEARX_HOST" in
-  search.example.com|"") die "Edit SEARX_HOST at the top of this script first." ;;
+  search.example.com|"")
+    die "Set your hostname first:  export SEARX_HOST=search.yourdomain.com  (and SEARX_EMAIL), then run this again." ;;
 esac
 
 say "Packages"
