@@ -661,6 +661,29 @@ function JarvisBody({ m, data, compact, mask, reveal, setReveal, go, lightbox, t
           </button>
         );
       })}
+      {/* Pages a researched answer came from — the same card as a profile
+          source, so a web answer reads as part of the app rather than a
+          bolted-on browser. Opened in a new tab: the owner is mid-conversation. */}
+      {(m.actions?.links ?? []).slice(0, compact ? 1 : 3).map((l) => {
+        let host = l.url;
+        try {
+          host = new URL(l.url).hostname.replace(/^www\./, "");
+        } catch {
+          /* show the raw address */
+        }
+        return (
+          <a key={l.url} className="pf-rc" href={l.url} target="_blank" rel="noopener noreferrer" style={sty({ "--h": 210 })}>
+            <div className="pf-rc-main">
+              <div className="pf-src">
+                <span className="pf-tag">Web</span>
+                {host}
+              </div>
+              <div className="pf-rc-v">{l.title}</div>
+            </div>
+            <ArrowUpRight />
+          </a>
+        );
+      })}
       {media.length ? (
         <>
           <div className="pf-strip">

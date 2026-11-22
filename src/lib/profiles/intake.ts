@@ -27,6 +27,7 @@ export type IntakeType =
   | "person"
   | "business"
   | "job"
+  | "equipment"
   | "place"
   | "thing";
 
@@ -112,7 +113,7 @@ export const GUIDES: Record<IntakeType, IntakeGuide> = {
     type: "business", kind: "thing", label: "Business", icon: "briefcase", homeHint: "Inside My Businesses",
     sections: ["Equipment", "Vendors", "Websites", "Business emails", "Accounts and logins", "Purchases", "Expenses", "Resources", "Contacts"],
     questions: [
-      "What equipment do you use? For each: the model, when you bought it, who you bought it from and what it cost.",
+      "What equipment do you use? Each machine gets its own profile inside Equipment (see the equipment guide — ask its questions there, not here).",
       "Who are your vendors and suppliers, and what do you buy from each?",
       "Which websites and stores does the business use — your shop, marketplaces, social pages?",
       "Which email address do you use for which site? Many businesses use more than one, so list each email and what it's for.",
@@ -132,6 +133,30 @@ export const GUIDES: Record<IntakeType, IntakeGuide> = {
       "Your usual shifts, and when is payday?",
     ],
   }),
+  // A machine is the one profile where the owner's own words are never enough.
+  // "Lancelot M1630 Pro A3 13-inch all-in-one DTF kit" is a shop LISTING, and a
+  // listing is a bundle: the same name ships with or without the shaker, the
+  // cutter, a pre-loaded laptop, a different printhead. So these questions ask
+  // for what is stamped on the machine and installed on the computer, not what
+  // the advert said — those are the facts that make a how-do-I answer correct
+  // instead of plausible. Asked in this order because each one unlocks more
+  // than the next: the software and the consumables settle most questions,
+  // the serial settles the rest.
+  equipment: G({
+    type: "equipment", kind: "thing", label: "Equipment", icon: "wrench",
+    homeHint: "Inside the business or place it is used in (Equipment)",
+    sections: ["Details", "Software", "Supplies", "Settings that work", "Maintenance", "Problems and fixes", "Purchase", "Support"],
+    questions: [
+      "What does the machine itself say — the model on its plate or sticker, and the serial number? That often differs from the name on the listing you bought.",
+      "What software runs it, exact name and version, and did it come pre-installed on a computer with it or do you install it yourself?",
+      "What does it use up — ink, film, powder, blades, filament, thread? The brand and type of each, since the right settings depend on it.",
+      "Which settings already work for you — temperatures, times, speeds, passes, profiles? I'll keep them so you never have to find them twice.",
+      "What else does it need to work — a computer and its Windows or macOS version, a press, an extractor, a particular outlet?",
+      "Who did you buy it from and when, what did it cost, and how long is the warranty?",
+      "Where is its manual or support — a PDF, a WhatsApp or Facebook group, the seller's email?",
+      "What goes wrong with it, and what fixed it last time?",
+    ],
+  }),
   place: G({
     type: "place", kind: "thing", label: "Place", icon: "home", homeHint: "Inside the profile it belongs to",
     sections: ["Details", "Contacts", "Access"],
@@ -147,6 +172,12 @@ export const GUIDES: Record<IntakeType, IntakeGuide> = {
 const BUSINESS = /\b(business|company|shop|store|studio|brand|llc|inc|printing|print shop|bakery|salon|agency|side hustle|hustle|resale|reselling|3d printing|t-?shirt)\b/i;
 const JOB = /\b(job|work|employer|workplace|gig|shift)\b/i;
 
+/** Machines and tools: things with a model number, software and consumables. */
+const EQUIPMENT =
+  /\b(printer|press|machine|laser|engraver|cutter|plotter|cnc|shaker|dryer|oven|kiln|embroiderer|serger|compressor|generator|mower|camera|laptop|desktop|pc|rig|gpu|console|equipment|dtf|dtg|uv printer|sublimation|vinyl|heat press|3d printer)\b/i;
+/** A word that means the BUSINESS itself, so "my printing business" never reads as a machine. */
+const EXPLICIT_BUSINESS = /\b(business|company|llc|inc|shop|store|studio|brand|agency|hustle)\b/i;
+
 /** What kind of profile a request is asking for. */
 export function classifyIntake(text: string): IntakeGuide {
   const t = ` ${text.toLowerCase()} `;
@@ -158,6 +189,8 @@ export function classifyIntake(text: string): IntakeGuide {
   if (/\b(mom|mother|dad|father|grandma|grandpa|grandmother|grandfather)\b/.test(t)) return GUIDES.parent;
   if (/\b(brother|sister|aunt|uncle|cousin|nephew|niece)\b/.test(t)) return GUIDES.relative;
   if (/\b(friend|buddy|bestie)\b/.test(t)) return GUIDES.friend;
+  // Before BUSINESS: "my DTF printer" is a machine, "my printing business" is not.
+  if (EQUIPMENT.test(t) && !EXPLICIT_BUSINESS.test(t)) return GUIDES.equipment;
   if (BUSINESS.test(t)) return GUIDES.business;
   if (JOB.test(t)) return GUIDES.job;
   if (/\b(house|apartment|home|cabin|office|storage unit)\b/.test(t)) return GUIDES.place;

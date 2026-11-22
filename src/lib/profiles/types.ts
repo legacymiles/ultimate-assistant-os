@@ -179,6 +179,12 @@ export interface AgentActions {
   changes?: Change[];
   /** Item or node ids the answer came from. */
   sources?: string[];
+  /**
+   * Web pages a researched answer came from. Separate from `sources` because
+   * these are not the owner's own records: they are shown as links, and are
+   * never written into a profile unless the owner asks for that.
+   */
+  links?: { title: string; url: string }[];
   /** Show photos of this node. */
   media?: string;
   /** Fly the page to this node. */

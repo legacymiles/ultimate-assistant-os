@@ -53,6 +53,30 @@ tab bars.
   which email is used for which site for a business; school, doctor and sizes for a child;
   anniversary and favorites for a partner; codes, coworkers and payday for a job. After saving,
   the chat stays with the new profile so the answers are filed there.
+- **It looks things up for you (Nov 2026)** — a question about the owner's *records* ("what's my
+  son's teacher's email") is answered from the profiles as before. A question about how something
+  *works* ("how do I set up the RIP software", "why won't it print white", "what temperature for
+  the shaker") is searched on the web first and answered from real pages, each one shown as a Web
+  source card under the answer. Search is free and needs no key or account — DuckDuckGo
+  server-side, with the top two results opened and read in full, since a snippet names a page but
+  can't give a setting. The split is deliberate: facts about the owner's life still come only from
+  the outline and are never invented, and a researched fact is an answer, not a row — it is never
+  written into a profile unless the owner asks. With nothing found, the chat says it hasn't
+  checked rather than guessing a menu path.
+- **Equipment profiles ask the questions that make an answer correct** — a machine is the one
+  profile where the owner's own words are never enough: a shop listing like *"Lancelot M1630 Pro
+  A3 13-inch all-in-one DTF kit with auto powder shaker"* is a bundle name, and the same name
+  ships with or without the shaker, the cutter or a pre-loaded laptop. So a machine now gets its
+  own intake guide (Details, Software, Supplies, Settings that work, Maintenance, Problems and
+  fixes, Purchase, Support) and is asked for the model and serial *on the plate*, the software and
+  its version, what it consumes and by which brand, the settings that already work, and what else
+  it needs to run. "Add my DTF printer" gets that guide; "add my printing business" still gets the
+  business one, and each machine inside a business becomes its own profile.
+- **It says what it would need to know** — when a how-to question lands on a machine whose profile
+  is missing the facts that would change the answer (no software, no consumables, no computer), the
+  chat answers as far as it honestly can, then asks for the one or two that matter most for *that*
+  question, with a half-sentence on why each changes the answer, offered as chips. It never
+  recites the whole form and never refuses to answer because something is missing.
 - **Never-send-to-AI values** — what the Life record marks sensitive (SSN and the like) and
   imported passwords are withheld from every prompt; the owner can still tap to see them.
 
@@ -136,6 +160,7 @@ _Rewritten by `npm run apps:records` from the source — do not edit by hand. `n
 | Methods | Route | Who can call it |
 |---|---|---|
 | POST | `/api/profiles/agent` | owner's sign-in |
+| POST | `/api/profiles/research` | owner's sign-in |
 
 ### Data & database rules
 
@@ -149,4 +174,5 @@ _Rewritten by `npm run apps:records` from the source — do not edit by hand. `n
 
 - `src/lib/profiles/integrations.test.ts`
 - `src/lib/profiles/profiles.test.ts`
+- `src/lib/profiles/research.test.ts`
 <!-- code:end -->
