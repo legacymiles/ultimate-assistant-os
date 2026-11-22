@@ -1,0 +1,111 @@
+# ---------------------------------------------------------------------------
+# SearXNG — the primary search provider for the Jarvis hub.
+#
+# The same file runs on the VPS and on the laptop. The only difference is the
+# .env beside it: on the VPS, SEARXNG_BASE_URL is the public URL and Caddy is
+# enabled for TLS; on the laptop, the base URL is http://localhost:8080 and the
+# caddy service is left out (that is what the `local` profile below does).
+#
+#   VPS:     docker compose --profile public up -d
+#   Laptop:  docker compose --profile local  up -d
+#
+# Valkey is here because SearXNG's rate limiter and its bot-detection plugins
+# need a shared store. The limiter is OFF in settings.yml for a private
+# instance — it counts by client IP, and every request arrives from one server,
+# so it would throttle the hub itself — but Valkey still backs caching, and
+# leaving it out makes SearXNG log a warning on every start.
+# ---------------------------------------------------------------------------
+
+services:
+  searxng:
+    # `latest` on purpose: SearXNG tags releases by date-and-commit, so any
+    # pin written here goes stale within days and a stale pin is what stops
+    # engines working as upstreams change their markup. Pin it once you have
+    # a version you like — `docker image inspect searxng/searxng | grep -i
+    # version` prints the one you are on — and set SEARXNG_IMAGE_TAG in .env.
+    image: docker.io/searxng/searxng:${SEARXNG_IMAGE_TAG:-latest}
+    container_name: searxng
+    restart: unless-stopped
+    # Bound to localhost on the VPS: Caddy is the only thing that should reach
+    # it from outside, so the container is not exposed to the internet even if
+    # the firewall is wrong. On the laptop this is the address the hub uses.
+    ports:
+      - "${SEARXNG_BIND:-127.0.0.1}:8080:8080"
+    volumes:
+      - ./searxng:/etc/searxng:rw
+    environment:
+      # Must match the public address, or SearXNG builds wrong links and some
+      # engines reject the requests.
+      - SEARXNG_BASE_URL=${SEARXNG_BASE_URL:-http://localhost:8080/}
+      # A long random string. install.sh generates one; never commit it.
+      - SEARXNG_SECRET=${SEARXNG_SECRET:?set SEARXNG_SECRET in .env — run install.sh to generate one}
+      - SEARXNG_REDIS_URL=redis://valkey:6379/0
+      # Keep the UI usable for a person debugging a query by hand.
+      - SEARXNG_LIMITER=false
+      - UWSGI_WORKERS=${SEARXNG_WORKERS:-4}
+      - UWSGI_THREADS=4
+    depends_on:
+      - valkey
+    cap_drop:
+      - ALL
+    cap_add:
+      # SearXNG's uwsgi drops to its own user after binding.
+      - CHOWN
+      - SETGID
+      - SETUID
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    healthcheck:
+      # The JSON API, not /healthz — the format being disabled is the failure
+      # that actually happens, and /healthz is green while it is broken.
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8080/search?q=ping&format=json"]
+      interval: 60s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+  valkey:
+    image: docker.io/valkey/valkey:8-alpine
+    container_name: searxng-valkey
+    restart: unless-stopped
+    command: valkey-server --save 30 1 --loglevel warning
+    volumes:
+      - valkey-data:/data
+    cap_drop:
+      - ALL
+    cap_add:
+      - SETGID
+      - SETUID
+      - DAC_OVERRIDE
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "2"
+
+  # TLS and the only door open to the internet. VPS only.
+  caddy:
+    image: docker.io/library/caddy:2-alpine
+    container_name: searxng-caddy
+    restart: unless-stopped
+    profiles: ["public"]
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    environment:
+      - SEARXNG_HOSTNAME=${SEARXNG_HOSTNAME:?set SEARXNG_HOSTNAME in .env, e.g. search.example.com}
+      - SEARXNG_TOKEN=${SEARXNG_TOKEN:-}
+    depends_on:
+      - searxng
+
+volumes:
+  valkey-data:
+  caddy-data:
+  caddy-config:

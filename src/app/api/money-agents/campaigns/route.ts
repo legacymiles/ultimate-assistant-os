@@ -1,6 +1,7 @@
 import { normalizeCampaigns } from "@/lib/money-agents/logic";
 import { aiReady, askJson, fail, readBody } from "@/lib/money-agents/server/ai";
-import { parseDdgResults, type SearchHit } from "@/lib/new-jarvis/web";
+import type { SearchHit } from "@/lib/new-jarvis/web";
+import { searchWeb } from "@/lib/search/client";
 
 export const runtime = "nodejs";
 export const maxDuration = 90;
@@ -13,18 +14,24 @@ export const maxDuration = 90;
 // Every campaign still needs the owner to open it and join — this never signs
 // up for anything.
 
-const UA =
-  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Safari/537.36";
-
-async function ddg(q: string): Promise<SearchHit[]> {
+/**
+ * Searching goes through the centralized search service (lib/search), which
+ * owns the provider chain — SearXNG here, SearXNG on the VPS, DuckDuckGo,
+ * Tavily. This route used to POST to html.duckduckgo.com itself; it no longer
+ * knows a provider's name, and three identical sweeps in a row now hit the
+ * shared cache instead of three scrapes.
+ *
+ * Still returns [] rather than throwing, because the caller below already has
+ * a path for "the search didn't answer".
+ */
+async function look(q: string): Promise<SearchHit[]> {
   try {
-    const res = await fetch("https://html.duckduckgo.com/html/", {
-      method: "POST",
-      headers: { "User-Agent": UA, "Content-Type": "application/x-www-form-urlencoded", "Accept-Language": "en-US,en;q=0.9" },
-      body: new URLSearchParams({ q }).toString(),
-      signal: AbortSignal.timeout(12_000),
-    });
-    return res.ok ? parseDdgResults(await res.text(), 10) : [];
+    const response = await searchWeb(q, { limit: 10, app: "money-agents/campaigns" });
+    return response.results.map((result) => ({
+      title: result.title,
+      url: result.url,
+      snippet: result.description,
+    }));
   } catch {
     return [];
   }
@@ -39,7 +46,7 @@ export async function POST(req: Request) {
     `whop content rewards clipping campaign ${niche}`.trim(),
     `get paid to clip videos campaign CPM ${year}`,
   ];
-  const lists = await Promise.all(queries.map(ddg));
+  const lists = await Promise.all(queries.map(look));
   const seen = new Set<string>();
   const hits: SearchHit[] = [];
   for (const h of lists.flat()) {

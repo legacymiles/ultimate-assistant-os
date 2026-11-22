@@ -1,13 +1,19 @@
 import { NextResponse } from "next/server";
-import { endpointFor } from "@/lib/ai/provider";
-import { searchWeb, readPage, type SearchHit } from "@/lib/web/fetchPublic";
+import { readPage, searchWeb } from "@/lib/search/client";
 
-// Jarvis's web tools, run by the website so no PC is needed. The searching and
-// reading themselves live in src/lib/web/fetchPublic.ts, shared with the
-// Profiles chat so there is only ever one implementation to keep safe; the
-// pure parsing is in src/lib/new-jarvis/web.ts. Owner/sign-in gated by
-// middleware like the rest of /api/new-jarvis. Every failure comes back as one
-// plain sentence.
+// Jarvis's web tools, run by the website so no PC is needed.
+//
+// Both actions go to the centralized search service (lib/search), which owns
+// the provider chain: SearXNG on this machine, SearXNG on the VPS, DuckDuckGo,
+// then Tavily. This route used to carry its own fallback — an OpenRouter web
+// search, paid per call — and that is gone: a second provider hardcoded into
+// one app is exactly what the central service exists to remove, and the chain
+// already covers the case it was there for (a search engine turning the cloud
+// server away). Tavily is the paid floor now, chosen in one place for every
+// app rather than here for this one.
+//
+// Owner/sign-in gated by middleware like the rest of /api/new-jarvis. Every
+// failure comes back as one plain sentence.
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -18,59 +24,45 @@ function plain(error: string, status = 200) {
   return NextResponse.json({ error }, { status });
 }
 
-async function search(q: string) {
-  const query = q.trim().slice(0, 300);
+async function search(raw: string) {
+  const query = raw.trim().slice(0, 300);
   if (!query) return plain("Say what to search for.");
-  const hits = await searchWeb(query);
-  if (hits.length) return NextResponse.json({ query, results: hits });
-  // Search engines sometimes turn away cloud servers. The owner's OpenRouter
-  // key has a web search of its own, so that is the backup.
-  const viaKey = await searchViaOpenRouter(query);
-  if (viaKey.length) return NextResponse.json({ query, results: viaKey });
-  return plain("Web search didn't answer just now. Try again in a moment, or read a page you already know the address of.");
-}
-
-async function searchViaOpenRouter(query: string): Promise<SearchHit[]> {
-  const ep = endpointFor("openrouter");
-  if (!ep) return [];
   try {
-    const res = await fetch(ep.url, {
-      method: "POST",
-      signal: AbortSignal.timeout(25_000),
-      headers: {
-        Authorization: `Bearer ${ep.key}`,
-        "Content-Type": "application/json",
-        "HTTP-Referer": process.env.OPENROUTER_SITE_URL || "https://ultimate-assistant-os.vercel.app",
-        "X-Title": "Jarvis web search",
-      },
-      body: JSON.stringify({
-        model: process.env.JARVIS_SEARCH_MODEL || "openai/gpt-4o-mini",
-        plugins: [{ id: "web", max_results: 6 }],
-        max_tokens: 200,
-        messages: [{ role: "user", content: `Search the web for: ${query}\nReply with one line.` }],
-      }),
+    const response = await searchWeb(query, { app: "jarvis-web-tools" });
+    if (response.results.length === 0) {
+      return plain("Web search came back empty. Try different words, or read a page you already know the address of.");
+    }
+    return NextResponse.json({
+      query,
+      results: response.results.map((result) => ({
+        title: result.title,
+        url: result.url,
+        snippet: result.description,
+        source: result.source,
+        published: result.publishedAt,
+      })),
+      // Worth handing the model: a stale answer and a live one are different
+      // facts, and it can say which it had.
+      servedBy: response.cached ? "cache" : response.provider,
     });
-    if (!res.ok) return [];
-    const data = (await res.json().catch(() => null)) as {
-      choices?: { message?: { annotations?: { type?: string; url_citation?: { url?: string; title?: string; content?: string } }[] } }[];
-    } | null;
-    const notes = data?.choices?.[0]?.message?.annotations ?? [];
-    const seen = new Set<string>();
-    return notes.flatMap((a) => {
-      const c = a.url_citation;
-      if (a.type !== "url_citation" || !c?.url || seen.has(c.url)) return [];
-      seen.add(c.url);
-      return [{ title: c.title ?? c.url, url: c.url, snippet: (c.content ?? "").replace(/\s+/g, " ").slice(0, 300) }];
-    });
-  } catch {
-    return [];
+  } catch (error) {
+    // The service's errors are already plain English — a missing provider, a
+    // rate limit, a SearXNG that needs its JSON format enabled.
+    return plain(error instanceof Error ? error.message : "Web search didn't answer just now.");
   }
 }
 
 async function read(raw: string) {
-  const page = await readPage(raw);
-  if (!page.ok) return plain(page.why);
-  return NextResponse.json({ url: page.url, title: page.title, text: page.text });
+  const page = await readPage(String(raw ?? "").trim());
+  if (page.error) return plain(page.error);
+  if (!page.text) return plain("That page has no readable text — it may only work with JavaScript turned on.");
+  return NextResponse.json({
+    url: page.finalUrl,
+    title: page.title ?? "",
+    text: page.text,
+    words: page.words,
+    published: page.publishedAt,
+  });
 }
 
 export async function POST(req: Request) {

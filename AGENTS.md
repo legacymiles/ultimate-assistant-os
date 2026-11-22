@@ -26,6 +26,12 @@ The full inventory is [`docs/apps/README.md`](docs/apps/README.md), generated fr
 [`src/lib/catalog.ts`](src/lib/catalog.ts), which is the **single source of truth** for
 what the hub contains. Read that file before you form any opinion about what this site is.
 
+**Each app has its own record, `docs/apps/<slug>.md`** — what it does, its features, what must
+keep working, what was requested, and a generated "From the code" block (pages, routes and who
+can call them, sign-in, tables with their row-level security policies, saved keys, env keys,
+tests). Read an app's record before you change it, and update it in the same commit. For an
+edit, `npm run change-it -- <slug> "what to change"` prints the full edit prompt.
+
 ### What fooled the tools that came before you
 
 A harness was handed this repo and rebuilt **only Projects Timeline**, because three
@@ -93,6 +99,8 @@ start over. Check your Node version first, then say what broke.
 npm test                        # 259 vitest files, 3,831 tests, no keys needed
 npx vitest run src/lib/<area>   # one area
 npm run check:apps              # docs/apps/README.md still matches the catalog
+npm run check:records           # every docs/apps/<slug>.md matches its app's code
+npm run change-it -- <slug> "…" # the edit prompt for one app, from its record
 npm run check:fonts             # every declared webfont is committed
 npm run check:router            # AI router table vs OpenRouter (hits the network)
 ```
@@ -139,7 +147,8 @@ So:
 | Need | Go to |
 |---|---|
 | **What apps exist** | [`docs/apps/README.md`](docs/apps/README.md) ← generated · source `src/lib/catalog.ts` |
-| Add an app to the hub | one object in `src/lib/catalog.ts` `PROJECTS`, then `npm run apps:index` |
+| Add an app to the hub | one object in `src/lib/catalog.ts` `PROJECTS`, then `npm run apps:index` and `npm run apps:records` |
+| **What one app does, and what must keep working** | `docs/apps/<slug>.md` ← hand-written half + generated "From the code" block (`npm run apps:records`) |
 | An app's page | `src/app/apps/<slug>/page.tsx` |
 | An app's UI | `src/components/<folder>/` |
 | An app's logic, types, tests | `src/lib/<folder>/`, with `*.test.ts` beside the code |
@@ -148,6 +157,7 @@ So:
 | Build config, redirects, rewrites, file tracing | `next.config.mjs` |
 | Deploy config | `vercel.json` |
 | Every AI call | `src/lib/ai/provider.ts` |
+| **Every web search** | `src/lib/search/client.ts` — `searchWeb` · `searchNews` · `research` · `readPage`. Never call a search provider from an app: the chain (self-hosted SearXNG, then DuckDuckGo, then Tavily), the cache, the rate limits and the usage log all live in one place. [`docs/search-api.md`](docs/search-api.md) |
 | Database schema | `supabase/` |
 | Design language | [`DESIGN.md`](DESIGN.md) |
 | Product intent | [`PRODUCT.md`](PRODUCT.md) |
@@ -216,6 +226,9 @@ Vercel, project-linked, from GitHub `main`.
   source lives in another repo. Do not try to build it from here.
 - **`docs/apps/README.md` is generated.** Edit `src/lib/catalog.ts` and re-run the
   script; a hand-edit will be overwritten and `--check` will fail in the meantime.
+- **`docs/apps/<slug>.md` is half generated.** Write above the "From the code" block freely;
+  the block itself is rewritten by `npm run apps:records`, and `npm run check:records` fails
+  when it no longer matches the code.
 
 ---
 

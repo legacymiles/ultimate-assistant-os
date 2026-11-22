@@ -49,6 +49,10 @@ next-env.d.ts
 
 .vercel
 .env*
+# …but the reference files that only list variable NAMES are the documentation,
+# and a setup you cannot see the shape of is a setup nobody repeats.
+!.env.example
+!**/.env.example
 
 # local backups / secrets — never push these
 *.zip

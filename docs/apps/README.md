@@ -2,7 +2,7 @@
 
 **Generated — do not edit.** `node scripts/apps-index.mjs` rewrites this from [`src/lib/catalog.ts`](../../src/lib/catalog.ts), which is the single source of truth for the hub. `node scripts/apps-index.mjs --check` fails when the two disagree.
 
-43 projects — 43 live, 0 coming soon. Every live one is a real route under this one Next.js app; none of them is a separate project, repo or deployment. A rebuild that is missing routes from this table is not this site.
+44 projects — 44 live, 0 coming soon. Every live one is a real route under this one Next.js app; none of them is a separate project, repo or deployment. A rebuild that is missing routes from this table is not this site.
 
 ## AI (13)
 
@@ -72,7 +72,7 @@
 | **Baby No Scroll** | `/apps/baby-no-scroll` | A child lock for a screen you are about to put in a small pair of hands. |
 | **BuildFlip 2** | `/apps/buildflip-2` | Paste the link to a build you saw — TikTok, Instagram, Pinterest — or just say what you want to make, and about fifty seconds later you have the plan and the money. |
 
-## Utilities (5)
+## Utilities (6)
 
 | App | Route | What it is |
 |---|---|---|
@@ -81,6 +81,7 @@
 | **Trading Studio** | `/apps/trading-studio` | Six trading tools that used to be six apps, behind one switcher the way Jarvis Audio Studio holds its three — each still the app it was, each with its own accent so where you ar… |
 | **Financial Bible** | `/apps/financial-bible` | Several rooms behind one front door, and the first of them answers the question that kills most ideas: not whether it is a good one, but what you actually DO on Saturday morning. |
 | **Dump Finder** | `/apps/dump-finder` | A map for whoever is standing next to a loaded truck. |
+| **Search Infrastructure** | `/apps/search-infrastructure` | The web search every other app in this hub calls, so none of them holds a provider or a key. |
 
 ## Where an app's code lives
 

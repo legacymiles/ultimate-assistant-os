@@ -1,0 +1,63 @@
+# ---------------------------------------------------------------------------
+# The only door open to the internet on the VPS.
+#
+# Caddy gets a Let's Encrypt certificate for SEARXNG_HOSTNAME on first start
+# (port 80 and 443 must be reachable and the DNS A record must already point
+# here), terminates TLS, and proxies to the SearXNG container — which is itself
+# bound to 127.0.0.1, so this is the only path in.
+#
+# The token check is what keeps a public hostname from becoming a public search
+# engine for the whole internet. SEARXNG_TOKEN must match the hub's
+# SEARXNG_TOKEN; the hub sends it as `Authorization: Bearer <token>` on every
+# request. It is REQUIRED — install.sh generates one — because an optional gate
+# here is a gate that ends up off, and an open instance on a public hostname
+# gets found and used within days.
+# ---------------------------------------------------------------------------
+
+{$SEARXNG_HOSTNAME} {
+	encode zstd gzip
+
+	# Nothing here should ever be indexed or cached by anything in between.
+	header {
+		X-Content-Type-Options nosniff
+		X-Frame-Options DENY
+		Referrer-Policy no-referrer
+		X-Robots-Tag "noindex, nofollow, noarchive"
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		-Server
+	}
+
+	# Reject anything without the shared token, before it reaches SearXNG.
+	# Unconditional: the token is required, so there is no "gate off" state to
+	# express and no way to leave it open by forgetting a variable.
+	@unauthorized not header Authorization "Bearer {$SEARXNG_TOKEN}"
+	respond @unauthorized 401 {
+		body "This SearXNG instance is private. Send the bearer token."
+		close
+	}
+
+	reverse_proxy searxng:8080 {
+		header_up X-Forwarded-For {remote_host}
+		header_up X-Real-IP {remote_host}
+		# SearXNG builds absolute URLs from this, and gets them wrong without it.
+		header_up X-Forwarded-Proto {scheme}
+		header_up Host {host}
+	}
+
+	log {
+		output file /data/access.log {
+			roll_size 10mb
+			roll_keep 3
+		}
+		# The query string is the owner's search. It does not belong in a log
+		# file that lives on a rented machine.
+		format filter {
+			wrap console
+			fields {
+				request>uri query {
+					replace REDACTED
+				}
+			}
+		}
+	}
+}

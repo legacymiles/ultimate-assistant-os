@@ -1011,6 +1011,34 @@ export const PROJECTS: CatalogProject[] = [
     iconStyle: "mesh",
     hue: [38, 158],
   },
+  {
+    slug: "search-infrastructure",
+    title: "Search Infrastructure",
+    tag: "One search endpoint for every app and agent",
+    category: "Utilities",
+    overview:
+      "The web search every other app in this hub calls, so none of them holds a provider or a key. "
+      + "A request walks a chain: SearXNG on this machine first, SearXNG on the VPS next, Tavily last — so "
+      + "searches are free and private while the laptop is on, keep working from the VPS when it isn't, and "
+      + "only reach a paid provider when both self-hosted instances are unreachable. Three typed questions "
+      + "come out of it — web, news and research — and every answer has the same five fields whichever "
+      + "provider served it: title, URL, description, source and a publication date when the page gave one. "
+      + "The part that makes it usable by an agent rather than a person is extraction: ask for it and the top "
+      + "results come back with the pages actually read and reduced to text, which is the difference between "
+      + "a list of links and something a model can answer from. Identical searches are cached, every caller "
+      + "has a per-minute and per-day ceiling, and an endpoint that fails three times in a row is skipped for "
+      + "a minute rather than being waited out on every request — which is what stops a sleeping laptop "
+      + "adding eight seconds to everything. The console shows the chain as a rail with the path a request "
+      + "actually took lit up, the hour-by-hour traffic split into live and cached calls, which app is "
+      + "spending the quota, and the plain-English reason any instance is down — including the one everybody "
+      + "hits, where SearXNG serves HTML until you add json to its formats list. Agents, crons and other "
+      + "repos authenticate with a service key issued here, shown once and stored only as a hash; nothing "
+      + "but the server ever holds a provider credential.",
+    status: "live",
+    appUrl: "/apps/search-infrastructure",
+    iconStyle: "orbit",
+    hue: [243, 187],
+  },
 ];
 
 export function getProject(slug: string): CatalogProject | null {

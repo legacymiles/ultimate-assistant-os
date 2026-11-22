@@ -1,0 +1,127 @@
+# ---------------------------------------------------------------------------
+# SearXNG settings for a PRIVATE instance that one server talks to over JSON.
+#
+# The two lines that matter most, and the ones a stock install gets wrong for
+# this purpose:
+#
+#   search.formats          must include `json`, or /search?format=json
+#                           returns 403 and the hub reports the instance as
+#                           refusing the JSON API. A stock SearXNG serves HTML
+#                           only. This is the single most common reason a new
+#                           instance "doesn't work".
+#
+#   server.limiter: false   the limiter counts requests per client IP. Every
+#                           request here arrives from one server — the hub — so
+#                           with it on, the instance throttles its only user.
+#                           Safe to turn off BECAUSE this instance is not open
+#                           to the public: Caddy requires a bearer token and
+#                           the container binds to localhost.
+#
+# If you ever open this instance to other people, turn the limiter back on and
+# drop the token requirement from the Caddyfile — the two go together.
+#
+# Reference: https://docs.searxng.org/admin/settings/index.html
+# ---------------------------------------------------------------------------
+
+use_default_settings: true
+
+general:
+  instance_name: "Jarvis Search"
+  # Nobody is browsing this instance looking for the project, and the donation
+  # link in the footer is noise on an instance with one machine using it.
+  donation_url: false
+  contact_url: false
+  enable_metrics: true
+
+search:
+  safe_search: 1
+  autocomplete: ""
+  default_lang: "en"
+  # THE important line. Without `json` here, the hub gets a 403.
+  formats:
+    - html
+    - json
+
+server:
+  # Overridden by SEARXNG_SECRET in the environment; compose requires it to be
+  # set, so this placeholder is never what runs.
+  secret_key: "change-me-via-SEARXNG_SECRET"
+  limiter: false
+  public_instance: false
+  image_proxy: false
+  method: "GET"
+  # The hub sends its own Accept-Language; this is the fallback.
+  default_locale: "en"
+
+ui:
+  default_locale: "en"
+  query_in_title: true
+  infinite_scroll: false
+  center_alignment: false
+  default_theme: simple
+  theme_args:
+    simple_style: dark
+
+# Keep every outbound request slow-but-polite rather than fast-and-blocked.
+# A private instance has no reason to hammer upstreams, and the engines that
+# ban datacentre IPs do it on request rate.
+outgoing:
+  request_timeout: 5.0
+  max_request_timeout: 12.0
+  pool_connections: 100
+  pool_maxsize: 20
+  enable_http2: true
+
+# ---------------------------------------------------------------------------
+# Engines.
+#
+# `use_default_settings: true` above means every engine SearXNG ships with is
+# already on; this section only overrides specific ones. The two changes:
+#
+#  • Google and Bing are weighted up, because this instance exists to answer
+#    general questions well rather than to be ideologically balanced across 70
+#    engines, and those two carry the general web.
+#  • The engines that reliably fail from a datacentre IP are disabled, so they
+#    stop appearing as "unresponsive engines" in the logs and stop adding
+#    their timeout to every search.
+#
+# To see what is actually answering: the instance's own /stats page.
+# ---------------------------------------------------------------------------
+engines:
+  - name: google
+    weight: 2.0
+  - name: bing
+    weight: 1.6
+  - name: duckduckgo
+    weight: 1.4
+  - name: brave
+    weight: 1.4
+  - name: wikipedia
+    weight: 1.3
+  - name: wikidata
+    weight: 1.2
+
+  # News, which is what `kind: "news"` searches reach.
+  - name: google news
+    weight: 1.8
+  - name: bing news
+    weight: 1.4
+  - name: reuters
+    disabled: false
+
+  # Consistently blocked or broken from a server address. Each one left on
+  # costs a timeout per search and nothing else.
+  - name: qwant
+    disabled: true
+  - name: startpage
+    disabled: true
+  - name: yahoo
+    disabled: true
+  - name: currency
+    disabled: true
+
+categories_as_tabs:
+  general:
+  news:
+  it:
+  science:

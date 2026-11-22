@@ -106,6 +106,24 @@ const TOKEN_AUTH_PATHS = new Set([
   "/api/new-jarvis/requests/video",
   // The clip the owner attached for that session to work from (Custom Video Swap).
   "/api/new-jarvis/requests/input",
+  // The centralized search service. Its callers are agents, the Jarvis
+  // harness, crons and other repos — none of them browsers, none of them ever
+  // holding a session here. Each presents a service key the route hashes and
+  // looks up (lib/search/auth.ts), and the route still accepts the owner's
+  // session for hub pages, so this exemption only removes a gate that would
+  // have turned every agent's first call into "Sign in to use this endpoint."
+  //
+  // Exempt by exact match, and deliberately NOT /api/search/keys: minting a
+  // credential stays owner-session only, so a leaked agent key can spend
+  // quota and never issue more keys. /api/search/cache is left out for the
+  // same reason — one caller should not be able to throw away every other
+  // caller's cache.
+  "/api/search",
+  "/api/search/news",
+  "/api/search/research",
+  "/api/search/extract",
+  "/api/search/providers",
+  "/api/search/usage",
 ]);
 
 /** Stamp (or clear) the account id the browser is allowed to render as. */

@@ -2,7 +2,7 @@ import { DEFAULT_MODEL, aiFetch } from "@/lib/ai/provider";
 import { dedupeNews, normalizeOpportunities, parseRss, ruleScore, salvagePlays, type NewsItem, type Opportunity } from "@/lib/money-agents/radar";
 import { aiReady } from "@/lib/money-agents/server/ai";
 import { parseJsonLoose } from "@/lib/social-import/understand";
-import { parseDdgResults } from "@/lib/new-jarvis/web";
+import { searchNews } from "@/lib/search/client";
 
 export const runtime = "nodejs";
 // 300 matches other routes so Vercel groups it into an existing function (Hobby plan: max 12).
@@ -79,16 +79,30 @@ async function googleNews(q: string): Promise<NewsItem[]> {
   }
 }
 
-async function ddgNews(q: string): Promise<NewsItem[]> {
+/**
+ * The backup when the Google News RSS feed fails, now through the centralized
+ * search service (lib/search) rather than a DuckDuckGo scrape of its own.
+ *
+ * Two things improved by moving: it asks for the NEWS kind, so most rows come
+ * back with a real publication date where the scrape could only send "" — and
+ * `publishedAt` is what the analyst below reasons about when it separates a
+ * scheduled catalyst from stale news. And the week-long window is a parameter
+ * now (`freshness`) instead of DuckDuckGo's `df=w`, so it means the same thing
+ * whichever provider serves it.
+ */
+async function newsBackup(q: string): Promise<NewsItem[]> {
   try {
-    const res = await fetch("https://html.duckduckgo.com/html/", {
-      method: "POST",
-      headers: { "User-Agent": UA, "Content-Type": "application/x-www-form-urlencoded" },
-      body: new URLSearchParams({ q: `${q} news`, df: "w" }).toString(),
-      signal: AbortSignal.timeout(10_000),
+    const response = await searchNews(q, {
+      limit: 6,
+      freshness: "week",
+      app: "money-agents/radar",
     });
-    if (!res.ok) return [];
-    return parseDdgResults(await res.text(), 6).map((h) => ({ title: h.title, url: h.url, source: new URL(h.url).hostname.replace(/^www\./, ""), publishedAt: "" }));
+    return response.results.map((result) => ({
+      title: result.title,
+      url: result.url,
+      source: result.source,
+      publishedAt: result.publishedAt ?? "",
+    }));
   } catch {
     return [];
   }
@@ -107,7 +121,7 @@ export async function GET(req: Request) {
   if (!fresh && cache && Date.now() - cache.at < TTL) return Response.json({ ...cache.body, cached: true });
 
   let lists = await Promise.all(QUERIES.map(googleNews));
-  if (!lists.flat().length) lists = await Promise.all(QUERIES.slice(0, 6).map(ddgNews));
+  if (!lists.flat().length) lists = await Promise.all(QUERIES.slice(0, 6).map((q) => newsBackup(q)));
   const news = dedupeNews(lists.flat()).slice(0, 70);
 
   if (!news.length) {

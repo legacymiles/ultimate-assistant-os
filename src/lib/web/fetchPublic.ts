@@ -1,29 +1,40 @@
 // ---------------------------------------------------------------------------
 // Searching and reading the public web, from the server.
 //
-// This is the ONE implementation. It started inside
-// src/app/api/new-jarvis/web/route.ts, and moved here the moment a second app
-// (the Profiles chat) needed the same two things, so there is no second copy
-// to keep in step. The pure parsing helpers stay in lib/new-jarvis/web.ts,
-// which is unit-tested and imported by both; this module is the part that
-// touches the network, so it is server-only.
+// This used to BE the implementation: it scraped DuckDuckGo for results and
+// reduced pages to text itself. It is now a thin adapter onto the centralized
+// search service in lib/search, which is the one place a provider is named.
+// DuckDuckGo did not go away — it is registered there as a provider
+// (lib/search/providers/duckduckgo.ts), behind the owner's self-hosted SearXNG
+// instances and ahead of Tavily — so the keyless path still works and the
+// callers here got SearXNG, caching, rate limits and usage tracking for free.
 //
-// Free by design: DuckDuckGo's HTML endpoint needs no key, so every user of
-// the hub gets search without the owner buying anything. The paid fallback
-// (OpenRouter's web plugin) is only reached when DuckDuckGo turns the cloud
-// server away, and only if a key happens to be set.
+// The two exported shapes are deliberately unchanged, because two apps depend
+// on them and neither should have had to care that the engine underneath moved:
 //
-// Every address is checked as public on EVERY redirect hop, not just the
-// first — a shortener or an open redirect on a public host is otherwise a
-// route straight to the owner's router or a cloud metadata endpoint.
+//   searchWeb(query, max) -> SearchHit[]       Jarvis's web_search tool, Profiles research
+//   readPage(url, max)    -> PageRead          Jarvis's web_read tool, Profiles research
+//
+// Anything NEW should import from lib/search/client instead, which exposes the
+// kinds (web / news / research), extraction and the usage label. The fetching
+// primitives below (fetchPublic, readCapped) stay exported because they are
+// used for things that are not searching.
+//
+// Every address is still checked as public on EVERY redirect hop — a shortener
+// or an open redirect on a public host is otherwise a route straight to the
+// owner's router or a cloud metadata endpoint. That check now lives in
+// lib/search/extract.ts for the reading path and here for direct fetches.
 // ---------------------------------------------------------------------------
 
+import "server-only";
+
 import { lookup } from "node:dns/promises";
-import { checkPublicUrl, htmlToText, isPrivateHost, parseDdgResults, type SearchHit } from "@/lib/new-jarvis/web";
+import { checkPublicUrl, isPrivateHost, type SearchHit } from "@/lib/new-jarvis/web";
+import { readPage as readPageCentral, searchWeb as searchCentral } from "@/lib/search/client";
 
 export type { SearchHit };
 
-/** A desktop browser's UA. Search pages serve a stripped layout to unknown clients. */
+/** A desktop browser's UA. Many sites serve a stripped layout to unknown clients. */
 const UA =
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Safari/537.36";
 const MAX_BYTES = 2_000_000;
@@ -84,66 +95,52 @@ export async function readCapped(res: Response): Promise<string> {
 }
 
 /**
- * Search the web. Free, keyless, and never throws — an empty array means
- * "no answer just now", which every caller already has a path for.
+ * Search the web, through the central service.
+ *
+ * Never throws, and an empty array still means "no answer just now" — which
+ * every caller already has a path for. That contract is why the central
+ * service's errors are swallowed here rather than surfaced: these two callers
+ * are AI tool loops, and a thrown error would fail a whole turn where an empty
+ * result lets the model try another way.
  */
 export async function searchWeb(query: string, max = 8): Promise<SearchHit[]> {
   const q = query.trim().slice(0, 300);
   if (!q) return [];
-  const tries = [
-    { url: "https://html.duckduckgo.com/html/", body: new URLSearchParams({ q }).toString() },
-    { url: `https://lite.duckduckgo.com/lite/?q=${encodeURIComponent(q)}` },
-  ];
-  for (const t of tries) {
-    try {
-      const res = await fetch(t.url, {
-        method: t.body ? "POST" : "GET",
-        body: t.body,
-        signal: AbortSignal.timeout(TIMEOUT_MS),
-        headers: {
-          "User-Agent": UA,
-          "Accept-Language": "en-US,en;q=0.9",
-          ...(t.body ? { "Content-Type": "application/x-www-form-urlencoded" } : {}),
-        },
-      });
-      if (!res.ok) continue;
-      const hits = parseDdgResults(await readCapped(res), max);
-      if (hits.length) return hits;
-    } catch {
-      /* try the next one */
-    }
+  try {
+    const response = await searchCentral(q, { limit: max, app: "jarvis-web-tools" });
+    return response.results.slice(0, max).map((result) => ({
+      title: result.title,
+      url: result.url,
+      snippet: result.description,
+    }));
+  } catch {
+    return [];
   }
-  return [];
 }
 
 /** A page's readable text, or a plain sentence saying why not. */
 export type PageRead = { ok: true; url: string; title: string; text: string } | { ok: false; why: string };
 
+/**
+ * Read a page, through the central service.
+ *
+ * The central extractor also falls back to a rendering extractor for pages
+ * that only work with JavaScript, which the old hand-rolled reader could not
+ * do — so this call now succeeds on pages that used to come back as "no
+ * readable text".
+ */
 export async function readPage(raw: string, max = 14_000): Promise<PageRead> {
   const checked = checkPublicUrl(raw);
   if (!checked.ok) return { ok: false, why: checked.why };
-  try {
-    const res = await fetchPublic(checked.url, {
-      headers: { Accept: "text/html,application/xhtml+xml,text/plain;q=0.9,*/*;q=0.5" },
-    });
-    if (res.status === 401 || res.status === 403) {
-      return { ok: false, why: "That page needs a sign-in or blocks automated reading, so it couldn't be read from the website." };
-    }
-    if (res.status === 404) return { ok: false, why: "That page doesn't exist (404)." };
-    if (!res.ok) return { ok: false, why: `That site answered with an error (${res.status}).` };
-    const type = res.headers.get("content-type") ?? "";
-    const body = await readCapped(res);
-    const url = checked.url.toString();
-    if (/json/i.test(type)) return { ok: true, url, title: "", text: body.slice(0, max) };
-    if (!/html|text|xml/i.test(type) && type) {
-      return { ok: false, why: `That address is a file (${type.split(";")[0]}), not a page that can be read as text.` };
-    }
-    const page = htmlToText(body, url, max);
-    if (!page.text) return { ok: false, why: "That page has no readable text — it may only work with JavaScript turned on." };
-    return { ok: true, url, ...page };
-  } catch (e) {
-    const msg = e instanceof Error ? e.message : "";
-    if (/timeout|aborted/i.test(msg)) return { ok: false, why: "That page took too long to answer." };
-    return { ok: false, why: msg && !/fetch failed/i.test(msg) ? msg : "That site couldn't be reached from the website." };
+  const page = await readPageCentral(checked.url.toString());
+  if (page.error) return { ok: false, why: page.error };
+  if (!page.text) {
+    return { ok: false, why: "That page has no readable text — it may only work with JavaScript turned on." };
   }
+  return {
+    ok: true,
+    url: page.finalUrl,
+    title: page.title ?? "",
+    text: page.text.length > max ? `${page.text.slice(0, max)}\n…(page continues)` : page.text,
+  };
 }
