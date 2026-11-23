@@ -942,3 +942,24 @@
     animation: none;
   }
 }
+
+/* --- silly faces ------------------------------------------------------------ */
+
+/* The camera picture, drawn by the face tracker into its own WebGL canvas and
+   mirrored here, because a selfie that is not a mirror reads as wrong. It
+   fades in once the camera is really on, so a refused camera never shows a
+   black slab before the cartoon buddy takes over. */
+.bns-face-cam {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+  transform: scaleX(-1);
+  opacity: 0;
+  transition: opacity 0.5s ease;
+  background: #000;
+}
+.bns-face-cam[data-on="1"] {
+  opacity: 1;
+}

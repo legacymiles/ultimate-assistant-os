@@ -99,6 +99,16 @@ export const GAMES: GameInfo[] = [
     hue: 135,
   },
   {
+    id: "faces",
+    name: "Silly faces",
+    line:
+      "The front camera as a magic mirror: puppy ears, a crown, a lion's mane that follow the face. "
+      + "Swipe for the next one, tap for sparkles, open your mouth for a surprise. The picture never "
+      + "leaves this device.",
+    from: "6 months",
+    hue: 28,
+  },
+  {
     id: "sparkle",
     name: "Finger paint",
     line:

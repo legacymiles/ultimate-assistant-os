@@ -936,7 +936,7 @@ export const PROJECTS: CatalogProject[] = [
     category: "Apps",
     overview:
       "A child lock for a screen you are about to put in a small pair of hands. Pick a YouTube "
-      + "video or playlist, or one of ten games, set a password, press Hand it over, and that one "
+      + "video or playlist, or one of eleven games, set a password, press Hand it over, and that one "
       + "thing fills the screen with everything else taken away: no scrolling, no bouncing, no pinch, "
       + "no pull-to-refresh, no long-press menus, no keyboard, no back gesture, and over a video no "
       + "YouTube controls, no channel link and no wall of other videos at the end. The way back out "
@@ -952,8 +952,11 @@ export const PROJECTS: CatalogProject[] = [
       + "bongos), one big instrument on screen at a time, all tuned so no mashing sounds wrong; "
       + "rainbow soap bubbles; fireworks that launch to wherever a finger lands; squishy jelly "
       + "friends with faces that wobble and bounce; a fish tank to feed; a toy-town road of beeping "
-      + "vehicles; peekaboo animals hiding in a meadow; neon finger paint that sings as it moves; and "
-      + "eggs to crack open. Everything is drawn on a canvas at 60fps and every sound is synthesised "
+      + "vehicles; peekaboo animals hiding in a meadow; neon finger paint that sings as it moves; eggs "
+      + "to crack open; and Silly faces, a Snapchat-style magic mirror where the front camera puts "
+      + "puppy ears, a crown or a lion's mane on the face it sees (tracked with jeeliz FaceFilter), "
+      + "a swipe changes the lens and an open mouth sets off its trick — the picture never leaves the "
+      + "device, and with no camera a cartoon buddy wears the lenses instead. Everything is drawn on a canvas at 60fps and every sound is synthesised "
       + "in the browser, so there is nothing to download and it works on a plane. It is honest about "
       + "its ceiling: a web page cannot disable a home button, so the setup screen tells you to "
       + "install it and put Guided Access or Screen Pinning underneath it for a device you actually "

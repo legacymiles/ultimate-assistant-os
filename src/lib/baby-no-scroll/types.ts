@@ -22,6 +22,7 @@ export type GameId =
   | "aquarium"
   | "zoom"
   | "peekaboo"
+  | "faces"
   | "sparkle"
   | "eggs";
 

@@ -82,6 +82,16 @@ function Art({ id }: { id: GameId }) {
           <circle cx="14" cy="13" r=".9" fill="currentColor" />
         </>
       );
+    case "faces":
+      return (
+        <>
+          <circle cx="12" cy="13.5" r="6.5" fill="#fff" />
+          <path d="M5.5 9.5L4 3.5l5 3.5M18.5 9.5L20 3.5l-5 3.5" fill="#fff" />
+          <circle cx="9.6" cy="12.6" r="1" fill="currentColor" />
+          <circle cx="14.4" cy="12.6" r="1" fill="currentColor" />
+          <path d="M10 16c1.2 1 2.8 1 4 0" {...W} stroke="currentColor" strokeWidth={1.3} />
+        </>
+      );
     case "sparkle":
       return <path d="M4 17c3-6 5 2 8-4s5 1 8-5" {...W} strokeWidth={2.4} />;
     case "eggs":

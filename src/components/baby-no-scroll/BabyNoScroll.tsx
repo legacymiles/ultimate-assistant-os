@@ -41,6 +41,7 @@ import { Padlock } from "./Padlock";
 import { PasswordGate } from "./PasswordGate";
 import { PasswordSetup } from "./PasswordSetup";
 import { GameGlyph } from "./GameGlyph";
+import { CameraCheck } from "./CameraCheck";
 import { checkPin } from "@/lib/baby-no-scroll/password";
 import { GameStage, gameHue } from "./GameStage";
 import { YouTubeStage } from "./YouTubeStage";
@@ -416,6 +417,7 @@ export function BabyNoScroll({ initialMode }: { initialMode?: Mode }) {
                     );
                   })}
                 </ul>
+                {settings.game === "faces" && <CameraCheck />}
               </div>
             )}
           </section>

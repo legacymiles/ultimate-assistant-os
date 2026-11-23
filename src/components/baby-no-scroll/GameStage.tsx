@@ -26,6 +26,7 @@ const Jelly = dynamic(() => import("./games/Jelly").then((m) => m.Jelly), { ssr:
 const Aquarium = dynamic(() => import("./games/Aquarium").then((m) => m.Aquarium), { ssr: false });
 const Zoom = dynamic(() => import("./games/Zoom").then((m) => m.Zoom), { ssr: false });
 const Peekaboo = dynamic(() => import("./games/Peekaboo").then((m) => m.Peekaboo), { ssr: false });
+const FaceFun = dynamic(() => import("./games/FaceFun").then((m) => m.FaceFun), { ssr: false });
 const Sparkle = dynamic(() => import("./games/Sparkle").then((m) => m.Sparkle), { ssr: false });
 const Eggs = dynamic(() => import("./games/Eggs").then((m) => m.Eggs), { ssr: false });
 
@@ -45,6 +46,8 @@ export function GameStage({ game }: { game: GameId }) {
       return <Zoom />;
     case "peekaboo":
       return <Peekaboo />;
+    case "faces":
+      return <FaceFun />;
     case "eggs":
       return <Eggs />;
     case "sparkle":
