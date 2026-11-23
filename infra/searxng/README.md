@@ -212,6 +212,18 @@ re-points `netsh portproxy` every time it runs, which is why it is the boot
 task rather than a one-off command. Mirrored networking would avoid this
 entirely, but it did not engage on Windows Server build 26100.
 
+**The keepalive must BLOCK, not spawn.** The first version used
+`Start-Process` and then let the script exit; Windows tears down a scheduled
+task's children when its main process ends, so the keepalive died instantly and
+WSL went with it - while the task still reported `Last Result: 0`. The script
+now ends in a blocking loop, so the task's own process is the thing holding WSL
+open. Give the task an unlimited run time too, or Windows stops it after three
+days:
+
+```
+Set-ScheduledTask -TaskName "SearXNG boot" -Settings (New-ScheduledTaskSettingsSet -ExecutionTimeLimit ([TimeSpan]::Zero))
+```
+
 **A boot task needs a stored password.** A task triggered at startup with no
 logged-on user must run as a named account with its password saved. A SYSTEM
 task cannot be used: WSL distributions are registered per Windows user, so
