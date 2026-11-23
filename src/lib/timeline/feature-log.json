@@ -1,5 +1,158 @@
 [
  {
+  "id": "a52291e:website-studio",
+  "date": "2026-11-22",
+  "slug": "website-studio",
+  "title": "One chat for drafts, with Approve pinned above the composer",
+  "detail": "The draft workspace drops its Chat / Features / Pages / Build tabs. Every step now arrives in the conversation as a card when it is needed: Felix's questions, the feature table and its add-ons, the look, the pages (click one to walk it on the canvas) and the build. The step waiting on the owner wear",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "93f83cf:dashboard",
+  "date": "2026-11-22",
+  "slug": "dashboard",
+  "title": "Fix stale People copy and repeated memory sync found in click-through",
+  "detail": "- Photos › People intro no longer tells the owner to upload faces there; it says references are chosen in each person's profile. - Identity cards are sent to Jarvis Memory once per set per page when memory is unavailable (signed out / no Supabase), instead of on every save.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "93f83cf:identity",
+  "date": "2026-11-22",
+  "slug": "identity",
+  "title": "Fix stale People copy and repeated memory sync found in click-through",
+  "detail": "- Photos › People intro no longer tells the owner to upload faces there; it says references are chosen in each person's profile. - Identity cards are sent to Jarvis Memory once per set per page when memory is unavailable (signed out / no Supabase), instead of on every save.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "3f7f5b4:app-builder",
+  "date": "2026-11-22",
+  "slug": "app-builder",
+  "title": "The avatar lives inside each chat box, one voice button, nothing floating",
+  "detail": "Owner, 2026-11-22: Profiles showed a mic and the avatar at once, and the floating corner window covered a navigation button. The living avatar is now each Jarvis chat's one voice button (components/voice/ChatVoiceAvatar): tap the face to talk, tap again to stop; a small chevron opens the big avatar ",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "3f7f5b4:client-review",
+  "date": "2026-11-22",
+  "slug": "client-review",
+  "title": "The avatar lives inside each chat box, one voice button, nothing floating",
+  "detail": "Owner, 2026-11-22: Profiles showed a mic and the avatar at once, and the floating corner window covered a navigation button. The living avatar is now each Jarvis chat's one voice button (components/voice/ChatVoiceAvatar): tap the face to talk, tap again to stop; a small chevron opens the big avatar ",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "3f7f5b4:jarvis",
+  "date": "2026-11-22",
+  "slug": "jarvis",
+  "title": "The avatar lives inside each chat box, one voice button, nothing floating",
+  "detail": "Owner, 2026-11-22: Profiles showed a mic and the avatar at once, and the floating corner window covered a navigation button. The living avatar is now each Jarvis chat's one voice button (components/voice/ChatVoiceAvatar): tap the face to talk, tap again to stop; a small chevron opens the big avatar ",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "3f7f5b4:profiles",
+  "date": "2026-11-22",
+  "slug": "profiles",
+  "title": "The avatar lives inside each chat box, one voice button, nothing floating",
+  "detail": "Owner, 2026-11-22: Profiles showed a mic and the avatar at once, and the floating corner window covered a navigation button. The living avatar is now each Jarvis chat's one voice button (components/voice/ChatVoiceAvatar): tap the face to talk, tap again to stop; a small chevron opens the big avatar ",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "3f7f5b4:dashboard",
+  "date": "2026-11-22",
+  "slug": "dashboard",
+  "title": "The avatar lives inside each chat box, one voice button, nothing floating",
+  "detail": "Owner, 2026-11-22: Profiles showed a mic and the avatar at once, and the floating corner window covered a navigation button. The living avatar is now each Jarvis chat's one voice button (components/voice/ChatVoiceAvatar): tap the face to talk, tap again to stop; a small chevron opens the big avatar ",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "3f7f5b4:voice",
+  "date": "2026-11-22",
+  "slug": "voice",
+  "title": "The avatar lives inside each chat box, one voice button, nothing floating",
+  "detail": "Owner, 2026-11-22: Profiles showed a mic and the avatar at once, and the floating corner window covered a navigation button. The living avatar is now each Jarvis chat's one voice button (components/voice/ChatVoiceAvatar): tap the face to talk, tap again to stop; a small chevron opens the big avatar ",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "3f7f5b4:website-studio",
+  "date": "2026-11-22",
+  "slug": "website-studio",
+  "title": "The avatar lives inside each chat box, one voice button, nothing floating",
+  "detail": "Owner, 2026-11-22: Profiles showed a mic and the avatar at once, and the floating corner window covered a navigation button. The living avatar is now each Jarvis chat's one voice button (components/voice/ChatVoiceAvatar): tap the face to talk, tap again to stop; a small chevron opens the big avatar ",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "c4f4170:identity",
+  "date": "2026-11-22",
+  "slug": "identity",
+  "title": "One identity per person for Camera Autopilot, Images, Memory and Jarvis",
+  "detail": "Profiles is now the single source of truth for who people are. Every person profile's id is the identity id that Camera Autopilot, the Images library (Dashboard Folders/Photos), Jarvis Memory and the LLM harness all use.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "c4f4170:jarvis",
+  "date": "2026-11-22",
+  "slug": "jarvis",
+  "title": "One identity per person for Camera Autopilot, Images, Memory and Jarvis",
+  "detail": "Profiles is now the single source of truth for who people are. Every person profile's id is the identity id that Camera Autopilot, the Images library (Dashboard Folders/Photos), Jarvis Memory and the LLM harness all use.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "c4f4170:profiles",
+  "date": "2026-11-22",
+  "slug": "profiles",
+  "title": "One identity per person for Camera Autopilot, Images, Memory and Jarvis",
+  "detail": "Profiles is now the single source of truth for who people are. Every person profile's id is the identity id that Camera Autopilot, the Images library (Dashboard Folders/Photos), Jarvis Memory and the LLM harness all use.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "c4f4170:dashboard",
+  "date": "2026-11-22",
+  "slug": "dashboard",
+  "title": "One identity per person for Camera Autopilot, Images, Memory and Jarvis",
+  "detail": "Profiles is now the single source of truth for who people are. Every person profile's id is the identity id that Camera Autopilot, the Images library (Dashboard Folders/Photos), Jarvis Memory and the LLM harness all use.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "43a67ef:buildflip-2",
+  "date": "2026-11-22",
+  "slug": "buildflip-2",
+  "title": "A result is a page, not a click-through",
+  "detail": "BuildFlip's first live pricing run came back with duckduckgo.com/y.js?ad_domain=amazon.com&… as the top result for \"2x4x8 pressure treated lumber price buy\": 1,200 characters of ad tracking, titled \"Amazon Official Site\", on its way to becoming a buy link on someone's build plan. It was filtered app",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "43a67ef:jarvis",
+  "date": "2026-11-22",
+  "slug": "jarvis",
+  "title": "A result is a page, not a click-through",
+  "detail": "BuildFlip's first live pricing run came back with duckduckgo.com/y.js?ad_domain=amazon.com&… as the top result for \"2x4x8 pressure treated lumber price buy\": 1,200 characters of ad tracking, titled \"Amazon Official Site\", on its way to becoming a buy link on someone's build plan. It was filtered app",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "43a67ef:search-infrastructure",
+  "date": "2026-11-22",
+  "slug": "search-infrastructure",
+  "title": "A result is a page, not a click-through",
+  "detail": "BuildFlip's first live pricing run came back with duckduckgo.com/y.js?ad_domain=amazon.com&… as the top result for \"2x4x8 pressure treated lumber price buy\": 1,200 characters of ad tracking, titled \"Amazon Official Site\", on its way to becoming a buy link on someone's build plan. It was filtered app",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
   "id": "d64caea:buildflip-2",
   "date": "2026-11-22",
   "slug": "buildflip-2",
