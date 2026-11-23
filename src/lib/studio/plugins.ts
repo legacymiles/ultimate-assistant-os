@@ -51,6 +51,7 @@ export const PLUGIN_SLUGS = [
   "custom-video-swap",
   "buildflip-2",
   "search-infrastructure",
+  "dtf-studio",
 ] as const;
 
 /**

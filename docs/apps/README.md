@@ -2,7 +2,7 @@
 
 **Generated — do not edit.** `node scripts/apps-index.mjs` rewrites this from [`src/lib/catalog.ts`](../../src/lib/catalog.ts), which is the single source of truth for the hub. `node scripts/apps-index.mjs --check` fails when the two disagree.
 
-44 projects — 44 live, 0 coming soon. Every live one is a real route under this one Next.js app; none of them is a separate project, repo or deployment. A rebuild that is missing routes from this table is not this site.
+45 projects — 45 live, 0 coming soon. Every live one is a real route under this one Next.js app; none of them is a separate project, repo or deployment. A rebuild that is missing routes from this table is not this site.
 
 ## AI (13)
 
@@ -58,7 +58,7 @@
 | **APEX/01 Kart Teardown** | `/apps/kart-showcase` | A cinematic, interactive 3D racing-kart teardown. |
 | **Website Studio** | `/apps/website-studio` | One place for every website: describe what you want and it is built, paste an address and it is redesigned without losing a single thing the site does, or open one you have alre… |
 
-## Apps (9)
+## Apps (10)
 
 | App | Route | What it is |
 |---|---|---|
@@ -67,6 +67,7 @@
 | **Cook Connect** | `/apps/cook-connect` | A cookbook and a card table in one social app. |
 | **God's Eye View** | `/apps/gods-eye-view` | A spy-satellite simulator in the browser, where the data turns out to be real. |
 | **Game Creator** | `/apps/game-creator` | Type an idea for a video game and Unreal Engine 5.8 on your own PC builds it. |
+| **DTF Studio** | `/apps/dtf-studio` | A customer-facing apparel studio wired to the shop's real Lancelot M1630 Pro DTF printer. |
 | **Game Studio** | `/apps/game-studio` | Every game in one place. |
 | **Item Storm Arena** | `/apps/item-storm-arena` | A storm of living objects circles a floating arena, and your cursor is a gravity well. |
 | **Baby No Scroll** | `/apps/baby-no-scroll` | A child lock for a screen you are about to put in a small pair of hands. |

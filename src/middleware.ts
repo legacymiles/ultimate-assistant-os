@@ -130,6 +130,17 @@ const TOKEN_AUTH_PATHS = new Set([
   // that person's own keys and their own usage — never the provider list,
   // never anyone else's keys.
   "/api/search/account",
+  // DTF Studio's Windows print station (tools/dtf-print-station). Not a
+  // browser, no session: each route verifies the station's bearer token
+  // against the SHA-256 hash the owner paired (lib/dtf/server/access.ts).
+  // It can list queued print jobs, fetch their PNGs and report
+  // downloaded/opened/printed — nothing else, and never starts a print.
+  "/api/dtf/station/jobs",
+  "/api/dtf/station/file",
+  "/api/dtf/station/status",
+  // Stripe's payment confirmation for DTF orders. The route verifies the
+  // Stripe signature with STRIPE_WEBHOOK_SECRET before touching an order.
+  "/api/dtf/webhook/stripe",
 ]);
 
 /** Stamp (or clear) the account id the browser is allowed to render as. */

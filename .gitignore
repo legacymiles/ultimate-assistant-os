@@ -110,3 +110,9 @@ public/__dump/
 # committed; the series are re-pullable, so they are not.
 /tools/adaptive-recovery/*.npy
 /tools/ea-lab-runner/out/
+
+# DTF print station: the paired token and the station's local memory (never commit)
+/tools/dtf-print-station/station.config.json
+/tools/dtf-print-station/state.json
+/tools/dtf-print-station/state.corrupt-*.json
+/tools/dtf-print-station/*.local.json

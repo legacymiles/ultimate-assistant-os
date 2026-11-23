@@ -740,6 +740,26 @@ export const PROJECTS: CatalogProject[] = [
     hue: [265, 330],
   },
   {
+    slug: "dtf-studio",
+    title: "DTF Studio",
+    tag: "Design it on the real garment — the shop prints it",
+    category: "Apps",
+    overview:
+      "A customer-facing apparel studio wired to the shop's real Lancelot M1630 Pro DTF printer. Pick a tee, oversized tee, hoodie, " +
+      "crewneck, long sleeve, tank or tote shown as a real photo that is recoloured to the fabric you pick, folds and knit intact; upload " +
+      "art or set type and it is pressed into the cloth as you drag, resize and rotate it. A Preview shows it worn, folded, hanging and " +
+      "laid flat, ready to download. An AI designer reads " +
+      "reference pictures and edits the actual layers when you press Apply. A print-readiness engine checks DPI at the real size, " +
+      "transparency, background boxes, soft edges, hairlines, placement and the 290 mm safe width before anyone can pay. Orders land on " +
+      "a production board (DTF Production): approve the artwork, make an artwork-only 300 DPI PNG for ColorboxRIP, gang several onto " +
+      "one sheet, and send them to a Windows print station that files them by order number and tracks opened and printed — it never " +
+      "prints by itself.",
+    status: "live",
+    appUrl: "/apps/dtf-studio",
+    iconStyle: "orbit",
+    hue: [190, 255],
+  },
+  {
     slug: "game-studio",
     title: "Game Studio",
     tag: "Make a game, finish the ones in progress",

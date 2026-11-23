@@ -1,0 +1,544 @@
+/* ---------------------------------------------------------------------------
+   DTF Studio — one token system for the customer studio and production.
+   Graphite + glass, one cyan accent for "this is live / selected", and violet
+   reserved for the AI designer alone, so its presence reads at a glance.
+   --------------------------------------------------------------------------- */
+
+/* Everything below sits in Tailwind's "components" cascade layer, so a utility
+   on the same element (hidden, lg:inline-flex, !h-7…) always wins — unlayered
+   CSS would silently beat every utility and break responsive visibility. */
+@layer components {
+.dtf {
+  --bg: #08090b;
+  --bg-2: #0d0f12;
+  --glass: rgba(20, 22, 27, 0.72);
+  --glass-2: rgba(28, 31, 37, 0.82);
+  --solid: #14161a;
+  --solid-2: #1b1e23;
+  --line: rgba(255, 255, 255, 0.07);
+  --line-2: rgba(255, 255, 255, 0.13);
+  --text: #eceef2;
+  --text-2: #a3a9b4;
+  --text-3: #8b919c;
+  --accent: #5ee1ff;
+  --accent-2: #2bb8dc;
+  --accent-ink: #03161c;
+  --accent-soft: rgba(94, 225, 255, 0.12);
+  --ai: #a796ff;
+  --ai-soft: rgba(167, 150, 255, 0.13);
+  --ok: #5be3a4;
+  --warn: #f5c56b;
+  --block: #ff7a7a;
+  --r-lg: 18px;
+  --r: 12px;
+  --r-sm: 9px;
+  --shadow: 0 24px 64px -24px rgba(0, 0, 0, 0.75), 0 2px 6px rgba(0, 0, 0, 0.3);
+  --ease: cubic-bezier(0.22, 1, 0.36, 1);
+  font-family: var(--font-dtf-sans), system-ui, sans-serif;
+  color: var(--text);
+  background: var(--bg);
+  -webkit-font-smoothing: antialiased;
+  font-feature-settings: "ss01", "cv11";
+  caret-color: var(--accent);
+  accent-color: var(--accent);
+}
+
+.dtf *::selection {
+  background: rgba(94, 225, 255, 0.28);
+}
+
+.dtf .mono {
+  font-family: var(--font-dtf-mono), ui-monospace, monospace;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
+}
+
+.dtf .serif {
+  font-family: var(--font-dtf-serif), Georgia, serif;
+  font-weight: 400;
+  letter-spacing: -0.01em;
+}
+
+/* The stage: a soft studio spotlight on graphite, with a faint floor line. */
+.dtf-stage {
+  background:
+    radial-gradient(60% 55% at 50% 38%, rgba(120, 140, 170, 0.16), transparent 70%),
+    radial-gradient(40% 30% at 50% 92%, rgba(94, 225, 255, 0.05), transparent 70%),
+    linear-gradient(180deg, #0c0e11 0%, #08090b 100%);
+}
+
+/* Showroom: the real garment on a warm studio sweep; the tools float on it in
+   a dark dock, so the photo's colours read true and the brand stays dark. */
+.dtf.dtf-showroom {
+  background: radial-gradient(90% 70% at 55% 38%, #f8f7f4 0%, #ecebe6 62%, #dedbd4 100%);
+}
+.dtf-dock {
+  background: #101114;
+  color: var(--text);
+  border: 1px solid rgba(255, 255, 255, 0.04);
+  box-shadow: 0 34px 70px -34px rgba(16, 17, 20, 0.55), 0 2px 8px -2px rgba(16, 17, 20, 0.18);
+  transition: width 0.45s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.dtf-pill {
+  display: inline-flex;
+  height: 40px;
+  min-width: 40px;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  border-radius: 999px;
+  border: 1px solid rgba(16, 17, 20, 0.08);
+  background: rgba(255, 255, 255, 0.78);
+  padding: 0 14px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #101114;
+  backdrop-filter: blur(10px);
+  transition: background 0.15s, border-color 0.15s, transform 0.15s;
+}
+.dtf-pill:hover:not(:disabled) {
+  background: #fff;
+  border-color: rgba(16, 17, 20, 0.16);
+}
+.dtf-pill:active:not(:disabled) {
+  transform: scale(0.97);
+}
+.dtf-pill:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+.dtf-pill:focus-visible,
+.dtf-buy:focus-visible,
+.dtf-chip-btn:focus-visible,
+.dtf-film-tile:focus-visible {
+  outline: 2px solid #0b9fc4;
+  outline-offset: 2px;
+}
+.dtf-buy {
+  display: inline-flex;
+  height: 52px;
+  align-items: center;
+  gap: 14px;
+  border-radius: 999px;
+  background: #101114;
+  padding: 0 7px 0 22px;
+  font-size: 15px;
+  font-weight: 600;
+  color: #fff;
+  box-shadow: 0 14px 30px -16px rgba(16, 17, 20, 0.7);
+  transition: transform 0.18s cubic-bezier(0.22, 1, 0.36, 1), background 0.15s;
+}
+.dtf-buy b {
+  border-radius: 999px;
+  background: var(--accent);
+  padding: 8px 14px;
+  font-size: 21px;
+  font-weight: 600;
+  color: var(--accent-ink);
+}
+.dtf-buy:hover:not(:disabled) {
+  background: #000;
+  transform: translateY(-1px);
+}
+.dtf-buy:disabled {
+  opacity: 0.6;
+}
+@media (max-width: 639px) {
+  .dtf-buy {
+    height: 42px;
+    padding: 0 5px;
+    gap: 0;
+  }
+  .dtf-buy b {
+    font-size: 15px;
+    padding: 6px 11px;
+  }
+}
+.dtf-chip-btn {
+  display: grid;
+  height: 44px;
+  width: 44px;
+  place-items: center;
+  border-radius: 14px;
+  border: 1px solid rgba(16, 17, 20, 0.08);
+  background: rgba(255, 255, 255, 0.82);
+  color: #101114;
+  backdrop-filter: blur(10px);
+  transition: background 0.15s, opacity 0.15s;
+}
+.dtf-chip-btn:hover:not(:disabled) {
+  background: #fff;
+}
+.dtf-chip-btn:disabled {
+  opacity: 0.35;
+}
+.dtf-chip-btn[aria-pressed="true"] {
+  background: #101114;
+  color: #fff;
+}
+.dtf-film-tile {
+  flex: none;
+  border-radius: 16px;
+  transition: transform 0.2s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.dtf-film-tile:hover {
+  transform: translateY(-3px);
+}
+.dtf-film-tag {
+  flex: none;
+  margin-bottom: 30px;
+  writing-mode: vertical-rl;
+  transform: rotate(180deg);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: #8a8f99;
+}
+.dtf-light {
+  color: #101114;
+}
+
+.dtf-glass {
+  background: var(--glass);
+  backdrop-filter: blur(22px) saturate(140%);
+  -webkit-backdrop-filter: blur(22px) saturate(140%);
+  border: 1px solid var(--line);
+  box-shadow: var(--shadow);
+}
+
+.dtf-solid {
+  background: var(--solid);
+  border: 1px solid var(--line);
+}
+
+/* ----- controls ----- */
+
+.dtf-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  height: 36px;
+  padding: 0 14px;
+  border-radius: var(--r-sm);
+  font-size: 13px;
+  font-weight: 550;
+  color: var(--text);
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--line);
+  transition: background 0.18s var(--ease), border-color 0.18s var(--ease), transform 0.12s var(--ease), color 0.18s;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.dtf-btn:hover {
+  background: rgba(255, 255, 255, 0.09);
+  border-color: var(--line-2);
+}
+.dtf-btn:active {
+  transform: scale(0.97);
+}
+.dtf-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+  transform: none;
+}
+.dtf-btn:focus-visible,
+.dtf-icon:focus-visible,
+.dtf-chip:focus-visible,
+.dtf-swatch:focus-visible,
+.dtf-input:focus-visible,
+.dtf-tab:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.dtf-btn.primary {
+  background: var(--accent);
+  color: var(--accent-ink);
+  border-color: transparent;
+  font-weight: 650;
+}
+.dtf-btn.primary:hover {
+  background: #8beaff;
+}
+.dtf-btn.ai {
+  background: var(--ai-soft);
+  color: #d9d1ff;
+  border-color: rgba(167, 150, 255, 0.28);
+}
+.dtf-btn.ai:hover {
+  background: rgba(167, 150, 255, 0.22);
+}
+.dtf-btn.ghost {
+  background: transparent;
+  border-color: transparent;
+}
+.dtf-btn.ghost:hover {
+  background: rgba(255, 255, 255, 0.06);
+}
+.dtf-btn.danger:hover {
+  color: var(--block);
+  border-color: rgba(255, 122, 122, 0.35);
+}
+.dtf-btn.sm {
+  height: 30px;
+  padding: 0 10px;
+  font-size: 12px;
+}
+
+.dtf-icon {
+  display: inline-grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border-radius: var(--r-sm);
+  color: var(--text-2);
+  transition: background 0.18s var(--ease), color 0.18s;
+  cursor: pointer;
+}
+.dtf-icon:hover {
+  background: rgba(255, 255, 255, 0.07);
+  color: var(--text);
+}
+.dtf-icon:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+.dtf-icon[aria-pressed="true"] {
+  color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.dtf-input {
+  width: 100%;
+  height: 36px;
+  padding: 0 11px;
+  border-radius: var(--r-sm);
+  background: rgba(0, 0, 0, 0.32);
+  border: 1px solid var(--line);
+  color: var(--text);
+  font-size: 13px;
+  transition: border-color 0.16s;
+}
+.dtf-input:hover {
+  border-color: var(--line-2);
+}
+.dtf-input:focus {
+  border-color: rgba(94, 225, 255, 0.55);
+  outline: none;
+}
+textarea.dtf-input {
+  height: auto;
+  padding: 10px 11px;
+  line-height: 1.45;
+  resize: vertical;
+}
+
+.dtf-label {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-3);
+}
+
+.dtf-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 30px;
+  padding: 0 11px;
+  border-radius: 999px;
+  font-size: 12.5px;
+  color: var(--text-2);
+  border: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.03);
+  transition: all 0.16s var(--ease);
+  cursor: pointer;
+  white-space: nowrap;
+}
+.dtf-chip:hover {
+  color: var(--text);
+  border-color: var(--line-2);
+}
+.dtf-chip[aria-pressed="true"] {
+  color: var(--accent);
+  border-color: rgba(94, 225, 255, 0.45);
+  background: var(--accent-soft);
+}
+
+.dtf-swatch {
+  position: relative;
+  width: 30px;
+  height: 30px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  box-shadow: inset 0 -6px 10px rgba(0, 0, 0, 0.25), inset 0 2px 3px rgba(255, 255, 255, 0.12);
+  transition: transform 0.18s var(--ease);
+  cursor: pointer;
+}
+.dtf-swatch:hover {
+  transform: scale(1.1);
+}
+.dtf-swatch[aria-pressed="true"]::after {
+  content: "";
+  position: absolute;
+  inset: -5px;
+  border-radius: 999px;
+  border: 1.5px solid var(--accent);
+}
+
+.dtf-tab {
+  position: relative;
+  height: 32px;
+  padding: 0 12px;
+  font-size: 12.5px;
+  font-weight: 550;
+  color: var(--text-3);
+  border-radius: 8px;
+  transition: color 0.16s;
+  cursor: pointer;
+}
+.dtf-tab:hover {
+  color: var(--text-2);
+}
+.dtf-tab[aria-selected="true"] {
+  color: var(--text);
+  background: rgba(255, 255, 255, 0.07);
+}
+
+.dtf-seg {
+  display: inline-flex;
+  padding: 3px;
+  gap: 2px;
+  border-radius: 11px;
+  background: rgba(0, 0, 0, 0.35);
+  border: 1px solid var(--line);
+}
+
+/* Range sliders */
+.dtf input[type="range"] {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 22px;
+  background: transparent;
+  cursor: pointer;
+}
+.dtf input[type="range"]::-webkit-slider-runnable-track {
+  height: 3px;
+  border-radius: 3px;
+  background: linear-gradient(90deg, var(--accent) var(--fill, 50%), rgba(255, 255, 255, 0.12) var(--fill, 50%));
+}
+.dtf input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 14px;
+  height: 14px;
+  margin-top: -5.5px;
+  border-radius: 99px;
+  background: #fff;
+  box-shadow: 0 0 0 4px rgba(94, 225, 255, 0.18);
+}
+.dtf input[type="range"]::-moz-range-track {
+  height: 3px;
+  border-radius: 3px;
+  background: rgba(255, 255, 255, 0.12);
+}
+.dtf input[type="range"]::-moz-range-progress {
+  height: 3px;
+  background: var(--accent);
+}
+.dtf input[type="range"]::-moz-range-thumb {
+  width: 14px;
+  height: 14px;
+  border: 0;
+  border-radius: 99px;
+  background: #fff;
+}
+
+.dtf-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.14) transparent;
+}
+
+.dtf-kbd {
+  font-family: var(--font-dtf-mono), monospace;
+  font-size: 10.5px;
+  padding: 1px 5px;
+  border-radius: 5px;
+  border: 1px solid var(--line-2);
+  color: var(--text-3);
+}
+
+/* Readiness tones */
+.tone-ok {
+  color: var(--ok);
+}
+.tone-info {
+  color: var(--accent);
+}
+.tone-warn {
+  color: var(--warn);
+}
+.tone-block {
+  color: var(--block);
+}
+
+/* The flat artboard */
+.dtf-artboard {
+  background-image: radial-gradient(rgba(255, 255, 255, 0.05) 1px, transparent 1px);
+  background-size: 14px 14px;
+}
+
+.dtf-handle {
+  position: absolute;
+  width: 12px;
+  height: 12px;
+  margin: -6px 0 0 -6px;
+  border-radius: 4px;
+  background: #fff;
+  border: 1.5px solid var(--accent-2);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4);
+  touch-action: none;
+}
+
+@keyframes dtf-pulse {
+  0%,
+  100% {
+    opacity: 0.45;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+.dtf-pulse {
+  animation: dtf-pulse 1.6s ease-in-out infinite;
+}
+
+@keyframes dtf-sheen {
+  from {
+    background-position: -200% 0;
+  }
+  to {
+    background-position: 200% 0;
+  }
+}
+.dtf-thinking {
+  background: linear-gradient(90deg, var(--text-3) 0%, #d9d1ff 50%, var(--text-3) 100%);
+  background-size: 200% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: dtf-sheen 2.2s linear infinite;
+}
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dtf *,
+  .dtf *::before,
+  .dtf *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+}

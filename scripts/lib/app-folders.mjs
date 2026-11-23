@@ -42,6 +42,10 @@ export const FOLDER_TO_SLUG = {
   "music-classified": "jarvis-audio-studio",
   "music-creator": "jarvis-audio-studio",
   slippery: "slippery-escape",
+  // DTF Studio's code lives under dtf/ (lib, components, api); the owner's
+  // production board is its own route but the same app.
+  dtf: "dtf-studio",
+  "dtf-production": "dtf-studio",
   // Studio homes (Oct 2026): the shells. The merged apps keep their own
   // folders and their own history; edits to the home itself land on the home.
   "studio-home": "jarvis",

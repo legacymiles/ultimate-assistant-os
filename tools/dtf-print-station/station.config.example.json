@@ -1,0 +1,9 @@
+{
+  "siteUrl": "https://your-shop-website.example",
+  "token": "paste the token from DTF Production > Print bridge > Pair station",
+  "exportDir": "C:\\DTF\\Print Jobs",
+  "colorboxRipPath": "C:\\Program Files\\ColorboxRIP\\ColorboxRIP.exe",
+  "openMode": "reveal",
+  "pollSeconds": 15,
+  "port": 7316
+}

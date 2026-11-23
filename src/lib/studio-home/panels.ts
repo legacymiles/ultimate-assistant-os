@@ -62,6 +62,14 @@ export const PANELS: readonly Panel[] = [
   { slug: "seedance-studio", inside: [{ label: "Engine", icon: "Waveform" }] },
   { slug: "personas-studio", inside: [{ label: "Personas", icon: "Users" }, { label: "Calendar", icon: "Calendar" }, { label: "Analytics", icon: "Target" }] },
   { slug: "money-agent-studio", inside: [{ label: "Clip", icon: "Scissors" }, { label: "Channels", icon: "Film" }, { label: "Campaigns", icon: "Cash" }] },
+  {
+    slug: "dtf-studio",
+    inside: [
+      { label: "Design", icon: "Sparkles" },
+      { label: "Production", icon: "Layers" },
+      { label: "Print bridge", icon: "Grid" },
+    ],
+  },
   { slug: "game-studio", sections: GAME_SECTIONS },
   { slug: "trading-studio", sections: TRADING_SECTIONS },
 ];

@@ -69,12 +69,24 @@ export const AI_RANKINGS_PUBLIC = ["/apps/ai-rankings", "/api/ai-rankings/board"
  */
 export const SEARCH_MEMBER_PUBLIC = ["/apps/search-access"];
 
+/**
+ * DTF Studio's customer side is a public shop: anyone may open the studio and
+ * design, and signing in (any account) saves designs and places orders. Every
+ * route under these prefixes resolves the session itself and returns only the
+ * caller's own rows (src/lib/dtf/server/access.ts). Production —
+ * /apps/dtf-production and /api/dtf/admin — is NOT here and stays behind the
+ * owner gate; the print station and Stripe use exact token paths in
+ * middleware instead.
+ */
+export const DTF_PUBLIC = ["/apps/dtf-studio", "/api/dtf/me", "/api/dtf/assets", "/api/dtf/capabilities"];
+
 const PUBLIC_PREFIXES = [
   PUBLIC_HOME,
   "/api/fno",
   ...CLIENT_REVIEW_PUBLIC,
   LEGAL_PAGES,
   ...AI_RANKINGS_PUBLIC,
+  ...DTF_PUBLIC,
 ];
 
 /**

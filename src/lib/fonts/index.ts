@@ -220,3 +220,29 @@ export const rdxSyne = localFont({
   variable: "--font-rdx-syne",
   fallback: ["system-ui", "-apple-system", "Segoe UI", "Roboto", "Helvetica Neue", "Arial", "sans-serif"],
 });
+
+// DTF Studio: Geist for the interface, Geist Mono for every measurement (cm,
+// DPI, prices — the "instrument" voice), Instrument Serif for garment names.
+export const dtfSans = localFont({
+  src: "../../../public/fonts/geist-variable.woff2",
+  weight: "100 900",
+  display: "swap",
+  variable: "--font-dtf-sans",
+  fallback: ["system-ui", "-apple-system", "Segoe UI", "Roboto", "Helvetica Neue", "Arial", "sans-serif"],
+});
+
+export const dtfMono = localFont({
+  src: "../../../public/fonts/geist-mono-variable.woff2",
+  weight: "100 900",
+  display: "swap",
+  variable: "--font-dtf-mono",
+  fallback: ["ui-monospace", "SFMono-Regular", "Menlo", "Consolas", "Liberation Mono", "monospace"],
+});
+
+export const dtfSerif = localFont({
+  src: "../../../public/fonts/instrument-serif-400.woff2",
+  weight: "400",
+  display: "swap",
+  variable: "--font-dtf-serif",
+  fallback: ["Georgia", "Cambria", "Times New Roman", "serif"],
+});
