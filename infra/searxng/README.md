@@ -195,6 +195,41 @@ docker compose --profile public pull && docker compose --profile public up -d
 curl -H "Authorization: Bearer $SEARXNG_TOKEN" "https://search.example.com/search?q=test&format=json" | head -c 400
 ```
 
+## Running on a Windows VPS, for real
+
+What it took beyond the install, learned the hard way on 2026-11-22. None of
+this is optional if the instance has to stay up.
+
+**WSL is not a service.** It runs only inside a logged-on user session and
+stops when nothing holds it open -- taking Docker and every container with it.
+Every time the shell was closed, SearXNG stopped. Two parts fix it:
+`vmIdleTimeout=-1` in the user's `.wslconfig`, and `searxng-boot.ps1` started
+by a scheduled task.
+
+**WSL takes a new NAT address nearly every start**, so a port forward set once
+is stale by the next restart. `searxng-boot.ps1` re-reads the address and
+re-points `netsh portproxy` every time it runs, which is why it is the boot
+task rather than a one-off command. Mirrored networking would avoid this
+entirely, but it did not engage on Windows Server build 26100.
+
+**A boot task needs a stored password.** A task triggered at startup with no
+logged-on user must run as a named account with its password saved. A SYSTEM
+task cannot be used: WSL distributions are registered per Windows user, so
+SYSTEM cannot see the distro at all. Register it with:
+
+```
+schtasks /Create /TN "SearXNG boot" /TR "powershell.exe -NoProfile -ExecutionPolicy Bypass -File C:\searxng-boot.ps1" /SC ONSTART /RU "<MACHINE>\Administrator" /RP * /RL HIGHEST /F
+```
+
+`/RP *` prompts for the password rather than taking it on the command line.
+
+**`landscape-client` and `cloud-init` hang inside WSL.** They held systemd at
+`initializing` for minutes, which delayed Docker long enough to look broken.
+Both are masked in the distro.
+
+**Quoting through ssh -> cmd -> powershell -> wsl -> bash** mangles anything
+interesting. Send a script as base64 and decode it on the far side.
+
 ## Files here
 
 | File | What it is |
@@ -204,6 +239,8 @@ curl -H "Authorization: Bearer $SEARXNG_TOKEN" "https://search.example.com/searc
 | `Caddyfile` | TLS, security headers, the bearer-token gate, and query strings redacted from the access log |
 | `install.sh` | the VPS installer and upgrader, from files already on the box |
 | `vps-bootstrap.sh` | the same thing with **nothing copied first** - paste it into a shell on the VPS |
+| `searxng-boot.ps1` | starts WSL and re-points the port forward; the Windows boot task runs this |
+| `harden-ssh.ps1` | turns off SSH password auth once key access is proven |
 | `start-local.ps1` | the laptop starter |
 | `setup-windows-vps.ps1` | the Windows VPS installer: WSL2 + Docker, then `install.sh` |
 | `refresh-portproxy.ps1` | re-points 80/443 at WSL after a reboot (portproxy path only) |
