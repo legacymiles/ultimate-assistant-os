@@ -2498,3 +2498,342 @@
   pointer-events: none;
   white-space: nowrap;
 }
+
+/* ----- a draft: ONE chat, every step a card in it ---------------------------
+   Owner, 22 Nov 2026 (mockup "One chat"): no Chat / Features / Pages / Build
+   tabs. Each step arrives in the conversation when it is needed; the one
+   waiting on the owner wears the accent ring, finished ones fold to a line,
+   and the thing to press is pinned full width above the composer. */
+
+.ws-panel.solo {
+  grid-template-rows: auto 1fr auto;
+}
+
+.ws-stream {
+  display: grid;
+  align-content: start;
+  gap: 12px;
+  padding: 14px 12px 12px;
+}
+.ws-stream .ws-msg {
+  margin: 0;
+}
+.ws-stream .ws-msg.you {
+  margin-left: 42px;
+}
+.ws-stream .ws-msg.agent {
+  margin-right: 42px;
+}
+.ws-stream-hint {
+  margin: 0;
+}
+
+.ws-step {
+  border: 1px solid var(--ws-line);
+  background: var(--ws-panel);
+  border-radius: var(--ws-r);
+  overflow: hidden;
+  scroll-margin: 12px;
+  transition: border-color var(--ws-fast), box-shadow var(--ws-fast);
+}
+.ws-step.current {
+  border-color: #6f6bff80;
+  box-shadow: 0 0 0 3px #6f6bff1a;
+}
+.ws-step-h {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 12px;
+}
+.ws-step-body,
+.ws-step-h + .ws-step-sum {
+  border-top: 1px solid var(--ws-line-2);
+}
+.ws-step-h h4 {
+  margin: 0;
+  font-size: 12.5px;
+  font-weight: 620;
+  letter-spacing: -0.005em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ws-step-h > h4 {
+  flex: 1;
+}
+.ws-step-toggle {
+  appearance: none;
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  border: 0;
+  background: transparent;
+  color: var(--ws-ink);
+  font: inherit;
+  padding: 0;
+  cursor: pointer;
+  text-align: left;
+}
+.ws-step-toggle svg {
+  color: var(--ws-ink-3);
+  flex: none;
+  transition: transform var(--ws-fast);
+}
+.ws-step-toggle:hover svg {
+  color: var(--ws-ink);
+}
+.ws-step-toggle:focus-visible {
+  outline: 2px solid var(--ws-accent);
+  outline-offset: 3px;
+  border-radius: 4px;
+}
+.ws-step-tag {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 10.5px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: #30d1581f;
+  color: var(--ws-live);
+}
+.ws-step-tag.now {
+  background: var(--ws-accent-soft);
+  color: #b4b2ff;
+}
+.ws-step-sum {
+  margin: 0;
+  padding: 8px 12px 10px;
+  font-size: 11.5px;
+  line-height: 1.5;
+  color: var(--ws-ink-3);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ws-step-lead {
+  margin: 0;
+  padding: 10px 12px 0;
+  font-size: 12.5px;
+  line-height: 1.55;
+  color: var(--ws-ink-2);
+}
+.ws-step-lead b {
+  color: var(--ws-ink);
+  font-weight: 600;
+}
+.ws-step .ws-asks {
+  padding: 10px 12px 12px;
+  gap: 10px;
+}
+.ws-step .ws-plan {
+  padding: 10px;
+}
+.ws-step .ws-addons {
+  margin: 0 10px 10px;
+}
+.ws-step .ws-rail,
+.ws-step .ws-hint {
+  margin: 10px 12px;
+}
+.ws-step-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 10px 12px 12px;
+}
+.ws-step-chips span {
+  font-size: 11.5px;
+  padding: 4px 9px;
+  border-radius: 999px;
+  background: var(--ws-accent-soft);
+  border: 1px solid #6f6bff55;
+  color: #dcdbff;
+}
+.ws-step-chips em {
+  font-style: normal;
+  font-size: 12px;
+  color: var(--ws-ink-3);
+}
+
+.ws-step-pages {
+  list-style: none;
+  margin: 8px 0 0;
+  padding: 0 6px;
+  display: grid;
+  gap: 1px;
+}
+.ws-step-pages button {
+  appearance: none;
+  width: 100%;
+  display: grid;
+  grid-template-columns: auto auto 1fr auto;
+  align-items: center;
+  gap: 10px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--ws-ink);
+  font: inherit;
+  padding: 7px 6px;
+  text-align: left;
+  cursor: pointer;
+  transition: background var(--ws-fast);
+}
+.ws-step-pages button:hover {
+  background: var(--ws-panel-2);
+}
+.ws-step-pages button.on {
+  background: #6f6bff16;
+}
+.ws-step-pages button:focus-visible {
+  outline: 2px solid var(--ws-accent);
+  outline-offset: -2px;
+}
+.ws-step-pages b {
+  font-size: 12.5px;
+  font-weight: 560;
+}
+.ws-step-pages code {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--ws-ink-3);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ws-step-num {
+  width: 20px;
+  height: 20px;
+  border-radius: 6px;
+  display: grid;
+  place-items: center;
+  background: var(--ws-panel-2);
+  border: 1px solid var(--ws-line);
+  font-size: 10.5px;
+  color: var(--ws-ink-2);
+  font-variant-numeric: tabular-nums;
+}
+.ws-step-pages button.on .ws-step-num {
+  background: var(--ws-accent);
+  border-color: var(--ws-accent);
+  color: #fff;
+}
+.ws-step-check {
+  margin: 6px 0 0;
+  padding: 8px 12px 11px;
+  border-top: 1px solid var(--ws-line-2);
+  font-size: 11.5px;
+  color: var(--ws-live);
+}
+.ws-step-check.bad {
+  color: #ffb4ae;
+}
+
+.ws-step-wait {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px;
+  border: 1px dashed var(--ws-line);
+  border-radius: var(--ws-r);
+  font-size: 12.5px;
+  color: var(--ws-ink-2);
+}
+.ws-spin.small {
+  width: 14px;
+  height: 14px;
+  border-width: 2px;
+}
+
+/* The one thing waiting on the owner: full width, above the composer. */
+.ws-go-wrap {
+  padding: 10px 12px 0;
+  display: grid;
+  gap: 6px;
+}
+.ws-go {
+  appearance: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 48px;
+  padding: 10px 16px;
+  border: 0;
+  border-radius: var(--ws-r);
+  background: var(--ws-accent);
+  color: #fff;
+  font: inherit;
+  font-size: 14.5px;
+  font-weight: 650;
+  letter-spacing: -0.01em;
+  text-align: center;
+  text-decoration: none;
+  cursor: pointer;
+  box-shadow: 0 8px 24px -8px #6f6bffaa;
+  transition: background var(--ws-fast), transform var(--ws-fast), box-shadow var(--ws-fast);
+}
+.ws-go svg {
+  flex: none;
+  transition: transform var(--ws-fast);
+}
+.ws-go:hover:not(:disabled) {
+  background: #7e7aff;
+  transform: translateY(-1px);
+  box-shadow: 0 12px 28px -8px #6f6bffcc;
+}
+.ws-go:hover:not(:disabled) svg {
+  transform: translateX(3px);
+}
+.ws-go:active:not(:disabled) {
+  transform: translateY(0);
+}
+.ws-go:focus-visible {
+  outline: 2px solid #fff;
+  outline-offset: 2px;
+}
+.ws-go:disabled {
+  opacity: 0.5;
+  cursor: default;
+  box-shadow: none;
+}
+.ws-go.info {
+  cursor: default;
+  min-height: 44px;
+  font-size: 13px;
+  font-weight: 600;
+  background: linear-gradient(90deg, #6f6bff22, #6f6bff0d);
+  border: 1px solid #6f6bff55;
+  color: var(--ws-ink);
+  box-shadow: none;
+}
+.ws-go-sub {
+  margin: 0;
+  text-align: center;
+  font-size: 11px;
+  line-height: 1.45;
+  color: var(--ws-ink-3);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ws-go,
+  .ws-go svg,
+  .ws-step,
+  .ws-step-toggle svg {
+    transition: none;
+  }
+  .ws-go:hover:not(:disabled),
+  .ws-go:hover:not(:disabled) svg {
+    transform: none;
+  }
+}
+.ws-go-err {
+  margin: 10px 12px 0;
+}

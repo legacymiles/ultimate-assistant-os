@@ -42,9 +42,14 @@ interface Props {
   /** The spec the main design was drawn from — the site's own words. */
   base: MockupSpec;
   device: Device;
-  /** Approve the whole set and send it to the build. */
-  onApprove: () => void;
+  /** Approve the whole set and send it to the build. Left out where the
+   *  approve lives somewhere bigger — Website Studio pins it above the chat. */
+  onApprove?: () => void;
   busy?: boolean;
+  /** The screen on show, when the page around it picks it (the chat's page
+   *  list); otherwise the prototype keeps its own. */
+  at?: string;
+  onAt?: (id: string) => void;
 }
 
 /**
@@ -84,8 +89,10 @@ function screenSpec(base: MockupSpec, plan: FlowPlan, screen: FlowScreen, state:
   };
 }
 
-export function FlowStudio({ plan, onPlan, base, device, onApprove, busy }: Props) {
-  const [at, setAt] = useState(HOME_ID);
+export function FlowStudio({ plan, onPlan, base, device, onApprove, busy, at: atProp, onAt }: Props) {
+  const [atOwn, setAtOwn] = useState(HOME_ID);
+  const at = atProp ?? atOwn;
+  const setAt = (id: string) => (onAt ? onAt(id) : setAtOwn(id));
   const [state, setState] = useState<ScreenState>("ready");
   const [noting, setNoting] = useState(false);
   const [note, setNote] = useState("");
@@ -184,9 +191,11 @@ export function FlowStudio({ plan, onPlan, base, device, onApprove, busy }: Prop
               <span className="ws-flow-count">
                 {plan.screens.length} screens · {plan.journeys.length} journeys · drawn in {plan.look}
               </span>
-              <button className="ws-btn small" onClick={onApprove} disabled={!ready || busy}>
-                {busy ? "Starting…" : plan.approvedAt ? "Approved — build it" : "Approve these pages"}
-              </button>
+              {onApprove && (
+                <button className="ws-btn small" onClick={onApprove} disabled={!ready || busy}>
+                  {busy ? "Starting…" : plan.approvedAt ? "Approved — build it" : "Approve these pages"}
+                </button>
+              )}
             </>
           )}
         </div>

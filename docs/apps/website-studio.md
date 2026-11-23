@@ -2,7 +2,7 @@
 
 Route: `/apps/website-studio` · Category: Websites · Live
 
-Record reviewed: 2026-11-18
+Record reviewed: 2026-11-22
 
 > **This file is the truth about this app.** Read it before changing the app and update it in the
 > same commit. Everything above the "From the code" block is written by hand and kept; that block
@@ -125,8 +125,15 @@ the bottom.
   build itself: checklist, live line, review card; there is no separate Build tab), **Changes**
   (`harness/diff` — the files being changed, with the diff), **Versions** (pictures, Undo, Mark
   ready), **Ship**.
-- On a draft: **Chat**, **Features** (Felix's questions, then the feature table), **Pages**,
-  **Build**. The panel follows the work — there is one thing to do at a time and it opens on it.
+- On a draft: **one chat, no tabs** (owner, 22 Nov 2026 — mockup "One chat"). Every step arrives
+  in the conversation as a card when it is needed: Felix's questions, the feature table with its
+  add-ons (Commercial, 2x, Send to board), the look, the pages (click one to walk it on the canvas),
+  the build. The step waiting on the owner wears the accent ring and scrolls into view; finished
+  steps fold to one line that reopens on a click. The one thing to press is pinned full width
+  above the composer (`ActionBar` in `DraftWorkspace.tsx`): **Design the features** → "pick a look
+  on the right" → **Approve N pages & start the build** (the old small button at the foot of the
+  canvas is gone — `FlowStudio`'s `onApprove` is optional) → "Building on your PC" → **Open the
+  live site**. `WorkShell` draws no tab row when a panel has one tab or none.
 
 **Two stages of mockups.** Stage one is the three-direction bake-off: each direction is a real
 page Claude writes in HTML and CSS from the spec (instant layout drawings stand in while it
@@ -136,7 +143,7 @@ error states per screen, and Revise on any one screen without redrawing the othe
 links point nowhere, or that has a screen nothing can reach, cannot be approved.
 
 **Feature ideas, for new builds and for edits.** A new website gets App Builder's full list —
-Felix's questions, then 10-14 features to accept or deny on the draft's **Features** tab (the Orbit
+Felix's questions, then 10-14 features to accept or deny in the draft's chat (the Orbit
 is not drawn; the table does the same). An edit to a live site gets the same idea, sized for an
 edit: as soon as the owner sends it, 3-5 ideas that belong WITH that change (carry it through to
 related elements, phone layout, states, contrast, speed) appear in the side panel, each with **Add**
@@ -247,6 +254,9 @@ now returns every visitor to the page the wall stood in front of (`/login?next=`
   all, and the look-mode mockups fall back to the instant layout drawings when Claude can't write.
 - A mockup never runs a script: coded mockups are sanitised (`cleanMockupHtml`) before they are
   shown or saved, and the iframes are sandboxed without `allow-scripts`.
+- A draft's Approve is never out of sight: while the pages wait, **Approve N pages & start the
+  build** is pinned above the composer, and it stays disabled (with the reason under it) while the
+  pages check finds a dead link or an unreachable screen.
 
 ## Requested, not built yet
 

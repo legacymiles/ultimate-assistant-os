@@ -35,9 +35,11 @@ interface Props {
   url?: string;
   /** Home. */
   onBack: () => void;
-  tabs: WorkTab[];
-  tab: string;
-  onTab: (id: string) => void;
+  /** The panel's tabs. One or none and there is no tab row — the panel is one
+   *  conversation (a draft is: every step arrives in the chat as a card). */
+  tabs?: WorkTab[];
+  tab?: string;
+  onTab?: (id: string) => void;
   /** The panel's body for the open tab. */
   panel: ReactNode;
   /** Pinned under the panel body — a composer, an approve bar. */
@@ -52,7 +54,8 @@ interface Props {
 
 const FOLD_KEY = "ws-panel-shut";
 
-export function WorkShell({ title, subtitle, url, onBack, tabs, tab, onTab, panel, panelFoot, stage, actions, banner }: Props) {
+export function WorkShell({ title, subtitle, url, onBack, tabs = [], tab, onTab, panel, panelFoot, stage, actions, banner }: Props) {
+  const tabbed = tabs.length > 1;
   const [shut, setShut] = useState(false);
   const [device, setDevice] = useState<StageDevice>("desktop");
   const [bump, setBump] = useState(0);
@@ -94,7 +97,7 @@ export function WorkShell({ title, subtitle, url, onBack, tabs, tab, onTab, pane
 
   return (
     <div className={`ws-work${shut ? " shut" : ""}`} data-device={device}>
-      <aside className="ws-panel" aria-label="Studio assistant" aria-hidden={shut}>
+      <aside className={`ws-panel${tabbed ? "" : " solo"}`} aria-label="Studio assistant" aria-hidden={shut}>
         <header className="ws-panel-head">
           <button type="button" className="ws-back" onClick={onBack} title="All websites">
             <BackIcon />
@@ -108,17 +111,19 @@ export function WorkShell({ title, subtitle, url, onBack, tabs, tab, onTab, pane
           </button>
         </header>
 
-        <nav className="ws-panel-tabs" role="tablist" aria-label="Panel">
-          {tabs.map((t) => (
-            <button key={t.id} role="tab" aria-selected={tab === t.id} className={tab === t.id ? "on" : ""} onClick={() => onTab(t.id)}>
-              {t.label}
-              {t.live && <span className="ws-pip" aria-label="working" />}
-              {!t.live && t.count ? <em>{t.count}</em> : null}
-            </button>
-          ))}
-        </nav>
+        {tabbed && (
+          <nav className="ws-panel-tabs" role="tablist" aria-label="Panel">
+            {tabs.map((t) => (
+              <button key={t.id} role="tab" aria-selected={tab === t.id} className={tab === t.id ? "on" : ""} onClick={() => onTab?.(t.id)}>
+                {t.label}
+                {t.live && <span className="ws-pip" aria-label="working" />}
+                {!t.live && t.count ? <em>{t.count}</em> : null}
+              </button>
+            ))}
+          </nav>
+        )}
 
-        <div className="ws-panel-body" role="tabpanel">
+        <div className="ws-panel-body" role={tabbed ? "tabpanel" : undefined}>
           {panel}
         </div>
         {panelFoot && <div className="ws-panel-foot">{panelFoot}</div>}
