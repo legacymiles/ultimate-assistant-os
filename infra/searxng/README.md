@@ -224,6 +224,22 @@ days:
 Set-ScheduledTask -TaskName "SearXNG boot" -Settings (New-ScheduledTaskSettingsSet -ExecutionTimeLimit ([TimeSpan]::Zero))
 ```
 
+**Windows stops a scheduled task after 72 hours**, and the boot task blocks
+forever by design, so it would die quietly every third day. That limit cannot
+be changed without re-supplying the task's stored password, so a second task -
+`searxng-watchdog.ps1`, running as SYSTEM every 10 minutes - checks whether the
+endpoint answers 401 and re-triggers the boot task if not. Starting a
+password-protected task does NOT need the password; only changing it does. The
+watchdog covers crashes and WSL hiccups too, and logs to
+`C:\searxng-watchdog.log`.
+
+**Recovery after a reboot takes about four minutes** and another two to settle.
+Verified 2026-11-22 by actually rebooting: the endpoint answered 401 again 240
+seconds after the box went down, with one good search immediately and two
+failures while the containers were still coming up, then six of six clean.
+Expect a short window of failures after any restart rather than an instant
+return.
+
 **A boot task needs a stored password.** A task triggered at startup with no
 logged-on user must run as a named account with its password saved. A SYSTEM
 task cannot be used: WSL distributions are registered per Windows user, so
@@ -253,6 +269,7 @@ interesting. Send a script as base64 and decode it on the far side.
 | `vps-bootstrap.sh` | the same thing with **nothing copied first** - paste it into a shell on the VPS |
 | `searxng-boot.ps1` | starts WSL and re-points the port forward; the Windows boot task runs this |
 | `harden-ssh.ps1` | turns off SSH password auth once key access is proven |
+| `searxng-watchdog.ps1` | SYSTEM task, every 10 min: restarts the stack if the endpoint stops answering |
 | `start-local.ps1` | the laptop starter |
 | `setup-windows-vps.ps1` | the Windows VPS installer: WSL2 + Docker, then `install.sh` |
 | `refresh-portproxy.ps1` | re-points 80/443 at WSL after a reboot (portproxy path only) |
