@@ -13,7 +13,20 @@ export type Corner = "tl" | "tr" | "br" | "bl";
 export type Mode = "youtube" | "games";
 
 /** The games a baby can be locked into. */
-export type GameId = "piano" | "balloons" | "eggs" | "sparkle";
+export type GameId =
+  | "balloons"
+  | "music"
+  | "bubbles"
+  | "fireworks"
+  | "jelly"
+  | "aquarium"
+  | "zoom"
+  | "peekaboo"
+  | "sparkle"
+  | "eggs";
+
+/** How the locked screen opens: a parent's password, or the full-screen drag. */
+export type UnlockMethod = "password" | "drag";
 
 /**
  * What YouTube is pointed at. A watch link that carries BOTH a video and a
@@ -37,6 +50,13 @@ export interface Show {
 export interface Settings {
   mode: Mode;
   game: GameId;
+  /** How the lock opens. Password by default; the drag stays for anyone who prefers it. */
+  unlock: UnlockMethod;
+  /** Salted hash of the parent's password (see password.ts). Never the digits. */
+  passHash: string;
+  passSalt: string;
+  /** How many digits it has, so the keypad can check the moment the last one is in. */
+  passLength: number;
   corner: Corner;
   /** The puck's diameter in px. Small hides better; big is easier one-handed. */
   lockSize: "small" | "large";
@@ -57,6 +77,10 @@ export interface Settings {
 export const DEFAULT_SETTINGS: Settings = {
   mode: "youtube",
   game: "balloons",
+  unlock: "password",
+  passHash: "",
+  passSalt: "",
+  passLength: 0,
   corner: "br",
   lockSize: "large",
   holdToConfirm: true,

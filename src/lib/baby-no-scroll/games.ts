@@ -28,19 +28,75 @@ export const GAMES: GameInfo[] = [
     id: "balloons",
     name: "Balloon pop",
     line:
-      "Balloons drift up and burst wherever a finger lands. The one game that works with a palm, "
-      + "a knuckle or a whole hand, so it is the one to start with.",
+      "A sky full of glossy balloons racing up past the clouds. Any touch pops one in a burst of "
+      + "confetti; tap the empty sky and a new one floats up from the finger. Gold star balloons "
+      + "set off fireworks, rainbow ones split into a flock of little ones.",
     from: "6 months",
     hue: 330,
   },
   {
-    id: "piano",
-    name: "Baby piano",
+    id: "music",
+    name: "Musical playroom",
     line:
-      "Eight fat bars, each a note of a pentatonic scale — so there is no combination of keys that "
-      + "can sound like a wrong note. Holds a note while a finger stays down.",
+      "Six instruments on a toy shelf — piano, xylophone, drums, harp, bells, bongos. One fills the "
+      + "screen at a time; tap the shelf to swap. Every note is tuned so that no mashing can sound "
+      + "wrong, and a dragged hand plays every key it crosses.",
     from: "9 months",
     hue: 265,
+  },
+  {
+    id: "bubbles",
+    name: "Bubbles",
+    line:
+      "Rainbow soap bubbles wobble up the screen and pop with a bloop. Touch empty space or drag "
+      + "and the finger blows new ones; the giant ones burst into a family of small ones.",
+    from: "6 months",
+    hue: 195,
+  },
+  {
+    id: "fireworks",
+    name: "Fireworks",
+    line:
+      "A night sky over a sleeping town. Every tap sends a rocket up to that exact spot and bursts "
+      + "it into a ring, a heart, a star or a willow. Cause and effect at its most spectacular.",
+    from: "9 months",
+    hue: 250,
+  },
+  {
+    id: "jelly",
+    name: "Jelly friends",
+    line:
+      "Squishy jelly blobs with faces that watch the finger. Poke one and it squashes and boings "
+      + "back; drag it and fling it and it bounces round the screen, wobbling.",
+    from: "9 months",
+    hue: 310,
+  },
+  {
+    id: "aquarium",
+    name: "Aquarium",
+    line:
+      "A sunlit fish tank. Tap the water to sprinkle food and the fish race over to eat it; touch "
+      + "a fish and it darts off in a puff of bubbles. The puffer puffs.",
+    from: "9 months",
+    hue: 185,
+  },
+  {
+    id: "zoom",
+    name: "Zoom zoom",
+    line:
+      "A toy town road. Every tap sends a car, a bus, a train or a fire engine racing through, "
+      + "beeping. Touch one as it passes and it hops; drag along a lane and it follows the finger.",
+    from: "12 months",
+    hue: 42,
+  },
+  {
+    id: "peekaboo",
+    name: "Peekaboo",
+    line:
+      "Bushes, a tree, a pond and flower pots, each hiding an animal. Tap one and a bunny, chick, "
+      + "frog or kitten pops out with its own little voice — and it is a different one next time.",
+    from: "12 months",
+    hue: 135,
   },
   {
     id: "sparkle",
@@ -55,8 +111,8 @@ export const GAMES: GameInfo[] = [
     id: "eggs",
     name: "Hide and seek",
     line:
-      "Six eggs, a shape hiding under one. Tap to crack them open. The first game here that needs "
-      + "aiming, and the first with a payoff worth waiting for.",
+      "Six eggs, a shape hiding under one. Tap to crack them open. The game here that needs the "
+      + "most aiming, and the one with a payoff worth waiting for.",
     from: "14 months",
     hue: 35,
   },

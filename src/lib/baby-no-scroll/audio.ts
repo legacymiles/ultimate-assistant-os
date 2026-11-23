@@ -14,6 +14,8 @@ export const SCALE = [261.63, 293.66, 329.63, 392.0, 440.0, 523.25, 587.33, 659.
 
 let ctx: AudioContext | null = null;
 let master: GainNode | null = null;
+/** A shared room: a send every voice can use so notes ring instead of stopping dead. */
+let room: GainNode | null = null;
 
 type Ctor = typeof AudioContext;
 
@@ -23,7 +25,15 @@ type Ctor = typeof AudioContext;
  * Returns null where WebAudio does not exist, and the games simply go quiet
  * rather than breaking.
  */
-function audio(): { ctx: AudioContext; out: GainNode } | null {
+export interface AudioBus {
+  ctx: AudioContext;
+  /** Dry output, already headroomed. */
+  out: GainNode;
+  /** Reverb send. Connect a voice here as well as to `out` to give it a room. */
+  room: GainNode;
+}
+
+export function audio(): AudioBus | null {
   if (typeof window === "undefined") return null;
   if (!ctx) {
     const Ctor: Ctor | undefined =
@@ -38,10 +48,34 @@ function audio(): { ctx: AudioContext; out: GainNode } | null {
     master = ctx.createGain();
     // Headroom: ten balloons popping at once must not clip or startle.
     master.gain.value = 0.32;
-    master.connect(ctx.destination);
+    // A gentle limiter after the master, so a palm on the drum kit is loud
+    // but never a crack in the speaker.
+    const limiter = ctx.createDynamicsCompressor();
+    limiter.threshold.value = -10;
+    limiter.knee.value = 8;
+    limiter.ratio.value = 6;
+    master.connect(limiter).connect(ctx.destination);
+
+    // The room: a generated impulse (decaying stereo noise) through a
+    // convolver. No file to fetch, and one convolver serves every game.
+    room = ctx.createGain();
+    room.gain.value = 0.5;
+    try {
+      const len = Math.floor(ctx.sampleRate * 1.9);
+      const ir = ctx.createBuffer(2, len, ctx.sampleRate);
+      for (let c = 0; c < 2; c++) {
+        const d = ir.getChannelData(c);
+        for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, 3.2);
+      }
+      const verb = ctx.createConvolver();
+      verb.buffer = ir;
+      room.connect(verb).connect(master);
+    } catch {
+      room.connect(master);
+    }
   }
   if (ctx.state === "suspended") void ctx.resume();
-  return master ? { ctx, out: master } : null;
+  return master && room ? { ctx, out: master, room } : null;
 }
 
 /** Called from the first tap on a locked screen so the first note is not late. */
@@ -56,14 +90,18 @@ export interface ToneOptions {
   gain?: number;
   /** Seconds of attack — a soft one stops a note sounding like a click. */
   attack?: number;
+  /** 0–1 of the note sent to the shared room as well. */
+  reverb?: number;
+  /** Seconds from now to start, for scheduled melodies. */
+  delay?: number;
 }
 
 /** One note, enveloped. Overlapping calls layer, which is the point. */
 export function tone(freq: number, opts: ToneOptions = {}): void {
   const a = audio();
   if (!a) return;
-  const { type = "triangle", duration = 0.7, gain = 0.5, attack = 0.012 } = opts;
-  const t = a.ctx.currentTime;
+  const { type = "triangle", duration = 0.7, gain = 0.5, attack = 0.012, reverb = 0.25, delay = 0 } = opts;
+  const t = a.ctx.currentTime + delay;
 
   const osc = a.ctx.createOscillator();
   osc.type = type;
@@ -75,6 +113,11 @@ export function tone(freq: number, opts: ToneOptions = {}): void {
   env.gain.exponentialRampToValueAtTime(0.0001, t + duration);
 
   osc.connect(env).connect(a.out);
+  if (reverb > 0) {
+    const send = a.ctx.createGain();
+    send.gain.value = reverb;
+    env.connect(send).connect(a.room);
+  }
   osc.start(t);
   osc.stop(t + duration + 0.05);
 }
@@ -138,7 +181,12 @@ export function refuse(): void {
 }
 
 /** Filtered white noise, the percussive half of everything above. */
-function noise(duration: number, cutoff: number, gain: number): void {
+export function noise(
+  duration: number,
+  cutoff: number,
+  gain: number,
+  type: BiquadFilterType = "lowpass",
+): void {
   const a = audio();
   if (!a) return;
   const t = a.ctx.currentTime;
@@ -153,7 +201,7 @@ function noise(duration: number, cutoff: number, gain: number): void {
   src.buffer = buffer;
 
   const filter = a.ctx.createBiquadFilter();
-  filter.type = "lowpass";
+  filter.type = type;
   filter.frequency.value = cutoff;
 
   const env = a.ctx.createGain();

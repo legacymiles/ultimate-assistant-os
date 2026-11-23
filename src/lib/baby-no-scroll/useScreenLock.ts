@@ -284,6 +284,9 @@ export function useScreenLock({
       const target = e.target as HTMLElement | null;
       const onLock = !!target?.closest?.('[data-baby-lock="1"]');
       if (onLock && (e.key === "Enter" || e.key === " ")) return;
+      // The password pad takes digits and Backspace from a real keyboard too.
+      // Only while focus is inside the lock — anywhere else they are a palm.
+      if (onLock && (/^[0-9]$/.test(e.key) || e.key === "Backspace")) return;
       e.preventDefault();
       e.stopPropagation();
     };

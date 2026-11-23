@@ -38,6 +38,10 @@ import { useScreenLock } from "@/lib/baby-no-scroll/useScreenLock";
 import { CORNERS } from "@/lib/baby-no-scroll/lock";
 import type { Corner } from "@/lib/baby-no-scroll/types";
 import { Padlock } from "./Padlock";
+import { PasswordGate } from "./PasswordGate";
+import { PasswordSetup } from "./PasswordSetup";
+import { GameGlyph } from "./GameGlyph";
+import { checkPin } from "@/lib/baby-no-scroll/password";
 import { GameStage, gameHue } from "./GameStage";
 import { YouTubeStage } from "./YouTubeStage";
 import { EscapeProof } from "./EscapeProof";
@@ -93,7 +97,10 @@ export function BabyNoScroll({ initialMode }: { initialMode?: Mode }) {
   // What will actually go on. A freshly pasted link wins over a saved one,
   // because typing is the more recent intention.
   const target: Target | null = typed ?? pickedShow?.target ?? null;
-  const canLock = settings.mode === "games" || !!target;
+  // With the password chosen, nothing locks until there is a password — a
+  // locked screen with no way to open it is the one failure that matters.
+  const needsPassword = settings.unlock === "password" && !settings.passHash;
+  const canLock = (settings.mode === "games" || !!target) && !needsPassword;
 
   const lockState = useScreenLock({
     active: locked,
@@ -177,13 +184,26 @@ export function BabyNoScroll({ initialMode }: { initialMode?: Mode }) {
           <GameStage game={settings.game} />
         )}
 
-        <Padlock
-          corner={settings.corner}
-          size={settings.lockSize}
-          holdToConfirm={settings.holdToConfirm}
-          onMoveCorner={(c) => patch({ corner: c })}
-          onUnlock={unlock}
-        />
+        {settings.unlock === "password" && settings.passHash ? (
+          <PasswordGate
+            corner={settings.corner}
+            size={settings.lockSize}
+            passLength={settings.passLength}
+            check={(pin) => checkPin(pin, settings.passSalt, settings.passHash)}
+            onMoveCorner={(c) => patch({ corner: c })}
+            onUnlock={unlock}
+          />
+        ) : (
+          // The drag lock: chosen, or the fallback if a synced edit ever left
+          // the password method with no password behind it.
+          <Padlock
+            corner={settings.corner}
+            size={settings.lockSize}
+            holdToConfirm={settings.holdToConfirm}
+            onMoveCorner={(c) => patch({ corner: c })}
+            onUnlock={unlock}
+          />
+        )}
       </div>
     );
   }
@@ -202,8 +222,8 @@ export function BabyNoScroll({ initialMode }: { initialMode?: Mode }) {
             </h1>
             <p className="mt-2 max-w-2xl text-[13px] leading-relaxed text-ink-muted">
               Put one video or one game on the whole screen and take everything else away. The only
-              thing left that answers to a touch is a padlock in the corner, and it opens by being
-              dragged the width of the screen — which is a gesture a baby does not make.
+              way back out is your password — a steel key in the corner that has to be held, then a
+              number pad only you know the answer to.
             </p>
           </div>
           <a
@@ -360,7 +380,7 @@ export function BabyNoScroll({ initialMode }: { initialMode?: Mode }) {
                   One game, locked on. No menu on the locked screen — a switcher would be a second
                   thing to press, and the first one a baby finds.
                 </p>
-                <ul className="divide-y divide-line-soft overflow-hidden rounded-lg border border-line">
+                <ul className="grid gap-2.5 sm:grid-cols-2">
                   {GAMES.map((g) => {
                     const on = settings.game === g.id;
                     return (
@@ -369,24 +389,18 @@ export function BabyNoScroll({ initialMode }: { initialMode?: Mode }) {
                           type="button"
                           onClick={() => patch({ game: g.id })}
                           aria-pressed={on}
-                          className={`flex w-full items-start gap-3 px-3 py-3 text-left transition ${
-                            on ? "bg-elevated" : "bg-panel-2/40 hover:bg-panel-2"
+                          className={`bns-game-tile flex h-full w-full items-start gap-3 rounded-xl border p-3 text-left transition ${
+                            on
+                              ? "is-on border-transparent bg-elevated"
+                              : "border-line bg-panel-2/40 hover:-translate-y-px hover:border-ink-faint/40 hover:bg-panel-2"
                           }`}
+                          style={{ ["--g" as string]: g.hue }}
                         >
-                          <span
-                            className="mt-0.5 h-8 w-8 shrink-0 rounded-lg"
-                            style={{
-                              background: `radial-gradient(70% 70% at 35% 30%, hsl(${g.hue} 90% 72%), hsl(${g.hue} 80% 42%))`,
-                              boxShadow: on ? `0 0 0 2px hsl(${g.hue} 80% 60% / .5)` : "none",
-                            }}
-                            aria-hidden
-                          />
+                          <GameGlyph id={g.id} hue={g.hue} on={on} />
                           <span className="min-w-0 flex-1">
                             <span className="flex items-baseline gap-2">
                               <span className="text-[13px] font-semibold text-ink">{g.name}</span>
-                              <span className="font-mono text-[10px] text-ink-faint">
-                                from {g.from}
-                              </span>
+                              <span className="font-mono text-[10px] text-ink-faint">{g.from}+</span>
                               {on && (
                                 <span className="ml-auto rounded border border-sky-400/40 px-1.5 py-px text-[9px] uppercase tracking-wide text-sky-300">
                                   on
@@ -408,6 +422,58 @@ export function BabyNoScroll({ initialMode }: { initialMode?: Mode }) {
 
           {/* ---- the lock ---- */}
           <aside className="space-y-4">
+            <section
+              className="bns-unlock rounded-xl border border-line bg-panel p-4"
+              data-standout="the password card, the one step before every hand-over"
+            >
+              <div className="flex items-center justify-between gap-3">
+                <h2 className="text-[11px] font-medium uppercase tracking-wide text-ink-faint">
+                  How it unlocks
+                </h2>
+                <div className="flex overflow-hidden rounded-lg border border-line">
+                  {(
+                    [
+                      ["password", "Password"],
+                      ["drag", "Drag the lock"],
+                    ] as const
+                  ).map(([v, l]) => (
+                    <button
+                      key={v}
+                      type="button"
+                      onClick={() => patch({ unlock: v })}
+                      aria-pressed={settings.unlock === v}
+                      className={`px-2.5 py-1 text-[11px] transition ${
+                        settings.unlock === v ? "bg-elevated text-ink" : "text-ink-faint hover:text-ink"
+                      }`}
+                    >
+                      {l}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {settings.unlock === "password" ? (
+                <div className="mt-3">
+                  <PasswordSetup
+                    isSet={!!settings.passHash}
+                    length={settings.passLength}
+                    onSave={(p) => patch(p)}
+                  />
+                  <p className="mt-3 text-[11px] leading-snug text-ink-faint">
+                    On the locked screen, <span className="text-ink-muted">press and hold the key</span>{" "}
+                    in the corner for a second, then type it. A tap does nothing; three wrong tries and
+                    the pad makes you wait. Forgot it? Close the app completely and open it again — the
+                    lock does not survive that.
+                  </p>
+                </div>
+              ) : (
+                <p className="mt-3 text-[11px] leading-snug text-ink-faint">
+                  The padlock opens by being dragged the full width of the screen, then held on the
+                  latch. Nothing to remember — but an older child who has watched you can copy it.
+                </p>
+              )}
+            </section>
+
             <section className="rounded-xl border border-line bg-panel p-4">
               <h2 className="text-[11px] font-medium uppercase tracking-wide text-ink-faint">
                 Where the lock sits
@@ -446,12 +512,14 @@ export function BabyNoScroll({ initialMode }: { initialMode?: Mode }) {
                   ]}
                   onChange={(v) => patch({ lockSize: v as Settings["lockSize"] })}
                 />
+                {settings.unlock === "drag" && (
                 <Toggle
                   label="Hold at the end"
                   hint="After the drag, the lock must be held on the latch for a second. A thumb can cross a phone by luck; it will not then sit still."
                   on={settings.holdToConfirm}
                   onChange={(v) => patch({ holdToConfirm: v })}
                 />
+                )}
               </div>
             </section>
 
@@ -487,7 +555,11 @@ export function BabyNoScroll({ initialMode }: { initialMode?: Mode }) {
               disabled={!canLock || !ready}
               className="bns-handover w-full rounded-xl px-4 py-3.5 text-sm font-semibold disabled:cursor-not-allowed"
             >
-              {settings.mode === "youtube" && !target ? "Paste a link first" : "Hand it over"}
+              {needsPassword
+                ? "Set a password first"
+                : settings.mode === "youtube" && !target
+                  ? "Paste a link first"
+                  : "Hand it over"}
             </button>
 
             <EscapeProof />

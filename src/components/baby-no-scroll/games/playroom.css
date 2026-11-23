@@ -1,0 +1,167 @@
+/* ------------------------------------------------------------------------- */
+/*  The playroom's toy shelf.                                                */
+/*                                                                           */
+/*  Everything that moves in the playroom is drawn on the canvas; this sheet */
+/*  only dresses the shelf — six round toys a baby presses to swap the        */
+/*  instrument. They are pictures, not labels, and they behave like toys:     */
+/*  a press squashes, the chosen one rises out of the shelf and glows, the    */
+/*  rest sit back a little dimmer so "the lit one" is obvious from across     */
+/*  the room.                                                                 */
+/*                                                                           */
+/*  Position and button size are written by Playroom.tsx (roomLayout), which */
+/*  keeps the shelf out of the lock's corners; the values here are only the   */
+/*  first frame before that runs.                                             */
+/* ------------------------------------------------------------------------- */
+
+.bns-pr {
+  position: absolute;
+  inset: 0;
+  touch-action: none;
+}
+
+.bns-pr-shelf {
+  --bns-pr-btn: 72px;
+  --bns-pr-cols: 6;
+  --bns-pr-gap: 10px;
+  --bns-pr-pad: 10px;
+  position: absolute;
+  z-index: 2;
+  left: 50%;
+  bottom: 14px;
+  transform: translateX(-50%);
+  box-sizing: border-box;
+  display: grid;
+  grid-template-columns: repeat(var(--bns-pr-cols), var(--bns-pr-btn));
+  grid-auto-rows: var(--bns-pr-btn);
+  gap: var(--bns-pr-gap);
+  padding: var(--bns-pr-pad);
+  border-radius: calc(var(--bns-pr-btn) / 2 + var(--bns-pr-pad));
+  /* A soft glass tray with a warm wooden lip along the front edge. */
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.09), rgba(255, 255, 255, 0.03));
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.16),
+    inset 0 -7px 0 hsl(28 55% 32% / 0.85),
+    inset 0 -9px 0 hsl(32 70% 52% / 0.5),
+    0 14px 34px rgba(0, 0, 0, 0.45);
+  -webkit-backdrop-filter: blur(10px);
+  backdrop-filter: blur(10px);
+  touch-action: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+.bns-pr-shelf.is-grid {
+  border-radius: calc(var(--bns-pr-pad) + 22px);
+}
+
+.bns-pr-toy {
+  appearance: none;
+  -webkit-appearance: none;
+  position: relative;
+  width: var(--bns-pr-btn);
+  height: var(--bns-pr-btn);
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: none;
+  cursor: pointer;
+  touch-action: none;
+  -webkit-tap-highlight-color: transparent;
+  -webkit-touch-callout: none;
+  transform: scale(0.9);
+  filter: saturate(0.72) brightness(0.82);
+  transition:
+    transform 0.46s cubic-bezier(0.2, 1.6, 0.35, 1),
+    filter 0.3s ease;
+}
+
+.bns-pr-toy__disc {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  overflow: hidden;
+  background: radial-gradient(
+    circle at 34% 28%,
+    hsl(var(--h) 95% 82%),
+    hsl(var(--h) 82% 58%) 52%,
+    hsl(var(--h) 75% 30%)
+  );
+  box-shadow:
+    inset 0 -7px 14px hsl(var(--h) 80% 18% / 0.65),
+    inset 0 5px 9px rgba(255, 255, 255, 0.38),
+    0 8px 16px rgba(0, 0, 0, 0.45);
+}
+
+/* The specular highlight that makes the disc a glossy toy, not a dot. */
+.bns-pr-toy__disc::after {
+  content: "";
+  position: absolute;
+  left: 15%;
+  top: 7%;
+  width: 46%;
+  height: 26%;
+  border-radius: 50%;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.7), rgba(255, 255, 255, 0));
+  transform: rotate(-18deg);
+  pointer-events: none;
+}
+
+.bns-pr-toy svg {
+  position: relative;
+  width: 74%;
+  height: 74%;
+  filter: drop-shadow(0 2px 2px rgba(0, 0, 0, 0.4));
+  pointer-events: none;
+}
+
+/* The chosen toy: raised out of the shelf, ringed in its own colour, glowing
+   and gently bobbing so it reads as "this one is playing". */
+.bns-pr-toy.is-on {
+  z-index: 1;
+  transform: translateY(-12px) scale(1.12);
+  filter: none;
+}
+
+.bns-pr-toy.is-on::before {
+  content: "";
+  position: absolute;
+  inset: -14px;
+  border-radius: 50%;
+  background: radial-gradient(circle, hsl(var(--h) 100% 70% / 0.6), transparent 68%);
+  animation: bns-pr-halo 2.4s ease-in-out infinite;
+  pointer-events: none;
+}
+
+.bns-pr-toy.is-on .bns-pr-toy__disc {
+  box-shadow:
+    inset 0 -7px 14px hsl(var(--h) 80% 18% / 0.65),
+    inset 0 5px 9px rgba(255, 255, 255, 0.4),
+    0 0 0 4px hsl(var(--h) 100% 86% / 0.95),
+    0 16px 26px rgba(0, 0, 0, 0.5);
+  animation: bns-pr-bob 2.4s ease-in-out infinite;
+}
+
+@keyframes bns-pr-halo {
+  0%, 100% { opacity: 0.7; transform: scale(0.94); }
+  50% { opacity: 1; transform: scale(1.06); }
+}
+
+@keyframes bns-pr-bob {
+  0%, 100% { transform: translateY(0) rotate(-3deg); }
+  50% { transform: translateY(-4px) rotate(3deg); }
+}
+
+/* Reduced motion keeps the raised, lit state — that is information — and
+   drops the idle bob and pulse, which are only decoration. */
+@media (prefers-reduced-motion: reduce) {
+  .bns-pr-toy {
+    transition-duration: 0.01s;
+  }
+  .bns-pr-toy.is-on::before,
+  .bns-pr-toy.is-on .bns-pr-toy__disc {
+    animation: none;
+  }
+}

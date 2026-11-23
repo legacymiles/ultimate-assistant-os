@@ -708,3 +708,237 @@
     inset 0 1px 0 rgba(255, 255, 255, 0.4),
     0 0 0 3px hsl(199 95% 62% / 0.4);
 }
+
+/* --- canvas games ---------------------------------------------------------- */
+
+/* Every canvas game fills the nursery. The canvas takes every touch itself, so
+   the nursery's own no-scroll rules are a second wall, not the only one. */
+.bns-canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+  touch-action: none;
+}
+
+/* ------------------------------------------------------------------------- */
+/*  The password gate                                                        */
+/*                                                                           */
+/*  Same machined steel as the padlock, for the same reason: the dullest     */
+/*  thing on the screen. Hold it and a ring fills round the rim; let go      */
+/*  early and it only wiggles.                                               */
+/* ------------------------------------------------------------------------- */
+
+.bns-gate {
+  position: absolute;
+  translate: -50% -50%;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  pointer-events: auto;
+  touch-action: none;
+  display: grid;
+  place-items: center;
+  color: #aab1c2;
+  background:
+    radial-gradient(70% 70% at 32% 24%, rgba(255, 255, 255, 0.28), transparent 60%),
+    linear-gradient(160deg, #5d6478 0%, #363c4c 45%, #22262f 100%);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.3),
+    inset 0 -2px 6px rgba(0, 0, 0, 0.6),
+    0 10px 30px rgba(0, 0, 0, 0.55),
+    0 0 0 1px rgba(255, 255, 255, 0.08);
+  transition:
+    left 0.44s cubic-bezier(0.34, 1.5, 0.52, 1),
+    top 0.44s cubic-bezier(0.34, 1.5, 0.52, 1),
+    scale 0.2s ease;
+  animation: bns-gate-wiggle 0.36s ease;
+  opacity: 0.82;
+  z-index: 2;
+}
+.bns-gate.is-holding {
+  scale: 0.94;
+  opacity: 1;
+}
+.bns-gate__icon {
+  width: 42%;
+  height: 42%;
+}
+.bns-gate__ring {
+  position: absolute;
+  inset: -5px;
+  width: calc(100% + 10px);
+  height: calc(100% + 10px);
+  rotate: -90deg;
+  pointer-events: none;
+}
+.bns-gate__ring circle {
+  fill: none;
+  stroke: #8fd3ff;
+  stroke-width: 5;
+  stroke-linecap: round;
+  stroke-dasharray: 100;
+  stroke-dashoffset: 100;
+  opacity: 0;
+}
+.bns-gate.is-holding .bns-gate__ring circle {
+  opacity: 1;
+  stroke-dashoffset: 0;
+  transition: stroke-dashoffset var(--hold, 1.2s) linear;
+}
+@keyframes bns-gate-wiggle {
+  0%, 100% { rotate: 0deg; }
+  30% { rotate: -9deg; }
+  65% { rotate: 6deg; }
+}
+
+.bns-pad {
+  position: fixed;
+  inset: 0;
+  z-index: 3;
+  display: grid;
+  place-items: center;
+  pointer-events: auto;
+  background: rgba(6, 5, 10, 0.72);
+  -webkit-backdrop-filter: blur(14px) saturate(0.8);
+  backdrop-filter: blur(14px) saturate(0.8);
+  animation: bns-pad-in 0.22s ease-out;
+  outline: none;
+  padding: 16px;
+}
+@keyframes bns-pad-in {
+  from { opacity: 0; }
+}
+.bns-pad__card {
+  width: min(320px, 100%);
+  padding: 22px 20px 18px;
+  border-radius: 28px;
+  text-align: center;
+  color: #e9ecf3;
+  background:
+    radial-gradient(120% 70% at 50% 0%, rgba(143, 211, 255, 0.12), transparent 60%),
+    linear-gradient(180deg, #1e222c, #14161d);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.08),
+    0 0 0 1px rgba(255, 255, 255, 0.07),
+    0 30px 80px rgba(0, 0, 0, 0.6);
+  animation: bns-pad-card 0.34s cubic-bezier(0.34, 1.4, 0.5, 1);
+}
+.bns-pad__card[data-shake] {
+  animation: bns-pad-shake 0.42s ease;
+}
+@keyframes bns-pad-card {
+  from { opacity: 0; transform: translateY(18px) scale(0.96); }
+}
+@keyframes bns-pad-shake {
+  0%, 100% { transform: translateX(0); }
+  20% { transform: translateX(-12px); }
+  40% { transform: translateX(10px); }
+  60% { transform: translateX(-6px); }
+  80% { transform: translateX(4px); }
+}
+.bns-pad__lock {
+  width: 30px;
+  height: 30px;
+  margin: 0 auto;
+  color: #8fd3ff;
+}
+.bns-pad__shackle {
+  transition: transform 0.3s cubic-bezier(0.34, 1.6, 0.5, 1);
+}
+.bns-pad.is-done .bns-pad__lock {
+  color: #7ef0b0;
+}
+.bns-pad.is-done .bns-pad__shackle {
+  transform: translate(5px, -3px) rotate(18deg);
+  transform-origin: 17px 10px;
+}
+.bns-pad__title {
+  margin-top: 8px;
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+.bns-pad__dots {
+  display: flex;
+  justify-content: center;
+  gap: 12px;
+  margin-top: 14px;
+}
+.bns-pad__dots span {
+  width: 13px;
+  height: 13px;
+  border-radius: 99px;
+  box-shadow: inset 0 0 0 1.5px rgba(233, 236, 243, 0.45);
+  transition: background 0.12s ease, scale 0.18s cubic-bezier(0.34, 1.8, 0.5, 1);
+}
+.bns-pad__dots span.is-on {
+  background: #e9ecf3;
+  scale: 1.12;
+}
+.bns-pad.is-done .bns-pad__dots span {
+  background: #7ef0b0;
+  box-shadow: none;
+}
+.bns-pad__note {
+  min-height: 18px;
+  margin-top: 10px;
+  font-size: 12px;
+  color: #f2a7a7;
+}
+.bns-pad__grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+  margin-top: 8px;
+  transition: opacity 0.2s ease;
+}
+.bns-pad__grid.is-waiting {
+  opacity: 0.3;
+  pointer-events: none;
+}
+.bns-pad__grid button,
+.bns-pad__enter {
+  height: 62px;
+  border: 0;
+  border-radius: 999px;
+  color: #f2f4f8;
+  font-size: 24px;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  background: rgba(255, 255, 255, 0.07);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.07);
+  touch-action: none;
+  transition: background 0.1s ease, scale 0.1s ease;
+}
+.bns-pad__grid button:active,
+.bns-pad__enter:active {
+  background: rgba(143, 211, 255, 0.3);
+  scale: 0.94;
+}
+.bns-pad__grid button.is-quiet {
+  background: transparent;
+  box-shadow: none;
+  color: #9aa2b4;
+  display: grid;
+  place-items: center;
+}
+.bns-pad__grid button.is-quiet svg {
+  width: 24px;
+  height: 24px;
+}
+.bns-pad__enter {
+  width: 100%;
+  margin-top: 12px;
+  font-size: 15px;
+  background: #2f7fd8;
+}
+@media (prefers-reduced-motion: reduce) {
+  .bns-gate,
+  .bns-pad,
+  .bns-pad__card,
+  .bns-pad__card[data-shake] {
+    animation: none;
+  }
+}

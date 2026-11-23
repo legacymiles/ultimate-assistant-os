@@ -8,7 +8,8 @@
 // ---------------------------------------------------------------------------
 
 import { loadLocal, saveSynced } from "@/lib/sync/appState";
-import { DEFAULT_SETTINGS, type Settings, type Show, type Target } from "./types";
+import { GAMES } from "./games";
+import { DEFAULT_SETTINGS, type GameId, type Settings, type Show, type Target } from "./types";
 
 export const KEY = "baby-no-scroll:v1";
 
@@ -18,6 +19,11 @@ export function loadSettings(): Settings {
   return {
     ...DEFAULT_SETTINGS,
     ...raw,
+    game: knownGame(raw.game),
+    unlock: raw.unlock === "drag" ? "drag" : "password",
+    passHash: typeof raw.passHash === "string" ? raw.passHash : "",
+    passSalt: typeof raw.passSalt === "string" ? raw.passSalt : "",
+    passLength: typeof raw.passLength === "number" ? raw.passLength : 0,
     // A bad shows array would take the setup screen down, and a parent would
     // have no way to clear it.
     shows: Array.isArray(raw.shows) ? raw.shows.filter(isShow) : [],
@@ -26,6 +32,15 @@ export function loadSettings(): Settings {
 
 export function saveSettings(s: Settings): void {
   saveSynced(KEY, s);
+}
+
+/**
+ * A saved game that still exists. The old "Baby piano" grew into the Musical
+ * Playroom, so a parent who left it on comes back to the room that holds it.
+ */
+function knownGame(g: unknown): GameId {
+  if (g === "piano") return "music";
+  return GAMES.some((x) => x.id === g) ? (g as GameId) : DEFAULT_SETTINGS.game;
 }
 
 function isShow(v: unknown): v is Show {
