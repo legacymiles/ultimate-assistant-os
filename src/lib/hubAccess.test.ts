@@ -145,4 +145,15 @@ describe("the downloads folder", () => {
     // Exempt by exact match: nothing underneath an exempt path rides along.
     expect(routeAccess("/api/search/account/all", search)).toBe("owner");
   });
+
+  it("opens Image Studio › Inspire to visitors but keeps the agents owner-only", () => {
+    const none = new Set<string>();
+    expect(routeAccess("/apps/image-studio/inspire", none)).toBe("public");
+    expect(routeAccess("/api/image-studio/inspire/images", none)).toBe("public");
+    expect(routeAccess("/api/image-studio/inspire/file/img_abc", none)).toBe("public");
+    expect(routeAccess("/apps/image-studio", none)).toBe("owner");
+    expect(routeAccess("/api/image-studio/generate", none)).toBe("owner");
+    expect(routeAccess("/api/image-studio/rewrite", none)).toBe("owner");
+    expect(routeAccess("/apps/image-studio/inspirex", none)).toBe("owner");
+  });
 });

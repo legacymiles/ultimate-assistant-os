@@ -80,6 +80,18 @@ export const SEARCH_MEMBER_PUBLIC = ["/apps/search-access"];
  */
 export const DTF_PUBLIC = ["/apps/dtf-studio", "/api/dtf/me", "/api/dtf/assets", "/api/dtf/capabilities"];
 
+/**
+ * Image Studio › Inspire is a public inspiration library: anyone may browse
+ * shared images and read their prompts, and any signed-in account gets a
+ * private library, collections, uploads, publishing and the AI tools (with a
+ * daily allowance). Every route under the API prefix resolves the session
+ * itself and returns only public rows plus the caller's own
+ * (src/lib/image-studio/inspire/server/access.ts). Image Studio's own agents
+ * at /apps/image-studio and /api/image-studio/{rewrite,generate} are NOT here
+ * and stay owner-only — the prefixes below are one level deeper.
+ */
+export const INSPIRE_PUBLIC = ["/apps/image-studio/inspire", "/api/image-studio/inspire"];
+
 const PUBLIC_PREFIXES = [
   PUBLIC_HOME,
   "/api/fno",
@@ -87,6 +99,7 @@ const PUBLIC_PREFIXES = [
   LEGAL_PAGES,
   ...AI_RANKINGS_PUBLIC,
   ...DTF_PUBLIC,
+  ...INSPIRE_PUBLIC,
 ];
 
 /**

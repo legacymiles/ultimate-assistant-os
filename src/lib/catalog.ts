@@ -439,7 +439,13 @@ export const PROJECTS: CatalogProject[] = [
       "stadium. Write a prompt, add reference photos and tag each one as a Person to keep or a Style to " +
       "borrow; the agent rewrites your idea into a detailed prompt you can edit, then generates up to " +
       "four variations. Everything lands in a gallery you can filter by agent, download, or refine into " +
-      "the next round.",
+      "the next round. Inspire, inside it, is a public inspiration library and prompt studio: browse a " +
+      "masonry gallery of images with the exact prompt behind each one, read every prompt as glowing " +
+      "Prompt DNA chips (subject, style, lighting, lens, mood…) that explain themselves on hover, save " +
+      "single chips, whole prompts or images into a private library and named collections, upload any " +
+      "picture to Reverse Prompt it into a recreation prompt, and build new prompts by clicking chips in " +
+      "the Prompt Builder — which adds each deliverable's technical rules (print-safe tees, flat logos) " +
+      "behind the scenes and generates free on your own GPU.",
     status: "live",
     appUrl: "/apps/image-studio",
     iconStyle: "mesh",

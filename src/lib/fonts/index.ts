@@ -246,3 +246,29 @@ export const dtfSerif = localFont({
   variable: "--font-dtf-serif",
   fallback: ["Georgia", "Cambria", "Times New Roman", "serif"],
 });
+
+// Image Studio › Inspire: Syne for display (wide, futuristic), Geist for the
+// interface, Geist Mono for prompt chips — the "specimen label" voice.
+export const inspireDisplay = localFont({
+  src: "../../../public/fonts/syne-variable.woff2",
+  weight: "400 800",
+  display: "swap",
+  variable: "--font-insp-display",
+  fallback: ["system-ui", "-apple-system", "Segoe UI", "Roboto", "Helvetica Neue", "Arial", "sans-serif"],
+});
+
+export const inspireSans = localFont({
+  src: "../../../public/fonts/geist-variable.woff2",
+  weight: "100 900",
+  display: "swap",
+  variable: "--font-insp-sans",
+  fallback: ["system-ui", "-apple-system", "Segoe UI", "Roboto", "Helvetica Neue", "Arial", "sans-serif"],
+});
+
+export const inspireMono = localFont({
+  src: "../../../public/fonts/geist-mono-variable.woff2",
+  weight: "100 900",
+  display: "swap",
+  variable: "--font-insp-mono",
+  fallback: ["ui-monospace", "SFMono-Regular", "Menlo", "Consolas", "Liberation Mono", "monospace"],
+});

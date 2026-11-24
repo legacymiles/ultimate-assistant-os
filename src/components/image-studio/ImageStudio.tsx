@@ -203,6 +203,14 @@ export function ImageStudio() {
           Hub
         </Link>
         <span className="text-sm font-semibold text-ink">Image Studio</span>
+        <Link
+          href="/apps/image-studio/inspire"
+          className="ml-2 inline-flex items-center gap-1.5 rounded-full border border-line px-3 py-1.5 text-xs font-semibold text-ink transition hover:bg-panel-2"
+          title="Inspiration library, Prompt DNA, Reverse Prompt and the Prompt Builder"
+        >
+          Inspire
+          <span className="text-ink-faint">· prompt library &amp; builder</span>
+        </Link>
         <span className="ml-auto text-xs text-ink-faint">
           {running ? `Generating ${running}…` : `${items.length} image${items.length === 1 ? "" : "s"}`}
         </span>
