@@ -146,7 +146,7 @@ function AvatarPopover({ anchor, busy, onClose }: { anchor: React.RefObject<HTML
       <JarvisAvatar voice={voice} busy={busy} variant="panel" />
       <p className="jav-pop__look">{lookName}</p>
       {(voice.heard || voice.error) && <p className={`jav-pop__heard ${voice.error ? "is-err" : ""}`}>{voice.error || voice.heard}</p>}
-      <FaceSwitch className="jav-face--pop" />
+      <FaceSwitch className="jav-face--pop" lips={false} />
       <div className="jav-pop__opts">
         {!real && <Switch on={av.prefs.cycle} onChange={(on) => avatarStore.apply([{ type: "cycle", on }])} label="Transform every few seconds" />}
         {real && <LipSyncRow />}

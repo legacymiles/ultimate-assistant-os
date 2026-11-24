@@ -2,7 +2,7 @@
 
 Route: `/apps/jarvis` · Category: AI · Live
 
-Record reviewed: 2026-11-22 — the Bills tab, the voice half and the avatar written by hand; the rest of the
+Record reviewed: 2026-11-24 — the Bills tab, the voice half and the avatar written by hand; the rest of the
 Features list below is still the seeded one and wants rewriting into plain features next time this
 app is edited.
 
@@ -113,9 +113,11 @@ Your memory, folders, photos, lists, calendar and Record in one place. Every req
   ONE LiveTalking session per page (every face shares the stream; one audible copy), closed on
   page exit. Turn-taking waits for him to finish by the clip's own length (`avatar/wav.ts`) and
   `is_speaking`, so the mic isn't handed back mid-sentence. Per-device switch in the face popover,
-  "Lip sync (LiveTalking on this PC)" with its live status; on by default only on localhost
-  (reaching 127.0.0.1 from the public site makes Chrome ask). A "Lip sync" badge shows on the face
-  while live. Same engine as the TikTok Live agent, so talking to it proves that pipeline.
+  "Lip sync (LiveTalking on this PC)" with its live status; on by default everywhere the real face
+  is picked (picking "Real" is the opt-in — the live site's face sat silent while it was
+  localhost-only, Nov 24 2026). A "Lip sync" badge shows on the face while live, and a line under
+  the 3D | Real switch always says why it isn't: "Lip sync is off · Turn on", "LiveTalking isn't
+  answering on this PC · Try again", or "Lips and hearing on this PC — tap the mic and talk". Same engine as the TikTok Live agent, so talking to it proves that pipeline.
 - **The real face hears you on this PC too (Nov 24 2026)** — while the lip-synced face is live and
   LiveTalking's own recognizer is on (SenseVoiceSmall at `ws://127.0.0.1:8010/api/asr`, needs
   `funasr` + `modelscope` in LiveTalking's venv), Jarvis listens through it instead of the
@@ -188,6 +190,9 @@ _The flows a user would notice breaking. Sign-in, data rules, routes and keys ar
   spoken request is answered by Alex's moving lips, heard once (never twice, never the browser
   voice), and Jarvis listens again only after he finishes. LiveTalking not running → the
   portrait, and Jarvis speaks as before. Phonon down → LiveTalking's own voice, still lip-synced.
+- **The real face works on the live site too** — on the hosted Jarvis on this PC, picking Real
+  connects to LiveTalking with no setting to find; a silent face always shows the reason and its
+  one-tap fix under the 3D | Real switch.
 - **Local hearing never cuts you off** — with LiveTalking's recognizer on, a spoken request is
   heard whole (the turn stays open while you talk) and answered; recognizer down → the browser's
   speech recognition takes over with no error.

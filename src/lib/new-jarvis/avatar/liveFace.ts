@@ -6,11 +6,13 @@
 // at least one real face is showing AND lip sync is switched on for this
 // device, and gives itself up as Jarvis's voice sink only while live.
 //
-// Opt-in per device, and on by default only on localhost: from the public
-// site, reaching a server on 127.0.0.1 makes Chrome ask the user for local
-// network access — fine for the owner on their PC, wrong to spring on anyone
-// else. When LiveTalking isn't running, the face is the breathing portrait
-// and Jarvis speaks as usual; nothing is lost.
+// On by default wherever the real face is picked — picking "Real" is the
+// opt-in, and nothing reaches for 127.0.0.1 until a real face is on screen
+// (owner, 2026-11-24: the live site's real face sat silent because lip sync
+// was off there and its switch was out of sight). It can still be switched
+// off per device. From the public site Chrome may ask once for local network
+// access; when LiveTalking isn't running (or that's declined) the face is the
+// breathing portrait and Jarvis speaks as usual — nothing is lost.
 //
 // Browser-only. Talks to LiveTalking through the same client AI Live Studio
 // uses (`/offer`, `/humanaudio`, `/is_speaking`, `/interrupt_talk`).
@@ -58,18 +60,13 @@ function emit(patch: Partial<LiveFaceSnapshot>) {
   for (const l of listeners) l();
 }
 
-function defaultEnabled(): boolean {
-  const h = typeof location !== "undefined" ? location.hostname : "";
-  return h === "localhost" || h === "127.0.0.1" || h === "[::1]" || h.endsWith(".localhost");
-}
-
 function load() {
   if (loaded || typeof window === "undefined") return;
   loaded = true;
   // A reload or a closed tab doesn't close WebRTC cleanly: LiveTalking would keep
   // running that session's lip sync on the GPU until it timed out. Close it now.
   window.addEventListener("pagehide", () => close());
-  let enabled = defaultEnabled();
+  let enabled = true;
   try {
     const v = localStorage.getItem(PREF_KEY);
     if (v === "on") enabled = true;

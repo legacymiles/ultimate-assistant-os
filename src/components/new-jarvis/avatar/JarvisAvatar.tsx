@@ -18,7 +18,8 @@ import { Mic, Square } from "lucide-react";
 import { avatarStore, useAvatar } from "@/lib/new-jarvis/avatar/store";
 import type { VoiceState } from "@/lib/new-jarvis/useWakeVoice";
 import type { AvatarVariant, AvatarVoice } from "./AvatarScene";
-import { REAL_FACE_SRC, RealFace } from "./RealFace";
+import { liveFace } from "@/lib/new-jarvis/avatar/liveFace";
+import { REAL_FACE_SRC, RealFace, useLiveFace } from "./RealFace";
 import "./avatar.css";
 
 const AvatarScene = dynamic(() => import("./AvatarScene"), { ssr: false, loading: () => <div className="jav-fallback" aria-hidden /> });
@@ -100,10 +101,11 @@ export function JarvisAvatar({ voice, busy, variant, className = "" }: { voice: 
  * The 3D | Real switch (the picked mockup: a small pill under the face).
  * The same control sits in the avatar popover of every chat box.
  */
-export function FaceSwitch({ className = "" }: { className?: string }) {
+export function FaceSwitch({ className = "", lips = true }: { className?: string; lips?: boolean }) {
   const face = useAvatar().prefs.face;
   const pick = (f: "3d" | "real") => avatarStore.apply([{ type: "face", face: f }]);
   return (
+    <>
     <div className={`jav-face ${className}`} role="radiogroup" aria-label="Jarvis's face">
       <button type="button" role="radio" aria-checked={face === "3d"} className="jav-face__opt" onClick={() => pick("3d")}>
         <span className="jav-face__dot jav-face__dot--3d" aria-hidden />
@@ -114,6 +116,49 @@ export function FaceSwitch({ className = "" }: { className?: string }) {
         Real
       </button>
     </div>
+    {lips && face === "real" && <LipSyncLine />}
+    </>
+  );
+}
+
+/**
+ * Under the big face: whether the real face is lip-synced, and the one button
+ * that fixes it when it isn't — so a silent face always says why. (The chat
+ * boxes' popover has the full switch.)
+ */
+function LipSyncLine() {
+  const lf = useLiveFace();
+  if (lf.enabled && lf.state === "live") {
+    return (
+      <p className="jav-lipline" data-state="live" role="status">
+        {lf.asr ? "Lips and hearing on this PC — tap the mic and talk" : "Lip sync on — tap the mic and talk"}
+      </p>
+    );
+  }
+  if (!lf.enabled) {
+    return (
+      <p className="jav-lipline" data-state="off" role="status">
+        Lip sync is off
+        <button type="button" onClick={() => liveFace.setEnabled(true)}>
+          Turn on
+        </button>
+      </p>
+    );
+  }
+  if (lf.state === "unavailable") {
+    return (
+      <p className="jav-lipline" data-state="unavailable" role="status">
+        LiveTalking isn&rsquo;t answering on this PC
+        <button type="button" onClick={() => liveFace.retry()}>
+          Try again
+        </button>
+      </p>
+    );
+  }
+  return (
+    <p className="jav-lipline" data-state="connecting" role="status">
+      Connecting to LiveTalking…
+    </p>
   );
 }
 

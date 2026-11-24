@@ -269,6 +269,17 @@
 .jav-face__dot { width: 12px; height: 12px; border-radius: 50%; background-size: cover; background-position: 50% 28%; flex: none; }
 .jav-face__dot--3d { background: radial-gradient(circle at 40% 35%, #a8ffc6, #3a8f9c 55%, #5a2fb0); }
 .jav-face--pop { margin: 8px auto 4px; display: flex; width: max-content; }
+.jav-lipline {
+  margin: 8px 0 0; display: inline-flex; align-items: center; gap: 8px; min-height: 24px;
+  font-size: 12px; line-height: 1.3; color: #8aa3b8; text-align: center;
+}
+.jav-lipline[data-state="live"] { color: #9fe7c4; }
+.jav-lipline[data-state="unavailable"] { color: #e6c84f; }
+.jav-lipline button {
+  min-height: 28px; padding: 0 12px; border-radius: 999px; font: 600 12px/1 inherit; font-family: inherit; cursor: pointer;
+  color: #06121c; background: var(--jav-cyan, #47e8ff); border: 0;
+}
+.jav-lipline button:focus-visible { outline: 2px solid var(--jav-cyan, #47e8ff); outline-offset: 2px; }
 
 @media (max-width: 640px) {
   .jav--real.jav--hero { width: min(170px, 46vw); }
