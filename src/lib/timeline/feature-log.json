@@ -1,5 +1,14 @@
 [
  {
+  "id": "0857ee29:jarvis",
+  "date": "2026-11-24",
+  "slug": "jarvis",
+  "title": "Add it to Jarvis App plugins",
+  "detail": "It leaves the hub grid and becomes a card on Jarvis > App plugins, with a blurb saying what the lab is for: one Master Prompt Guide, experiments that change a few techniques at a time and prove them on the owner's own WanGP.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
   "id": "06cf5134:h3-experiments",
   "date": "2026-11-24",
   "slug": "h3-experiments",
