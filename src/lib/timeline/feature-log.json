@@ -1,5 +1,32 @@
 [
  {
+  "id": "5e93098a:ai-live-studio",
+  "date": "2026-11-24",
+  "slug": "ai-live-studio",
+  "title": "A real-time AI host for TikTok LIVE, with a private Director booth",
+  "detail": "A new App plugins app (/apps/ai-live-studio). Alex, a photoreal AI host, reads a live chat and answers people by name out loud: the portrait breathes and is lit by his voice, or LiveTalking's lip-synced stream when it runs on this PC. Gifts and follows go first, @mentions next, questions age up so n",
+  "group": "core",
+  "source": "git"
+ },
+ {
+  "id": "5e93098a:voice",
+  "date": "2026-11-24",
+  "slug": "voice",
+  "title": "A real-time AI host for TikTok LIVE, with a private Director booth",
+  "detail": "A new App plugins app (/apps/ai-live-studio). Alex, a photoreal AI host, reads a live chat and answers people by name out loud: the portrait breathes and is lit by his voice, or LiveTalking's lip-synced stream when it runs on this PC. Gifts and follows go first, @mentions next, questions age up so n",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "5e93098a:jarvis",
+  "date": "2026-11-24",
+  "slug": "jarvis",
+  "title": "A real-time AI host for TikTok LIVE, with a private Director booth",
+  "detail": "A new App plugins app (/apps/ai-live-studio). Alex, a photoreal AI host, reads a live chat and answers people by name out loud: the portrait breathes and is lit by his voice, or LiveTalking's lip-synced stream when it runs on this PC. Gifts and follows go first, @mentions next, questions age up so n",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
   "id": "9876224d:dtf-studio",
   "date": "2026-11-24",
   "slug": "dtf-studio",
