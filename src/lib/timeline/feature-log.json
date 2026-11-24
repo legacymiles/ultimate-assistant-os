@@ -1,5 +1,32 @@
 [
  {
+  "id": "2e691005:ai-live-studio",
+  "date": "2026-11-24",
+  "slug": "ai-live-studio",
+  "title": "The real face and the AI Live Studio director hear you through LiveTalking's own speech recognition",
+  "detail": "LiveTalking's SenseVoice recognizer (ws://127.0.0.1:8010/api/asr) replaces the browser's cloud speech recognition whenever it answers, so the owner's voice stays on this PC. Shared LocalRecognition (energy VAD, learned noise floor, 350 ms pre-roll, 16 kHz PCM per utterance) behaves like SpeechRecogn",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "2e691005:jarvis",
+  "date": "2026-11-24",
+  "slug": "jarvis",
+  "title": "The real face and the AI Live Studio director hear you through LiveTalking's own speech recognition",
+  "detail": "LiveTalking's SenseVoice recognizer (ws://127.0.0.1:8010/api/asr) replaces the browser's cloud speech recognition whenever it answers, so the owner's voice stays on this PC. Shared LocalRecognition (energy VAD, learned noise floor, 350 ms pre-roll, 16 kHz PCM per utterance) behaves like SpeechRecogn",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "2e691005:voice",
+  "date": "2026-11-24",
+  "slug": "voice",
+  "title": "The real face and the AI Live Studio director hear you through LiveTalking's own speech recognition",
+  "detail": "LiveTalking's SenseVoice recognizer (ws://127.0.0.1:8010/api/asr) replaces the browser's cloud speech recognition whenever it answers, so the owner's voice stays on this PC. Shared LocalRecognition (energy VAD, learned noise floor, 350 ms pre-roll, 16 kHz PCM per utterance) behaves like SpeechRecogn",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
   "id": "aad86360:image-studio",
   "date": "2026-11-24",
   "slug": "image-studio",
