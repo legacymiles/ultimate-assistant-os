@@ -98,6 +98,49 @@ describe("reducer", () => {
     expect(back.placements.front).toBe("full-front");
   });
 
+  it("keeps a dragged layer inside its placeholder", () => {
+    let p = newProject("tee");
+    p = withImage(p, [2000, 2000]).project;
+    const id = p.layers[0].id;
+    const z = ZONES["full-front"].rect;
+    // Shoved far past every edge in turn — it stops at the boundary, never past it.
+    for (const [dx, dy] of [
+      [60, 0],
+      [-60, 0],
+      [0, 60],
+      [0, -60],
+    ]) {
+      const b = layerBounds(applyOps(p, [{ op: "move", layerId: id, dx, dy }]).project.layers[0]);
+      expect(b.minX).toBeGreaterThanOrEqual(z.x - z.w / 2 - 0.01);
+      expect(b.maxX).toBeLessThanOrEqual(z.x + z.w / 2 + 0.01);
+      expect(b.minY).toBeGreaterThanOrEqual(z.y - z.h / 2 - 0.01);
+      expect(b.maxY).toBeLessThanOrEqual(z.y + z.h / 2 + 0.01);
+    }
+  });
+
+  it("shrinks artwork that is resized or rotated past the placeholder", () => {
+    let p = newProject("tee");
+    p = withImage(p, [2000, 2000]).project;
+    const id = p.layers[0].id;
+    const z = ZONES["full-front"].rect;
+    const big = applyOps(p, [{ op: "resize", layerId: id, scale: 8 }]).project.layers[0];
+    expect(big.w).toBeLessThanOrEqual(z.w + 0.01);
+    expect(big.h).toBeLessThanOrEqual(z.h + 0.01);
+    // A square turned 45° needs √2 the room, so it comes down to fit.
+    const turned = applyOps({ ...p, layers: [big] }, [{ op: "rotate", layerId: id, rotation: 45 }]).project.layers[0];
+    const b = layerBounds(turned);
+    expect(b.maxX - b.minX).toBeLessThanOrEqual(z.w + 0.01);
+    expect(b.maxY - b.minY).toBeLessThanOrEqual(z.h + 0.01);
+  });
+
+  it("leaves a locked layer alone and still frees it when unlocked", () => {
+    let p = newProject("tee");
+    p = withImage(p, [2000, 2000]).project;
+    const id = p.layers[0].id;
+    const locked = { ...p, layers: p.layers.map((l) => ({ ...l, locked: true, x: 40 })) };
+    expect(applyOps(locked, [{ op: "set-opacity", layerId: id, opacity: 1 }]).project.layers[0].x).toBe(40);
+  });
+
   it("changing placement refits layers into the new zone", () => {
     let p = newProject("tee");
     p = withImage(p, [2000, 2000]).project;

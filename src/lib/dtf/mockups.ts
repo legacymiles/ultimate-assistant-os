@@ -64,14 +64,14 @@ export const PHOTOS: Partial<Record<GarmentId, Partial<Record<SideId, GarmentPho
   tee: {
     front: photo("tee-front", 684, 190, 17.2),
     back: photo("tee-back", 684, 92, 17.2),
-    "sleeve-left": photo("sleeve-short", 685, 126, 17, true),
-    "sleeve-right": photo("sleeve-short", 685, 126, 17),
+    "sleeve-left": photo("sleeve-short", 725, 194, 17, true),
+    "sleeve-right": photo("sleeve-short", 725, 194, 17),
   },
   "oversized-tee": {
     front: photo("oversized-front", 702, 155, 17.3),
     back: photo("oversized-back", 702, 96, 17.5),
-    "sleeve-left": photo("sleeve-short", 685, 126, 17, true),
-    "sleeve-right": photo("sleeve-short", 685, 126, 17),
+    "sleeve-left": photo("sleeve-short", 725, 194, 17, true),
+    "sleeve-right": photo("sleeve-short", 725, 194, 17),
   },
   hoodie: {
     front: photo("hoodie-front", 703, 280, 14.7),
@@ -162,9 +162,9 @@ const TEES: GarmentId[] = ["tee", "oversized-tee"];
 /** Lifestyle scenes, in the order the Preview shows them. */
 export const SCENES: Scene[] = [
   scene("tee-man", "Worn", "Front, on a person", TEES, "front", [714, 210], 13.8),
-  scene("tee-back", "Worn · back", "Back, on a person", TEES, "back", [642, 349], 12.2),
+  scene("tee-back", "Worn · back", "Back, on a person", TEES, "back", [704, 349], 12.2),
   scene("tee-folded", "Folded", "On the shelf", TEES, "front", [706, 487], 22, { displace: 0.5, rect: { x: 0, y: -18, w: 32, h: 32 } }),
-  scene("tee-hanging", "Hanging", "On a hanger", TEES, "front", [630, 336], 13.9),
+  scene("tee-hanging", "Hanging", "On a hanger", TEES, "front", [710, 336], 13.9),
   scene("tee-flatlay", "Flat lay", "Laid out flat", TEES, "front", [703, 250], 15.1, { displace: 0.6 }),
   scene("hoodie-person", "Worn", "Front, on a person", ["hoodie"], "front", [687, 197], 13.3),
   scene("hoodie-hanging", "Hanging", "On the rail", ["hoodie"], "front", [705, 388], 12.7),

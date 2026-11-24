@@ -118,8 +118,8 @@ export const ZONES: Record<ZoneId, PlacementZone> = {
     id: "sleeve",
     label: "Sleeve",
     side: "sleeve-left",
-    rect: { x: 0, y: below(4, 9), w: 9, h: 9 },
-    hint: "Upper sleeve, outer side",
+    rect: { x: 0, y: below(4.5, 10), w: 10, h: 10 },
+    hint: "Centred on the outer sleeve",
   },
   "sleeve-long": {
     id: "sleeve-long",

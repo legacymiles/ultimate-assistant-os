@@ -24,7 +24,14 @@ type Drag =
   | { kind: "resize"; id: string; sx: number; sy: number; start: Layer; ox: number; oy: number; free: boolean }
   | { kind: "rotate"; id: string; cx: number; cy: number; start: number; a0: number };
 
-const SNAP_CM = 0.6;
+/**
+ * The magnet. A design can be dropped anywhere inside its placeholder; within
+ * this many screen pixels of a centre line it is pulled onto it, so "dead
+ * centre" is easy to hit and easy to refuse (hold Alt, or just keep dragging).
+ */
+const SNAP_PX = 9;
+const SNAP_MIN_CM = 0.2;
+const SNAP_MAX_CM = 1.2;
 
 export default function FlatEditor({ side, compact, onActivate, zoom = 1 }: Props) {
   const s = useStudio();
@@ -206,11 +213,14 @@ export default function FlatEditor({ side, compact, onActivate, zoom = 1 }: Prop
       let y = drag.startY + (p.y - drag.py);
       const g = { x: false, y: false };
       if (zone && !e.altKey) {
-        if (Math.abs(x - zone.rect.x) < SNAP_CM) {
+        // A fixed pull in screen pixels, so the magnet feels the same whether
+        // the stage shows the whole garment or is zoomed into the print area.
+        const snap = Math.min(SNAP_MAX_CM, Math.max(SNAP_MIN_CM, SNAP_PX / view.k));
+        if (Math.abs(x - zone.rect.x) < snap) {
           x = zone.rect.x;
           g.x = true;
         }
-        if (Math.abs(y - zone.rect.y) < SNAP_CM) {
+        if (Math.abs(y - zone.rect.y) < snap) {
           y = zone.rect.y;
           g.y = true;
         }
@@ -280,6 +290,8 @@ export default function FlatEditor({ side, compact, onActivate, zoom = 1 }: Prop
   const zonePx = zone && view ? { a: view.toPx(zone.rect.x - zone.rect.w / 2, zone.rect.y + zone.rect.h / 2), w: zone.rect.w * view.k, h: zone.rect.h * view.k } : null;
   const selPx = sel && view ? { c: view.toPx(sel.x, sel.y), w: sel.w * view.k, h: sel.h * view.k } : null;
   const outside = sel ? layerOutsideZone(project, side, sel.id) : false;
+  const guideOn = photo ? "#0b9fc4" : "var(--accent)";
+  const guideOff = photo ? "rgba(11,143,176,0.42)" : "rgba(94,225,255,0.34)";
 
   if (!ext) return null;
 
@@ -310,7 +322,7 @@ export default function FlatEditor({ side, compact, onActivate, zoom = 1 }: Prop
 
       <canvas ref={canvas} className="pointer-events-none absolute inset-0 h-full w-full" />
 
-      {/* Print boundary — editing only, never in the customer preview */}
+      {/* Print boundary and its centre guides — editing only, never in the customer preview */}
       {editing && zonePx && (
         <div
           className="pointer-events-none absolute"
@@ -319,10 +331,21 @@ export default function FlatEditor({ side, compact, onActivate, zoom = 1 }: Prop
           <span className={`mono absolute -top-5 left-0 whitespace-nowrap text-[10px] ${photo ? "text-[#0a7f9c]" : "text-[var(--accent)] opacity-80"}`}>
             {zone!.label} · {zone!.rect.w}×{zone!.rect.h} cm
           </span>
+          {/* Dotted cross through the middle of the placeholder: dead centre, on
+              every side and every zone. It brightens the moment the magnet takes. */}
+          <span
+            className="absolute top-0 bottom-0"
+            style={{ left: "50%", borderLeft: `1px dashed ${guides.x ? guideOn : guideOff}`, opacity: guides.x ? 1 : 0.7 }}
+          />
+          <span
+            className="absolute right-0 left-0"
+            style={{ top: "50%", borderTop: `1px dashed ${guides.y ? guideOn : guideOff}`, opacity: guides.y ? 1 : 0.7 }}
+          />
         </div>
       )}
-      {editing && zonePx && guides.x && <div className="pointer-events-none absolute w-px bg-[var(--accent)]" style={{ left: zonePx.a.x + zonePx.w / 2, top: zonePx.a.y - 8, height: zonePx.h + 16 }} />}
-      {editing && zonePx && guides.y && <div className="pointer-events-none absolute h-px bg-[var(--accent)]" style={{ top: zonePx.a.y + zonePx.h / 2, left: zonePx.a.x - 8, width: zonePx.w + 16 }} />}
+      {/* While snapped, the guide runs past the placeholder so the lock is unmistakable. */}
+      {editing && zonePx && guides.x && <div className="pointer-events-none absolute w-px" style={{ left: zonePx.a.x + zonePx.w / 2, top: zonePx.a.y - 14, height: zonePx.h + 28, background: guideOn }} />}
+      {editing && zonePx && guides.y && <div className="pointer-events-none absolute h-px" style={{ top: zonePx.a.y + zonePx.h / 2, left: zonePx.a.x - 14, width: zonePx.w + 28, background: guideOn }} />}
 
       {/* Selection */}
       {editing && sel && selPx && (

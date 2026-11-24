@@ -76,6 +76,41 @@ export function rectBounds(r: RectCm) {
   return { minX: r.x - r.w / 2, maxX: r.x + r.w / 2, minY: r.y - r.h / 2, maxY: r.y + r.h / 2 };
 }
 
+/**
+ * Keep a layer wholly inside its print zone.
+ *
+ * Artwork may sit anywhere inside the placeholder — the customer drags freely —
+ * but no part of it may hang over an edge, because what hangs over is not
+ * printed. Two steps: shrink it if its rotated bounds are wider or taller than
+ * the zone (rotating a full-width graphic makes it bigger, so this runs after
+ * every geometry change), then pull its centre back until every edge is inside.
+ */
+export function containInZone(layer: Layer, zone: RectCm, ctx: OpContext = {}): Layer {
+  let l = layer;
+  // Text re-measures after a size change, so the fit may need a second pass.
+  for (let pass = 0; pass < 3; pass++) {
+    const b = layerBounds(l);
+    const bw = b.maxX - b.minX;
+    const bh = b.maxY - b.minY;
+    if (bw <= 0 || bh <= 0) break;
+    const s = Math.min(zone.w / bw, zone.h / bh);
+    if (s >= 0.999) break;
+    l =
+      l.kind === "text"
+        ? remeasure({ ...l, fontSizeCm: round(Math.max(0.2, l.fontSizeCm * s), 3) }, ctx)
+        : { ...l, w: round(Math.max(0.3, l.w * s)), h: round(Math.max(0.3, l.h * s)) };
+  }
+  const b = layerBounds(l);
+  const hw = (b.maxX - b.minX) / 2;
+  const hh = (b.maxY - b.minY) / 2;
+  // Still too big for the zone (text at its minimum size): centre it instead.
+  const x = hw * 2 > zone.w ? zone.x : clamp(l.x, zone.x - zone.w / 2 + hw, zone.x + zone.w / 2 - hw);
+  const y = hh * 2 > zone.h ? zone.y : clamp(l.y, zone.y - zone.h / 2 + hh, zone.y + zone.h / 2 - hh);
+  const nx = round(x);
+  const ny = round(y);
+  return nx === l.x && ny === l.y ? l : { ...l, x: nx, y: ny };
+}
+
 /** Fit a w×h box inside a zone, keeping aspect, at most `fill` of the zone. */
 export function fitInZone(zone: RectCm, aspect: number, fill = 0.82): { w: number; h: number } {
   let w = zone.w * fill;
@@ -398,6 +433,16 @@ export function applyOps(project: DesignProject, ops: DesignOp[], ctx: OpContext
       skipped.push(op.op + ("layerId" in op ? `:${op.layerId}` : ""));
     }
   }
+  // Nothing leaves its placeholder, whichever route the edit took in — a drag,
+  // an arrow key, a number typed in the inspector, or an AI proposal.
+  const zoneCache = new Map<SideId, RectCm | null>();
+  p.layers = p.layers.map((l) => {
+    if (l.locked) return l;
+    if (!zoneCache.has(l.side)) zoneCache.set(l.side, activeZone(p, l.side)?.rect ?? null);
+    const z = zoneCache.get(l.side);
+    return z ? containInZone(l, z, ctx) : l;
+  });
+
   p.updatedAt = new Date().toISOString();
   return { project: p, applied, skipped, pending, created };
 }
