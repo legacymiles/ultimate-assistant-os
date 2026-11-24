@@ -1,5 +1,23 @@
 [
  {
+  "id": "baf708a7:jarvis",
+  "date": "2026-11-24",
+  "slug": "jarvis",
+  "title": "Switch between the 3D avatar and a real-looking voice agent",
+  "detail": "Picked mockup 1, \"Switch under face\". A small 3D | Real switch sits under the big avatar on an empty chat, and the same switch is in the popover of every chat box's face. Real is the real-looking agent: AI Live Studio's host portrait (RealFace.tsx), breathing and swaying, with a warm key light drive",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "baf708a7:voice",
+  "date": "2026-11-24",
+  "slug": "voice",
+  "title": "Switch between the 3D avatar and a real-looking voice agent",
+  "detail": "Picked mockup 1, \"Switch under face\". A small 3D | Real switch sits under the big avatar on an empty chat, and the same switch is in the popover of every chat box's face. Real is the real-looking agent: AI Live Studio's host portrait (RealFace.tsx), breathing and swaying, with a warm key light drive",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
   "id": "5e93098a:ai-live-studio",
   "date": "2026-11-24",
   "slug": "ai-live-studio",
