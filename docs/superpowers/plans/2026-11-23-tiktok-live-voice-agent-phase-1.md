@@ -10,6 +10,23 @@
 
 **Spec:** `docs/superpowers/specs/tiktok-live-voice-agent.md`
 
+> **Status 2026-11-23 — read this first.** The engine and the UI are **built**, as
+> the **AI Live Studio** app (`/apps/ai-live-studio`, App plugins). Paths moved:
+> everything this plan calls `src/lib/tiktok-agent/` lives in
+> **`src/lib/ai-live-studio/`**, and the bare OBS stage page (Task 11) became the
+> studio itself (`src/components/ai-live-studio/`). Do not rebuild them — the app
+> record `docs/apps/ai-live-studio.md` lists what each module does.
+>
+> | Task | State |
+> |---|---|
+> | 1–6 engine (events, priority, limits, director, LiveTalking client, sentence splitting) | **Done**, extended: moderation, ageing, `peek` prefetch, operator controls, reply parser. 114 tests |
+> | 9 brain route | **Done** as `/api/ai-live-studio/reply` |
+> | 11 stage page | **Done** as the studio; LiveTalking WebRTC path built and connected live |
+> | 12 fixture run | **Done** as the in-app demo audience (`demo.ts`), verified by DOM probes |
+> | **7–8 Python shim + relay** | **Next.** The studio already listens on `ws://127.0.0.1:8787` and parses the line format in Task 7 |
+> | **10 Alex's own avatar** | **Open.** LiveTalking serves its sample face until a video of Alex → `genavatar.py --img_size 256` |
+> | 13 README + verify | Open, after 7–8 |
+
 > **Revised 2026-11-23.** The original plan built the face by hand from WanGP
 > mouth plates on a canvas. LiveTalking was then measured on this laptop —
 > inference 40–49 fps, stream locked at 25.0, 2807 MiB of 6144 — so it does

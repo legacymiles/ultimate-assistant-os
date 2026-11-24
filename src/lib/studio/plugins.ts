@@ -52,6 +52,7 @@ export const PLUGIN_SLUGS = [
   "buildflip-2",
   "search-infrastructure",
   "dtf-studio",
+  "ai-live-studio",
 ] as const;
 
 /**

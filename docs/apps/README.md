@@ -2,7 +2,7 @@
 
 **Generated — do not edit.** `node scripts/apps-index.mjs` rewrites this from [`src/lib/catalog.ts`](../../src/lib/catalog.ts), which is the single source of truth for the hub. `node scripts/apps-index.mjs --check` fails when the two disagree.
 
-45 projects — 45 live, 0 coming soon. Every live one is a real route under this one Next.js app; none of them is a separate project, repo or deployment. A rebuild that is missing routes from this table is not this site.
+46 projects — 46 live, 0 coming soon. Every live one is a real route under this one Next.js app; none of them is a separate project, repo or deployment. A rebuild that is missing routes from this table is not this site.
 
 ## AI (13)
 
@@ -29,7 +29,7 @@
 | **EMBER Reveal** | `/apps/fire-reveal` | A WebGL mouse-trail image-reveal studio, built with a custom GLSL shader in the style of Unicorn Studio's scanning effect. |
 | **Image Studio** | `/apps/image-studio` | A studio of specialist image agents, each an expert in one look. |
 
-## Video (10)
+## Video (11)
 
 | App | Route | What it is |
 |---|---|---|
@@ -39,6 +39,7 @@
 | **Smart Shot Videos** | `/apps/smart-shot-videos` | One prompt and your own photos become a full production sheet before a single frame of video is rendered. |
 | **Video Studio Arena** | `/apps/video-studio-arena` | The studio every other video idea plugs into, so there is one place to make a video instead of eight apps. |
 | **Money Agent Studio** | `/apps/money-agent-studio` | Standing agents whose only job is income from video. |
+| **AI Live Studio** | `/apps/ai-live-studio` | Run a photoreal AI host on a TikTok LIVE stream and keep your hand on the room. |
 | **Workflow Maker** | `/apps/workflow-maker` | The owner's "rea to workflow". |
 | **Custom Video Swap** | `/apps/custom-video-swap` | Recast any clip. |
 | **3D Studio Video Creator** | `/apps/3d-studio` | An AI animation director that turns a simple prompt into a complete animated video. |

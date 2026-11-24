@@ -1,0 +1,817 @@
+/* ---------------------------------------------------------------------------
+   AI Live Studio — design read: "Dark room, one key light."
+   A broadcast room at night. The only warm light in the interface is the light
+   on the host's face, and it is driven by his voice (--lvl, set per frame).
+   Built on the hub's Cold Luxury studio language (graphite, smoke, platinum
+   chrome hairlines, Geist + Geist Mono) so it sits beside Custom Video Swap.
+
+   Colour has exactly one meaning per hue:
+     key light  #fff3ea  the AI's voice — encoded by INTENSITY, not hue
+     live red   #ff6470  on air (filled pill) · critical status (outline + icon)
+     good/warn            status only, always with an icon and a label
+   Validated with the dataviz palette script against #0b0b0d.
+   Every rule is scoped under .als.
+   --------------------------------------------------------------------------- */
+
+.als {
+  --bg: #0b0b0d;
+  --panel: #111113;
+  --panel-2: #17171a;
+  --raise: #1e1e22;
+  --line: rgba(255, 255, 255, 0.075);
+  --line-2: rgba(255, 255, 255, 0.14);
+  --ink: #f3f3f1;
+  --ink-2: #b3b3b8;
+  --ink-3: #8a8a92;
+  --chrome: linear-gradient(180deg, #fbfbfa 0%, #d9dadd 46%, #a9abb0 54%, #eeeeef 100%);
+  --key-rgb: 255, 243, 234;
+  --cool-rgb: 196, 212, 236;
+  --live: #ff6470;
+  --good: #5fd39a;
+  --warn: #e6c84f;
+  --crit: #ff6470;
+  --glass: rgba(14, 14, 17, 0.64);
+  --glass-line: rgba(255, 255, 255, 0.1);
+  --ease: cubic-bezier(0.22, 1, 0.36, 1);
+  --lvl: 0;
+  /* The private channel's hue — the director's side only, never on the public side. */
+  --priv: #8ab4ff;
+  --priv-rgb: 138, 180, 255;
+  --mic: 0;
+
+  position: relative;
+  height: 100dvh;
+  display: grid;
+  grid-template-rows: auto 1fr;
+  /* One column that its contents can never widen — a busy top bar must not stretch the page past the phone. */
+  grid-template-columns: minmax(0, 1fr);
+  /* clip, not hidden: "hidden" still lets focus and scrollIntoView scroll the
+     page out from under the header. clip forbids it. */
+  overflow: hidden;
+  overflow: clip;
+  background:
+    radial-gradient(1100px 560px at 34% 38%, rgba(var(--key-rgb), 0.035), transparent 62%),
+    radial-gradient(900px 500px at 100% 0%, rgba(var(--cool-rgb), 0.04), transparent 60%),
+    var(--bg);
+  color: var(--ink);
+  color-scheme: dark;
+  font-family: var(--font-vs, ui-sans-serif), ui-sans-serif, system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -webkit-tap-highlight-color: transparent;
+}
+.als button, .als input, .als select, .als textarea, .als a { touch-action: manipulation; }
+.als .mono { font-family: var(--font-vs-mono, ui-monospace), ui-monospace, monospace; font-variant-numeric: tabular-nums; }
+/* The parts the browser draws carry the design too. */
+.als ::selection { background: rgba(var(--key-rgb), 0.3); color: #fff; }
+.als input, .als textarea { caret-color: rgb(var(--key-rgb)); }
+.als, .als * { scrollbar-width: thin; scrollbar-color: rgba(255, 255, 255, 0.12) transparent; }
+.als *::-webkit-scrollbar { width: 8px; height: 8px; }
+.als *::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.1); border-radius: 8px; }
+.als *::-webkit-scrollbar-track { background: transparent; }
+.als button { font: inherit; color: inherit; background: none; border: 0; cursor: pointer; }
+.als :focus-visible { outline: 2px solid rgba(var(--key-rgb), 0.85); outline-offset: 2px; border-radius: 10px; }
+.als .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+/* ---- Top bar --------------------------------------------------------------- */
+.als-top {
+  display: flex; align-items: center; gap: 14px; height: 56px; padding: 0 20px;
+  border-bottom: 1px solid var(--line); background: rgba(11, 11, 13, 0.7); backdrop-filter: blur(14px);
+  position: relative; z-index: 5;
+}
+.als-back {
+  display: inline-flex; align-items: center; gap: 6px; height: 30px; padding: 0 12px; border-radius: 999px;
+  border: 1px solid var(--line-2); color: var(--ink-2); font-size: 12px; transition: color 0.2s var(--ease), border-color 0.2s var(--ease);
+}
+.als-back:hover { color: var(--ink); border-color: rgba(255, 255, 255, 0.26); }
+.als-brand { display: flex; flex-direction: column; line-height: 1.1; }
+.als-title {
+  font-size: 15px; font-weight: 600; letter-spacing: -0.02em;
+  background: var(--chrome); -webkit-background-clip: text; background-clip: text; color: transparent;
+}
+.als-sub { font-size: 11.5px; color: var(--ink-3); }
+.als-top-right { margin-left: auto; display: flex; align-items: center; gap: 10px; }
+.als-onair {
+  display: inline-flex; align-items: center; gap: 8px; height: 28px; padding: 0 12px; border-radius: 999px;
+  font-size: 11.5px; font-weight: 600; letter-spacing: 0.08em;
+  border: 1px solid var(--line-2); color: var(--ink-3);
+}
+.als-onair[data-live="true"] { background: var(--live); border-color: transparent; color: #1a0306; }
+.als-onair .dot { width: 7px; height: 7px; border-radius: 999px; background: currentColor; }
+.als-onair[data-live="true"] .dot { background: #1a0306; animation: als-pulse 1.6s var(--ease) infinite; }
+.als-chip-demo {
+  height: 24px; display: inline-flex; align-items: center; padding: 0 10px; border-radius: 999px;
+  font-size: 11px; color: var(--ink-2); border: 1px dashed var(--line-2);
+}
+
+/* ---- Main layout ----------------------------------------------------------- */
+.als-main { position: relative; display: grid; grid-template-columns: 304px minmax(0, 1fr) 380px; min-height: 0; }
+.als-room {
+  position: relative; min-height: 0; display: grid; place-items: center;
+  padding: 22px 24px 132px; overflow: hidden; overflow: clip; isolation: isolate;
+  container-type: inline-size;
+}
+
+/* ---- The stage ------------------------------------------------------------- */
+.als-stage { position: relative; height: 100%; max-height: 100%; aspect-ratio: 9 / 16; max-width: 100%; display: grid; }
+
+/* The key light: the standout. Its strength IS the speaking indicator.
+   It is driven every frame, so only opacity and transform move — the
+   gradient itself is painted once and the compositor does the rest. */
+.als-light {
+  position: absolute; inset: -34% -60%; z-index: -1; pointer-events: none;
+  background:
+    radial-gradient(closest-side at 50% 42%, rgba(var(--key-rgb), 0.25), transparent 72%),
+    radial-gradient(closest-side at 50% 50%, rgba(var(--key-rgb), 0.075), transparent 100%);
+  opacity: calc(0.2 + var(--lvl) * 0.8);
+  transform: scale(calc(0.97 + var(--lvl) * 0.07));
+  will-change: opacity, transform;
+}
+.als-stage[data-state="listening"] .als-light,
+.als-stage[data-state="idle"] .als-light {
+  background: radial-gradient(closest-side at 50% 44%, rgba(var(--cool-rgb), 0.06), transparent 72%);
+  opacity: 1;
+}
+.als-stage[data-state="thinking"] .als-light {
+  background: radial-gradient(closest-side at 50% 44%, rgba(var(--key-rgb), 0.07), transparent 72%);
+  animation: als-think 2.8s ease-in-out infinite;
+}
+.als-stage[data-state="offline"] .als-light {
+  background: radial-gradient(closest-side at 50% 44%, rgba(var(--cool-rgb), 0.035), transparent 72%);
+  opacity: 1;
+}
+
+.als-frame {
+  position: relative; overflow: hidden; border-radius: 24px; background: #070708;
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  box-shadow: 0 30px 80px -30px rgba(0, 0, 0, 0.9);
+  transition: border-color 0.5s var(--ease);
+}
+/* The rim light on the frame: painted once, faded by the voice. */
+.als-stage::after {
+  content: ""; position: absolute; inset: 0; border-radius: 24px; pointer-events: none; z-index: -1;
+  box-shadow: 0 0 70px 6px rgba(var(--key-rgb), 0.32);
+  opacity: var(--lvl);
+  will-change: opacity;
+}
+.als-stage[data-state="speaking"] .als-frame { border-color: rgba(var(--key-rgb), 0.32); }
+
+.als-media { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+/* The actor's body. Eye contact, head movement and expression move this layer
+   (vars written by useStudio from the director's Performance). The pose is a
+   transform; the drifting gaze is the separate `translate` property, so the two
+   compose instead of fighting. A slight base scale keeps the edges covered. */
+.als-perf {
+  position: absolute; inset: 0; transform-origin: 50% 85%;
+  transform: translateX(calc(var(--away, 0) * -1.6%)) rotate(var(--tilt, 0deg)) scale(calc(1.035 + var(--lean, 0) * 0.02));
+  transition: transform 0.9s var(--ease);
+  animation: als-look calc(13s / var(--tempo, 1)) ease-in-out infinite;
+  will-change: transform;
+}
+.als-stage[data-expr="surprised"] .als-perf { transition-duration: 0.35s; }
+.als-photo-wrap { position: absolute; inset: 0; animation: als-sway calc(11s / var(--tempo, 1)) ease-in-out infinite; transform-origin: 50% 80%; }
+.als-photo {
+  position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: 50% 30%;
+  animation: als-breathe 6.2s ease-in-out infinite;
+  scale: calc(1 + var(--lvl) * 0.008);
+}
+.als-vignette {
+  position: absolute; inset: 0; pointer-events: none;
+  background:
+    linear-gradient(180deg, rgba(0, 0, 0, 0.42) 0%, transparent 18%, transparent 62%, rgba(0, 0, 0, 0.62) 100%),
+    radial-gradient(120% 80% at 50% 40%, transparent 60%, rgba(0, 0, 0, 0.35) 100%);
+}
+
+/* Overlays sit on frosted reading layers — never straight on video (U8). */
+.als-glass { background: var(--glass); border: 1px solid var(--glass-line); backdrop-filter: blur(16px) saturate(1.2); -webkit-backdrop-filter: blur(16px) saturate(1.2); }
+.als-overlays { position: absolute; inset: 0; pointer-events: none; display: flex; flex-direction: column; padding: 14px; gap: 10px; }
+.als-overlays > * { pointer-events: auto; }
+.als-row { display: flex; align-items: center; gap: 8px; }
+
+.als-state {
+  display: inline-flex; align-items: center; gap: 8px; height: 28px; padding: 0 11px 0 10px; border-radius: 999px;
+  font-size: 12px; font-weight: 500; color: var(--ink);
+}
+.als-state .lamp { width: 7px; height: 7px; border-radius: 999px; background: rgba(var(--cool-rgb), 0.9); }
+.als-state[data-state="listening"] .lamp { animation: als-pulse 2.4s ease-in-out infinite; }
+.als-state[data-state="speaking"] .lamp { background: rgb(var(--key-rgb)); box-shadow: 0 0 10px rgba(var(--key-rgb), 0.9); }
+.als-state[data-state="paused"] .lamp { background: var(--warn); }
+.als-state[data-state="offline"] .lamp { background: var(--ink-3); }
+.als-state .shimmer {
+  background: linear-gradient(90deg, var(--ink-3) 0%, var(--ink) 45%, var(--ink-3) 90%);
+  background-size: 220% 100%; -webkit-background-clip: text; background-clip: text; color: transparent;
+  animation: als-shimmer 2.2s linear infinite;
+}
+
+/* Five-bar level meter: single series, one hue, data-driven heights. */
+.als-bars { display: inline-flex; align-items: flex-end; gap: 2px; height: 12px; }
+.als-bars i { width: 2px; height: 12px; border-radius: 2px; background: rgb(var(--key-rgb)); transform-origin: 50% 100%; }
+
+.als-preview-badge {
+  margin-left: auto; height: 26px; display: inline-flex; align-items: center; gap: 6px; padding: 0 10px;
+  border-radius: 999px; font-size: 11px; color: var(--ink-2);
+}
+
+.als-question {
+  align-self: center; max-width: 92%; display: flex; gap: 10px; align-items: flex-start;
+  padding: 10px 14px 10px 10px; border-radius: 16px;
+  animation: als-rise 0.42s var(--ease) both;
+}
+.als-question .who { font-size: 11.5px; color: var(--ink-3); }
+.als-question .what { font-size: 14px; line-height: 1.35; color: var(--ink); }
+
+.als-gift {
+  align-self: center; display: inline-flex; align-items: center; gap: 10px; padding: 8px 14px; border-radius: 999px;
+  font-size: 13px; animation: als-rise 0.5s var(--ease) both;
+}
+.als-gift svg { color: rgb(var(--key-rgb)); }
+
+.als-captions { margin-top: auto; align-self: center; max-width: 94%; text-align: center; }
+.als-caption {
+  display: inline; padding: 6px 12px; border-radius: 12px; font-size: clamp(15px, 2.1vh, 19px); line-height: 1.5;
+  font-weight: 500; letter-spacing: -0.005em; color: #fff;
+  -webkit-box-decoration-break: clone; box-decoration-break: clone;
+}
+
+/* Output mode = what goes out to TikTok: operator chrome disappears. */
+.als-stage[data-output="true"] .als-op { display: none !important; }
+.als-stage[data-output="true"] .als-frame { border-radius: 0; border: 0; }
+.als-stage:fullscreen { background: #000; aspect-ratio: auto; height: 100vh; width: 100vw; place-items: center; }
+.als-stage:fullscreen .als-frame { height: 100vh; aspect-ratio: 9 / 16; }
+.als-stage:fullscreen .als-light,
+.als-stage:fullscreen::after,
+.als-stage[data-output="true"]::after { display: none; }
+
+/* ---- Control dock ---------------------------------------------------------- */
+.als-dock {
+  position: absolute; left: 50%; bottom: 44px; transform: translateX(-50%); z-index: 4;
+  display: flex; align-items: center; gap: 6px; padding: 7px; border-radius: 999px;
+  max-width: calc(100% - 32px);
+  box-shadow: 0 20px 50px -20px rgba(0, 0, 0, 0.8);
+}
+.als-sep { width: 1px; height: 24px; background: var(--line-2); margin: 0 4px; flex: none; }
+.als-btn {
+  position: relative; height: 40px; min-width: 40px; padding: 0 12px; border-radius: 999px; flex: none;
+  display: inline-flex; align-items: center; justify-content: center; gap: 7px; font-size: 13px; color: var(--ink-2);
+  transition: background 0.2s var(--ease), color 0.2s var(--ease), transform 0.15s var(--ease);
+}
+.als-btn.icon { padding: 0; width: 40px; }
+.als-btn:hover { background: rgba(255, 255, 255, 0.07); color: var(--ink); }
+.als-btn:active { transform: scale(0.96); }
+.als-btn[aria-pressed="true"] { background: rgba(255, 255, 255, 0.11); color: var(--ink); }
+.als-btn[data-tone="warn"][aria-pressed="true"] { color: var(--warn); }
+.als-golive {
+  height: 40px; padding: 0 18px; border-radius: 999px; font-size: 13.5px; font-weight: 600; flex: none;
+  display: inline-flex; align-items: center; gap: 8px; color: #0b0b0d;
+  background: var(--chrome); box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.6);
+  transition: transform 0.15s var(--ease), filter 0.2s var(--ease);
+}
+.als-golive:hover { filter: brightness(1.06); }
+.als-golive:active { transform: scale(0.97); }
+.als-golive[data-live="true"] { background: var(--live); color: #1a0306; box-shadow: 0 0 0 4px rgba(255, 100, 112, 0.16); }
+.als-golive[data-arming="true"] { background: #fff; color: #1a0306; box-shadow: 0 0 0 4px rgba(255, 100, 112, 0.45); }
+
+.als-menu-anchor { position: relative; }
+.als-menu {
+  position: absolute; bottom: calc(100% + 12px); left: 50%; transform: translateX(-50%);
+  width: 300px; max-height: 360px; overflow: auto; padding: 6px; border-radius: 18px; z-index: 6;
+  animation: als-rise 0.24s var(--ease) both;
+}
+.als-menu h4 { margin: 8px 10px 6px; font-size: 11px; font-weight: 500; color: var(--ink-3); letter-spacing: 0.06em; text-transform: uppercase; }
+.als-opt {
+  width: 100%; text-align: left; display: flex; gap: 10px; align-items: flex-start; padding: 9px 10px; border-radius: 12px;
+}
+.als-opt:hover { background: rgba(255, 255, 255, 0.06); }
+.als-opt[aria-pressed="true"] { background: rgba(255, 255, 255, 0.09); }
+.als-opt .t { font-size: 13px; color: var(--ink); }
+.als-opt .d { font-size: 11.5px; line-height: 1.4; color: var(--ink-3); margin-top: 2px; }
+
+/* ---- Status readouts (stat tiles: status = icon + label, never colour alone) */
+/* The brief puts the technical readouts with the control bar: a quiet strip
+   under the dock, never over the face. */
+.als-status {
+  position: absolute; left: 50%; bottom: 12px; transform: translateX(-50%); z-index: 3;
+  display: flex; gap: 6px; flex-wrap: nowrap; justify-content: center; max-width: calc(100% - 32px); overflow: hidden;
+}
+.als-stat {
+  display: inline-flex; align-items: center; gap: 5px; height: 22px; padding: 0 8px; border-radius: 999px; flex: none;
+  font-size: 10.5px; color: var(--ink-2); background: rgba(17, 17, 19, 0.7); border: 1px solid var(--line); white-space: nowrap;
+}
+.als-stat b { font-weight: 500; color: var(--ink); }
+.als-stat[data-tone="good"] svg { color: var(--good); }
+.als-stat[data-tone="warn"] svg { color: var(--warn); }
+.als-stat[data-tone="crit"] { border-color: rgba(255, 100, 112, 0.4); }
+.als-stat[data-tone="crit"] svg { color: var(--crit); }
+.als-stat[data-tone="idle"] svg { color: var(--ink-3); }
+
+/* ---- Chat ------------------------------------------------------------------ */
+.als-chat {
+  position: relative; min-height: 0; display: flex; flex-direction: column; border-left: 1px solid var(--line);
+  background: linear-gradient(180deg, rgba(17, 17, 19, 0.92), rgba(11, 11, 13, 0.96));
+}
+.als-chat-head { display: flex; align-items: center; gap: 10px; padding: 14px 16px 12px; border-bottom: 1px solid var(--line); }
+.als-chat-head h2 { font-size: 13.5px; font-weight: 600; margin: 0; letter-spacing: -0.01em; }
+.als-count { font-size: 11px; color: var(--ink-3); }
+.als-chat-head .grow { flex: 1; }
+.als-list { flex: 1; min-height: 0; overflow-y: auto; padding: 10px 10px 6px; scroll-behavior: smooth; overscroll-behavior: contain; }
+.als-list::-webkit-scrollbar { width: 8px; }
+.als-list::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.08); border-radius: 8px; }
+
+.als-msg {
+  position: relative; display: grid; grid-template-columns: 30px 1fr; gap: 10px; padding: 8px 8px; border-radius: 12px;
+  animation: als-in 0.36s var(--ease) both;
+}
+.als-msg:hover { background: rgba(255, 255, 255, 0.03); }
+.als-msg > div { min-width: 0; }
+.als-msg .name { font-size: 12px; font-weight: 600; color: var(--ink-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.als-msg .time { font-size: 10.5px; color: var(--ink-3); margin-left: 6px; font-weight: 400; }
+.als-msg .text { font-size: 14px; line-height: 1.42; color: var(--ink); overflow-wrap: anywhere; }
+.als-msg[data-status="answering"] { background: rgba(var(--key-rgb), 0.05); box-shadow: inset 0 0 0 1px rgba(var(--key-rgb), 0.18); }
+.als-msg[data-status="hidden"] .text,
+.als-msg[data-status="repeat"] .text,
+.als-msg[data-status="skipped"] .text,
+.als-msg[data-status="stale"] .text { color: var(--ink-3); }
+.als-msg[data-status="hidden"] .text { text-decoration: line-through; text-decoration-color: rgba(255, 255, 255, 0.25); }
+
+.als-tag {
+  display: inline-flex; align-items: center; gap: 4px; margin-top: 4px; font-size: 10.5px; color: var(--ink-3);
+}
+.als-tag[data-tone="key"] { color: rgb(var(--key-rgb)); }
+.als-tag[data-tone="crit"] svg { color: var(--crit); }
+
+.als-actions {
+  position: absolute; top: 6px; right: 6px; display: flex; gap: 2px; padding: 2px; border-radius: 10px;
+  opacity: 0; transform: translateY(-2px); transition: opacity 0.18s var(--ease), transform 0.18s var(--ease);
+  background: var(--raise); border: 1px solid var(--line-2);
+}
+.als-msg:hover .als-actions, .als-msg:focus-within .als-actions { opacity: 1; transform: none; }
+.als-act { height: 26px; padding: 0 8px; border-radius: 8px; font-size: 11.5px; color: var(--ink-2); display: inline-flex; align-items: center; gap: 5px; }
+.als-act:hover { background: rgba(255, 255, 255, 0.08); color: var(--ink); }
+
+.als-event {
+  display: flex; align-items: center; gap: 8px; margin: 4px 8px; padding: 7px 10px; border-radius: 10px;
+  font-size: 12.5px; color: var(--ink-2); background: rgba(255, 255, 255, 0.025); border: 1px solid var(--line);
+  animation: als-in 0.36s var(--ease) both;
+}
+.als-event svg { color: var(--ink-3); flex: none; }
+.als-event[data-kind="gift"] { border-color: rgba(var(--key-rgb), 0.22); }
+.als-event[data-kind="gift"] svg { color: rgb(var(--key-rgb)); }
+.als-event b { color: var(--ink); font-weight: 600; }
+
+/* The AI's own lines: a different object, not a reply bubble. */
+.als-ai {
+  margin: 6px 4px 10px; padding: 11px 13px 12px; border-radius: 14px;
+  background: linear-gradient(180deg, rgba(var(--key-rgb), 0.06), rgba(var(--key-rgb), 0.02));
+  border: 1px solid rgba(var(--key-rgb), 0.14);
+  animation: als-in 0.4s var(--ease) both;
+}
+.als-ai[data-speaking="true"] { border-color: rgba(var(--key-rgb), 0.45); box-shadow: 0 0 0 4px rgba(var(--key-rgb), 0.06), 0 10px 30px -14px rgba(var(--key-rgb), 0.4); }
+.als-ai .head { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
+.als-ai .me { font-size: 12px; font-weight: 600; color: var(--ink); }
+.als-ai .head .als-mono { width: 20px; height: 20px; }
+.als-ai .to { font-size: 11.5px; color: var(--ink-3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.als-ai .to b { color: var(--ink-2); font-weight: 500; }
+.als-ai .text { font-size: 14.5px; line-height: 1.45; color: var(--ink); }
+.als-ai .foot { display: flex; gap: 10px; margin-top: 6px; font-size: 10.5px; color: var(--ink-3); }
+
+.als-thinking { display: flex; align-items: center; gap: 10px; margin: 4px 8px 10px; font-size: 12.5px; }
+.als-thinking .shimmer {
+  background: linear-gradient(90deg, var(--ink-3) 0%, var(--ink) 40%, var(--ink-3) 80%);
+  background-size: 220% 100%; -webkit-background-clip: text; background-clip: text; color: transparent;
+  animation: als-shimmer 2.2s linear infinite;
+}
+
+.als-empty { margin: auto; max-width: 270px; text-align: center; padding: 40px 10px; color: var(--ink-3); font-size: 13px; line-height: 1.55; }
+.als-empty h3 { color: var(--ink); font-size: 15px; font-weight: 600; margin: 12px 0 6px; letter-spacing: -0.01em; }
+.als-empty svg { color: var(--ink-3); }
+
+.als-jump {
+  position: absolute; left: 50%; transform: translateX(-50%); bottom: 118px; height: 30px; padding: 0 12px; border-radius: 999px;
+  font-size: 12px; display: inline-flex; align-items: center; gap: 6px; color: var(--ink); z-index: 2;
+}
+
+.als-compose { position: relative; padding: 10px 12px 14px; border-top: 1px solid var(--line); }
+.als-seg { display: inline-flex; padding: 2px; border-radius: 999px; background: rgba(255, 255, 255, 0.04); border: 1px solid var(--line); margin-bottom: 8px; }
+.als-seg button { height: 26px; padding: 0 11px; border-radius: 999px; font-size: 11.5px; color: var(--ink-3); }
+.als-seg button[aria-pressed="true"] { background: rgba(255, 255, 255, 0.1); color: var(--ink); }
+.als-input-row { display: flex; gap: 8px; }
+.als-input {
+  flex: 1; min-width: 0; height: 42px; padding: 0 14px; border-radius: 14px; font-size: 16px; color: var(--ink);
+  background: rgba(255, 255, 255, 0.04); border: 1px solid var(--line-2); outline: none;
+  transition: border-color 0.2s var(--ease), background 0.2s var(--ease);
+}
+.als-input::placeholder { color: var(--ink-3); }
+.als-input:focus { border-color: rgba(var(--key-rgb), 0.5); background: rgba(255, 255, 255, 0.06); }
+.als-send { height: 42px; width: 42px; border-radius: 14px; display: grid; place-items: center; background: var(--chrome); color: #0b0b0d; flex: none; }
+.als-send { transition: filter 0.2s var(--ease), transform 0.15s var(--ease); }
+.als-send:hover { filter: brightness(1.08); }
+.als-send:active { transform: scale(0.95); }
+.als-hint { margin-top: 7px; font-size: 11px; color: var(--ink-3); }
+
+/* ---- Monogram avatars (viewers) ---------------------------------------- */
+.als-mono {
+  width: 30px; height: 30px; border-radius: 999px; display: grid; place-items: center; flex: none;
+  font-size: 12px; font-weight: 600; color: #0b0b0d; overflow: hidden;
+}
+.als-mono img { width: 100%; height: 100%; object-fit: cover; object-position: 50% 34%; }
+
+/* ---- Personality drawer --------------------------------------------------- */
+.als-scrim { position: absolute; inset: 0; z-index: 7; background: rgba(0, 0, 0, 0.42); animation: als-fade 0.25s var(--ease) both; }
+.als-drawer {
+  position: absolute; top: 0; right: 0; bottom: 0; width: 440px; max-width: 100%; z-index: 8;
+  display: flex; flex-direction: column; background: #0e0e10; border-left: 1px solid var(--line-2);
+  box-shadow: -30px 0 80px -30px rgba(0, 0, 0, 0.9);
+  animation: als-slide 0.38s var(--ease) both;
+}
+.als-drawer-head { display: flex; align-items: center; gap: 10px; padding: 16px 18px; border-bottom: 1px solid var(--line); }
+.als-drawer-head h2 { margin: 0; font-size: 15px; font-weight: 600; letter-spacing: -0.015em; }
+.als-drawer-body { flex: 1; overflow-y: auto; padding: 6px 18px 28px; overscroll-behavior: contain; }
+.als-sec { padding: 18px 0 6px; border-bottom: 1px solid var(--line); }
+.als-sec:last-child { border-bottom: 0; }
+.als-sec h3 { margin: 0 0 12px; font-size: 11px; font-weight: 500; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-3); }
+
+.als-presets { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.als-preset {
+  text-align: left; padding: 11px 12px; border-radius: 14px; border: 1px solid var(--line-2); background: rgba(255, 255, 255, 0.02);
+  transition: border-color 0.2s var(--ease), background 0.2s var(--ease);
+}
+.als-preset:hover { border-color: rgba(255, 255, 255, 0.24); }
+.als-preset[aria-pressed="true"] { border-color: rgba(var(--key-rgb), 0.55); background: rgba(var(--key-rgb), 0.06); }
+.als-preset .t { font-size: 13px; font-weight: 600; color: var(--ink); }
+.als-preset .d { font-size: 11.5px; color: var(--ink-3); margin-top: 3px; line-height: 1.35; }
+.als-preset:last-child:nth-child(odd) { grid-column: 1 / -1; }
+
+.als-field { display: block; margin-bottom: 14px; }
+.als-field > span { display: flex; justify-content: space-between; font-size: 12.5px; color: var(--ink-2); margin-bottom: 7px; }
+.als-field > span .mono { color: var(--ink); font-size: 12px; }
+.als-text, .als-area, .als-select {
+  width: 100%; border-radius: 12px; padding: 0 12px; font-size: 16px; color: var(--ink);
+  background: rgba(255, 255, 255, 0.04); border: 1px solid var(--line-2); outline: none;
+}
+.als-text, .als-select { height: 40px; }
+.als-area { padding: 10px 12px; min-height: 84px; resize: vertical; line-height: 1.45; font-family: inherit; }
+.als-text:focus, .als-area:focus, .als-select:focus { border-color: rgba(var(--key-rgb), 0.5); }
+.als-select option { background: #161618; }
+
+.als-range { width: 100%; height: 22px; background: transparent; appearance: none; -webkit-appearance: none; cursor: pointer; }
+.als-range::-webkit-slider-runnable-track { height: 4px; border-radius: 4px; background: linear-gradient(90deg, rgba(var(--key-rgb), 0.85) var(--p, 50%), rgba(255, 255, 255, 0.1) var(--p, 50%)); }
+.als-range::-moz-range-track { height: 4px; border-radius: 4px; background: rgba(255, 255, 255, 0.1); }
+.als-range::-moz-range-progress { height: 4px; border-radius: 4px; background: rgba(var(--key-rgb), 0.85); }
+.als-range::-webkit-slider-thumb { -webkit-appearance: none; width: 18px; height: 18px; margin-top: -7px; border-radius: 999px; background: var(--chrome); box-shadow: 0 2px 8px rgba(0, 0, 0, 0.6); }
+.als-range::-moz-range-thumb { width: 18px; height: 18px; border: 0; border-radius: 999px; background: #e7e8ea; }
+
+.als-scale { display: flex; justify-content: space-between; font-size: 10.5px; color: var(--ink-3); margin-top: 2px; }
+
+.als-words { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.als-word { height: 28px; display: inline-flex; align-items: center; gap: 6px; padding: 0 6px 0 10px; border-radius: 999px; font-size: 12px; background: rgba(255, 255, 255, 0.06); border: 1px solid var(--line-2); }
+.als-word button { width: 20px; height: 20px; border-radius: 999px; display: grid; place-items: center; color: var(--ink-3); }
+.als-word button:hover { color: var(--ink); background: rgba(255, 255, 255, 0.1); }
+
+.als-conn { display: grid; gap: 8px; }
+.als-conn-row { display: grid; grid-template-columns: 18px 1fr; gap: 10px; padding: 11px 12px; border-radius: 12px; background: rgba(255, 255, 255, 0.025); border: 1px solid var(--line); }
+.als-conn-row .t { font-size: 13px; color: var(--ink); }
+.als-conn-row .d { font-size: 11.5px; color: var(--ink-3); margin-top: 2px; line-height: 1.45; }
+.als-conn-row code { font-family: var(--font-vs-mono, ui-monospace), monospace; font-size: 11px; color: var(--ink-2); background: rgba(255, 255, 255, 0.06); padding: 1px 6px; border-radius: 6px; }
+.als-conn-row[data-tone="good"] > svg { color: var(--good); }
+.als-conn-row[data-tone="warn"] > svg { color: var(--warn); }
+.als-conn-row[data-tone="idle"] > svg { color: var(--ink-3); }
+
+.als-ghost { height: 34px; padding: 0 12px; border-radius: 999px; font-size: 12.5px; color: var(--ink-2); border: 1px solid var(--line-2); display: inline-flex; align-items: center; gap: 6px; }
+.als-ghost:hover { color: var(--ink); border-color: rgba(255, 255, 255, 0.28); }
+.als-ghost.sm { height: 28px; padding: 0 11px; font-size: 12px; }
+
+.als-toast {
+  position: absolute; left: 50%; top: 70px; transform: translateX(-50%); z-index: 9; padding: 10px 14px; border-radius: 14px;
+  font-size: 13px; max-width: min(520px, calc(100% - 32px)); animation: als-rise 0.3s var(--ease) both;
+}
+
+/* ---- Motion ------------------------------------------------------------- */
+@keyframes als-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.35; } }
+@keyframes als-shimmer { from { background-position: 120% 0; } to { background-position: -120% 0; } }
+@keyframes als-think { 0%, 100% { transform: translateX(-4%) scale(0.98); opacity: 0.7; } 50% { transform: translateX(4%) scale(1.02); opacity: 1; } }
+@keyframes als-breathe { 0%, 100% { transform: scale(1.02) translate3d(0, 0, 0); } 50% { transform: scale(1.034) translate3d(0, -0.35%, 0); } }
+/* Sway amplitude follows the director's head movement (--head 0–1; 0.5 is the old, fixed sway). */
+@keyframes als-sway {
+  0%, 100% { transform: rotate(calc(var(--head, 0.5) * -0.5deg)) translateX(calc(var(--head, 0.5) * -0.4%)); }
+  50% { transform: rotate(calc(var(--head, 0.5) * 0.6deg)) translateX(calc(var(--head, 0.5) * 0.5%)); }
+}
+/* Low eye contact: the gaze drifts off the lens and back. */
+@keyframes als-look {
+  0%, 100% { translate: 0 0; }
+  35% { translate: calc(var(--away, 0) * -2.4%) 0; }
+  70% { translate: calc(var(--away, 0) * 1.8%) 0.3%; }
+}
+
+@keyframes als-rise { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+@keyframes als-in { from { opacity: 0; transform: translateY(10px) scale(0.985); } to { opacity: 1; transform: none; } }
+@keyframes als-fade { from { opacity: 0; } to { opacity: 1; } }
+@keyframes als-slide { from { transform: translateX(24px); opacity: 0; } to { transform: none; opacity: 1; } }
+
+@media (prefers-reduced-motion: reduce) {
+  .als *, .als *::before, .als *::after { animation-duration: 0.001ms !important; animation-iteration-count: 1 !important; transition-duration: 0.001ms !important; }
+  .als-light { transform: none; }
+  .als-photo { scale: 1; }
+  .als-list { scroll-behavior: auto; }
+}
+
+/* ---- Phone: the stage fills the screen, chat floats over it like TikTok ---- */
+@media (max-width: 900px) {
+  .als-top { height: calc(52px + env(safe-area-inset-top)); padding: env(safe-area-inset-top) 12px 0; gap: 10px; }
+  .als-stage::after { display: none; }
+  .als-sub { display: none; }
+  .als-main { grid-template-columns: 1fr; position: relative; }
+  .als-room { padding: 0; place-items: stretch; }
+  .als-stage { height: 100%; width: 100%; aspect-ratio: auto; }
+  .als-frame { border-radius: 0; border: 0; box-shadow: none; }
+  .als-light { display: none; }
+  .als-status { top: 60px; right: 10px; left: auto; bottom: auto; transform: none; max-width: 70%; }
+  .als-status .als-stat:not([data-keep]) { display: none; }
+  .als-overlays { padding: 10px 10px 0; }
+  /* On the owner's phone the face fills the screen, so something must overlap
+     it. The chat already shows the line being spoken, highlighted — so the
+     stage caption steps aside and the eyes stay clear. The caption still goes
+     out on stream: output mode (no chat over it) keeps it at the bottom. */
+  .als-stage:not([data-output="true"]) .als-captions { display: none; }
+  /* While live, the readouts sit just above the chat, clear of the question card. */
+  .als[data-live="true"] .als-status { top: auto; bottom: calc(64px + 40% + 8px); }
+  .als-title { white-space: nowrap; font-size: 14px; }
+  .als-hide-sm { display: none; }
+  .als-compose .als-hint { display: none; }
+
+  .als-chat {
+    position: absolute; left: 0; right: 0; bottom: 64px; height: 40%; z-index: 3; border-left: 0;
+    background: linear-gradient(180deg, transparent 0%, rgba(8, 8, 10, 0.55) 18%, rgba(8, 8, 10, 0.82) 100%);
+    -webkit-mask-image: linear-gradient(180deg, transparent 0, #000 44px); mask-image: linear-gradient(180deg, transparent 0, #000 44px);
+  }
+  .als-chat[data-collapsed="true"] { height: auto; -webkit-mask-image: none; mask-image: none; background: none; }
+  /* Before going live there is nothing to read: keep the face clear, show only the composer. */
+  .als-chat[data-empty="true"] { height: auto; -webkit-mask-image: none; mask-image: none; }
+  .als-chat[data-empty="true"] .als-list { display: none; }
+  .als-chat[data-collapsed="true"] .als-list, .als-chat[data-collapsed="true"] .als-compose { display: none; }
+  .als-chat-head { border-bottom: 0; padding: 34px 12px 4px; }
+  .als-msg .text, .als-ai .text { text-shadow: 0 1px 10px rgba(0, 0, 0, 0.7); }
+  .als-msg { background: rgba(14, 14, 17, 0.42); margin-bottom: 4px; }
+  .als-compose { border-top: 0; padding: 6px 10px 8px; }
+  .als-actions { opacity: 1; transform: none; position: static; margin-top: 6px; width: max-content; }
+  .als-msg { grid-template-columns: 26px 1fr; }
+  .als-mono { width: 26px; height: 26px; }
+  .als-jump { bottom: auto; top: 6px; }
+
+  .als-dock {
+    left: 0; right: 0; bottom: 0; transform: none; max-width: none; border-radius: 0; padding: 8px 10px calc(8px + env(safe-area-inset-bottom));
+    justify-content: space-between; gap: 2px; border-left: 0; border-right: 0; border-bottom: 0;
+  }
+  .als-dock .als-btn .lbl, .als-dock .als-sep { display: none; }
+  .als-btn { height: 44px; min-width: 44px; }
+  /* Thumb-sized targets (U1): the chat's own controls were 26-28 px tall. */
+  .als-seg button { height: 40px; padding: 0 14px; font-size: 12.5px; }
+  .als-chat-head .als-ghost.sm { height: 40px; min-width: 56px; }
+  .als-btn.icon { width: 44px; }
+  .als-golive { height: 44px; padding: 0 16px; }
+  .als-menu { position: fixed; left: 10px; right: 10px; bottom: 70px; transform: none; width: auto; }
+  .als-drawer { top: auto; height: 86%; width: 100%; border-left: 0; border-top: 1px solid var(--line-2); border-radius: 22px 22px 0 0; animation-name: als-sheet; }
+}
+@keyframes als-sheet { from { transform: translateY(30px); opacity: 0; } to { transform: none; opacity: 1; } }
+
+/* ===========================================================================
+   Director booth — the owner's private side (the picked "Director booth" mockup).
+   Cool blue #8ab4ff = private channel. It never appears on the stage frame
+   (what goes out on stream), and the warm key light never appears here.
+   =========================================================================== */
+.als-booth {
+  min-height: 0; display: flex; flex-direction: column; position: relative; z-index: 4;
+  border-right: 1px solid rgba(var(--priv-rgb), 0.18);
+  background: radial-gradient(420px 300px at 50% 0%, rgba(var(--priv-rgb), 0.13), transparent 70%), #0e0f13;
+}
+.als-booth-head { display: flex; align-items: center; gap: 8px; padding: 14px 16px 0; }
+.als-booth-head h2 { margin: 0; font-size: 11px; font-weight: 600; letter-spacing: 0.14em; text-transform: uppercase; color: var(--priv); }
+.als-booth-head .lock { margin-left: auto; display: inline-flex; align-items: center; gap: 4px; font-size: 10.5px; color: var(--ink-3); }
+.als .als-booth-close { display: none; width: 36px; height: 36px; border-radius: 10px; place-items: center; color: var(--ink-2); }
+.als .als-booth-close:hover { background: rgba(255, 255, 255, 0.07); color: var(--ink); }
+
+.als-orbrow { display: flex; align-items: center; gap: 18px; padding: 18px 16px 12px; }
+.als .als-orb {
+  position: relative; width: 88px; height: 88px; border-radius: 999px; flex: none; display: grid; place-items: center;
+  color: var(--ink-2); touch-action: none; user-select: none; -webkit-user-select: none;
+  background: radial-gradient(circle at 50% 40%, rgba(var(--priv-rgb), 0.22), rgba(var(--priv-rgb), 0.05) 62%, transparent 70%);
+  transition: color 0.25s var(--ease), transform 0.15s var(--ease);
+}
+.als .als-orb:active { transform: scale(0.97); }
+.als .als-orb .ring { position: absolute; inset: -6px; border-radius: 999px; border: 2px solid rgba(var(--priv-rgb), 0.26); transition: border-color 0.3s var(--ease); }
+/* The ring that tracks your voice: --mic is written per frame. Transform + opacity only. */
+.als .als-orb .halo {
+  position: absolute; inset: -16px; border-radius: 999px; border: 1px solid rgba(var(--priv-rgb), 0.5);
+  box-shadow: 0 0 26px rgba(var(--priv-rgb), 0.45);
+  opacity: calc(var(--mic) * 1.3); transform: scale(calc(0.9 + var(--mic) * 0.28)); will-change: transform, opacity;
+}
+.als-booth[data-on="true"] .als-orb { color: #fff; }
+.als-booth[data-on="true"] .als-orb .ring { border-color: rgba(var(--priv-rgb), 0.75); box-shadow: 0 0 18px rgba(var(--priv-rgb), 0.35); }
+.als-booth[data-mic="blocked"] .als-orb, .als-booth[data-mic="unsupported"] .als-orb, .als-booth[data-mic="error"] .als-orb { color: var(--warn); }
+.als-orbtxt { min-width: 0; }
+.als-orbtxt .s { font-size: 16px; font-weight: 600; letter-spacing: -0.01em; color: var(--ink); }
+.als-orbtxt .d { margin-top: 2px; font-size: 11.5px; line-height: 1.4; color: var(--ink-3); }
+.als-selwrap { position: relative; display: inline-flex; align-items: center; margin-top: 8px; }
+.als-selwrap svg { position: absolute; right: 8px; pointer-events: none; color: var(--ink-3); }
+.als-bselect {
+  appearance: none; -webkit-appearance: none; height: 30px; padding: 0 26px 0 10px; border-radius: 9px; font: inherit; font-size: 12px;
+  color: var(--ink-2); background: rgba(255, 255, 255, 0.03); border: 1px solid var(--line-2); outline: none; cursor: pointer;
+}
+.als-bselect:focus { border-color: rgba(var(--priv-rgb), 0.6); }
+.als-bselect.wide { width: 100%; height: 38px; font-size: 16px; padding-right: 10px; }
+.als-bselect:disabled { opacity: 0.55; cursor: not-allowed; }
+.als-bselect option { background: #161618; }
+
+/* The giant Talkback switch. */
+.als-tb { margin: 4px 16px 0; padding: 4px; border-radius: 16px; display: grid; grid-template-columns: 1fr 1fr; background: #17171a; border: 1px solid var(--line-2); }
+.als-tb button { height: 46px; border-radius: 12px; font-size: 12.5px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: var(--ink-3); transition: background 0.25s var(--ease), color 0.25s var(--ease); }
+.als-tb button:hover { color: var(--ink-2); }
+.als-tb button:first-child[aria-pressed="true"] { background: rgba(255, 255, 255, 0.08); color: var(--ink); }
+.als-tb button:last-child[aria-pressed="true"] {
+  background: linear-gradient(180deg, rgba(var(--priv-rgb), 0.38), rgba(var(--priv-rgb), 0.2)); color: #fff;
+  box-shadow: inset 0 0 0 1px rgba(var(--priv-rgb), 0.7);
+}
+
+.als-route { padding: 9px 16px 0; font-size: 11.5px; line-height: 1.6; color: var(--ink-3); }
+.als-route p { margin: 0; }
+.als-route b { color: var(--ink-2); font-weight: 500; }
+.als-route svg { vertical-align: -2px; }
+.als-route .talking { color: var(--priv); }
+.als-route .warn { margin-top: 6px; line-height: 1.45; color: var(--warn); }
+.als .als-link { margin-left: 6px; min-height: 24px; display: inline-flex; align-items: center; gap: 5px; font-size: 11.5px; color: var(--priv); }
+.als .als-link:hover { text-decoration: underline; text-underline-offset: 3px; }
+.als-routepanel { margin-top: 8px; padding: 10px; display: grid; gap: 10px; border-radius: 12px; border: 1px solid var(--line-2); background: rgba(255, 255, 255, 0.02); animation: als-rise 0.24s var(--ease) both; }
+.als-routepanel .hint { margin: 0; font-size: 11px; line-height: 1.45; color: var(--ink-3); }
+.als-bfield { display: grid; gap: 5px; font-size: 12px; color: var(--ink-2); }
+.als-bfield > span { display: flex; justify-content: space-between; }
+.als-bfield b { font-weight: 500; color: var(--ink); }
+
+.als-perfpanel {
+  margin: 10px 12px 0; padding: 12px; display: grid; gap: 11px; border-radius: 14px;
+  border: 1px solid var(--line-2); background: rgba(255, 255, 255, 0.02); animation: als-rise 0.24s var(--ease) both;
+  max-height: 46%; overflow-y: auto; overscroll-behavior: contain;
+}
+.als-blabel { font-size: 10.5px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--ink-3); margin-bottom: -4px; }
+.als-chips { display: flex; flex-wrap: wrap; gap: 5px; }
+.als .als-chip { min-height: 28px; padding: 0 10px; border-radius: 999px; border: 1px solid var(--line-2); font-size: 12px; color: var(--ink-2); transition: color 0.2s var(--ease), border-color 0.2s var(--ease), background 0.2s var(--ease); }
+.als .als-chip:hover { color: var(--ink); border-color: rgba(255, 255, 255, 0.28); }
+/* The emotion is Alex's public performance: it wears the key light, not the private blue. */
+.als .als-chip[aria-pressed="true"] { background: rgba(var(--key-rgb), 0.12); border-color: rgba(var(--key-rgb), 0.45); color: #fff; }
+.als-btoggle { display: flex; align-items: center; justify-content: space-between; gap: 10px; font-size: 12px; color: var(--ink-2); cursor: pointer; }
+.als-btoggle input { width: 18px; height: 18px; accent-color: var(--priv); cursor: pointer; }
+.als-standing { display: flex; flex-wrap: wrap; gap: 6px; }
+.als-word.next { border-style: dashed; padding-right: 10px; }
+
+/* The private thread: you on the right, Alex (privately) on the left. */
+.als-thread {
+  flex: 1; min-height: 0; overflow-y: auto; padding: 12px 14px; display: flex; flex-direction: column; gap: 7px; overscroll-behavior: contain;
+  -webkit-mask-image: linear-gradient(transparent, #000 28px); mask-image: linear-gradient(transparent, #000 28px);
+}
+.als-thread > :first-child { margin-top: auto; }
+.als-thread-empty { padding: 12px; border-radius: 14px; border: 1px dashed rgba(var(--priv-rgb), 0.28); font-size: 12.5px; line-height: 1.55; color: var(--ink-3); }
+.als-thread-empty b { display: block; margin-bottom: 4px; font-weight: 600; color: var(--ink); }
+.als-you {
+  align-self: flex-end; max-width: 88%; padding: 7px 10px; border-radius: 14px 14px 4px 14px; font-size: 13px; line-height: 1.4;
+  background: #1e1e22; border: 1px solid var(--line-2); overflow-wrap: anywhere; animation: als-in 0.3s var(--ease) both;
+}
+.als-you .src { display: flex; align-items: center; gap: 5px; margin-bottom: 2px; font-size: 10px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink-3); }
+.als-you.interim { opacity: 0.6; border-style: dashed; }
+.als-you[data-status="ignored"] { opacity: 0.5; text-decoration: line-through; }
+.als-you[data-status="confirm"] { border-color: rgba(230, 200, 79, 0.45); }
+.als-you .dots::after { content: " …"; color: var(--priv); animation: als-pulse 1.2s ease-in-out infinite; }
+.als-alex {
+  align-self: flex-start; max-width: 90%; padding: 7px 10px; border-radius: 14px 14px 14px 4px; font-size: 13px; line-height: 1.45;
+  background: rgba(var(--priv-rgb), 0.12); border: 1px solid rgba(var(--priv-rgb), 0.3); animation: als-in 0.3s var(--ease) both;
+}
+.als-alex .w { display: block; font-size: 10px; font-weight: 600; letter-spacing: 0.08em; color: var(--priv); }
+.als-alex .why { display: block; margin-top: 4px; font-size: 11px; line-height: 1.4; color: var(--ink-3); }
+.als-ack { align-self: flex-end; max-width: 92%; display: inline-flex; align-items: flex-start; gap: 5px; font-size: 11px; line-height: 1.35; text-align: right; color: var(--priv); }
+.als-ack svg { flex: none; margin-top: 2px; }
+.als-ack.warn { color: var(--warn); }
+.als-ack.muted { color: var(--ink-3); }
+.als-ask { align-self: flex-end; display: flex; flex-wrap: wrap; justify-content: flex-end; align-items: center; gap: 5px; max-width: 95%; font-size: 11.5px; color: var(--warn); }
+.als-dnote { align-self: center; max-width: 95%; padding: 2px 8px; text-align: center; font-size: 11px; line-height: 1.45; color: var(--ink-3); }
+
+/* The command bar. */
+.als-cmdbar { padding: 10px 12px 12px; border-top: 1px solid var(--line); }
+.als-types { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 7px; }
+.als .als-type { min-height: 26px; padding: 0 8px; border-radius: 7px; font-size: 11px; color: var(--ink-3); border: 1px solid var(--line); transition: color 0.2s var(--ease), border-color 0.2s var(--ease); }
+.als .als-type:hover { color: var(--ink); }
+.als .als-type[aria-pressed="true"] { color: #fff; border-color: rgba(var(--priv-rgb), 0.55); background: rgba(var(--priv-rgb), 0.12); }
+.als-target {
+  display: flex; align-items: center; gap: 6px; margin-bottom: 6px; padding: 3px 3px 3px 9px; border-radius: 9px; font-size: 11.5px; color: var(--ink-2);
+  background: rgba(var(--priv-rgb), 0.08); border: 1px solid rgba(var(--priv-rgb), 0.25);
+}
+.als-target span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.als-target b { color: var(--ink); font-weight: 600; }
+.als-target button { width: 26px; height: 26px; border-radius: 7px; display: grid; place-items: center; color: var(--ink-3); }
+.als-target button:hover { color: var(--ink); background: rgba(255, 255, 255, 0.08); }
+.als-cmdrow { display: flex; gap: 6px; }
+.als-input.priv { height: 40px; border-radius: 12px; }
+.als-input.priv:focus { border-color: rgba(var(--priv-rgb), 0.6); }
+.als .als-psend { width: 40px; height: 40px; border-radius: 12px; flex: none; display: grid; place-items: center; color: var(--priv); background: rgba(var(--priv-rgb), 0.22); transition: background 0.2s var(--ease), transform 0.15s var(--ease); }
+.als .als-psend:hover { background: rgba(var(--priv-rgb), 0.32); }
+.als .als-psend:active { transform: scale(0.95); }
+.als-cmdfoot { display: flex; justify-content: space-between; gap: 8px; margin-top: 8px; }
+.als-cmdfoot .als-link { margin: 0; text-align: left; color: var(--ink-3); }
+.als-cmdfoot .als-link:hover { color: var(--ink); }
+.als-cmdfoot .als-link.end { flex: none; color: var(--ink-2); }
+
+/* Acknowledgements float in the room's left gutter — beside the stage, never on it. */
+.als-ticker { position: absolute; top: 18px; left: 16px; z-index: 3; max-width: 168px; display: flex; flex-direction: column; align-items: flex-start; gap: 5px; pointer-events: none; }
+.als-tk {
+  display: inline-flex; align-items: flex-start; gap: 6px; padding: 6px 10px; border-radius: 12px; font-size: 11.5px; line-height: 1.35; color: #dbe6ff;
+  border: 1px solid rgba(var(--priv-rgb), 0.45); background: rgba(20, 26, 40, 0.86); animation: als-rise 0.3s var(--ease) both;
+}
+.als-tk svg { flex: none; margin-top: 2px; color: var(--priv); }
+.als-tk[data-old="true"] { opacity: 0.5; }
+
+.als .als-booth-toggle {
+  display: none; height: 30px; padding: 0 12px; border-radius: 999px; align-items: center; gap: 6px; font-size: 12px;
+  color: var(--priv); border: 1px solid rgba(var(--priv-rgb), 0.4);
+}
+.als .als-booth-toggle[data-on="true"] { background: rgba(var(--priv-rgb), 0.15); }
+
+/* ---- Chat: the Up next queue, selection and the director's buttons ---- */
+.als-next { padding: 10px 12px; border-bottom: 1px solid var(--line); background: linear-gradient(180deg, rgba(var(--key-rgb), 0.03), transparent); }
+.als-next .h { display: flex; justify-content: space-between; margin-bottom: 6px; font-size: 10.5px; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; color: var(--ink-3); }
+.als-next .h .mono { font-weight: 400; letter-spacing: 0; text-transform: none; }
+.als-next ol { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; }
+.als-next li > button, .als-next li[data-now] { width: 100%; display: grid; grid-template-columns: 22px 1fr; gap: 8px; align-items: start; padding: 6px; border-radius: 10px; text-align: left; }
+.als-next li > button:hover { background: rgba(255, 255, 255, 0.04); }
+.als-next li[data-now] { background: rgba(var(--key-rgb), 0.06); border: 1px solid rgba(var(--key-rgb), 0.16); }
+.als-next .n { font-size: 17px; font-weight: 600; line-height: 1.1; text-align: center; color: var(--ink-3); }
+.als-next li[data-now] .n { font-size: 10px; line-height: 20px; color: rgb(var(--key-rgb)); }
+.als-next .t { display: block; min-width: 0; font-size: 12.5px; line-height: 1.35; color: var(--ink); overflow-wrap: anywhere; }
+.als-next .t b { font-weight: 600; }
+.als-next .w { display: block; margin-top: 1px; font-size: 10.5px; color: var(--ink-3); }
+.als-next .w[data-priv="true"] { color: var(--priv); }
+.als-next li[data-now] .w { color: var(--ink-2); }
+
+.als-msg[data-selected="true"] { background: rgba(var(--priv-rgb), 0.05); box-shadow: inset 0 0 0 1px rgba(var(--priv-rgb), 0.5); }
+.als .als-textbtn { display: block; width: 100%; padding: 0; text-align: left; cursor: pointer; }
+.als .als-textbtn:hover { color: #fff; }
+.als-newdot { display: inline-block; width: 6px; height: 6px; margin-right: 6px; border-radius: 999px; background: var(--priv); vertical-align: 2px; }
+.als-seltag { margin-left: 6px; padding: 0 6px; border-radius: 999px; font-size: 10px; font-weight: 500; color: var(--priv); border: 1px solid rgba(var(--priv-rgb), 0.4); }
+.als-tag[data-tone="priv"] { margin-right: 8px; color: var(--priv); }
+.als-selacts { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 7px; }
+.als-selacts .als-act { border: 1px solid var(--line-2); }
+.als-act.priv { color: var(--priv); border-color: rgba(var(--priv-rgb), 0.45); }
+.als-history { margin-top: 7px; padding: 8px 10px; display: grid; gap: 4px; max-height: 160px; overflow-y: auto; border-radius: 10px; font-size: 12px; line-height: 1.4; color: var(--ink-2); background: rgba(255, 255, 255, 0.03); border: 1px solid var(--line); }
+.als-history .a { color: var(--ink); }
+.als-history .mono { font-size: 10.5px; color: var(--ink-3); }
+
+/* ---- Stage: the expression the face is playing ---- */
+.als-expr { margin-left: auto; display: inline-flex; flex-direction: column; padding: 5px 10px; border-radius: 12px; line-height: 1.25; }
+.als-expr b { font-size: 12px; font-weight: 600; color: #fff; }
+.als-expr small { font-size: 10px; color: var(--ink-3); }
+
+/* ---- The room is narrower with the booth: the dock tightens to fit ---- */
+@container (max-width: 680px) {
+  .als-dock { gap: 3px; padding: 6px; }
+  .als-btn { padding: 0 9px; font-size: 12.5px; gap: 6px; }
+  .als-golive { padding: 0 14px; }
+  .als-sep { margin: 0 1px; }
+  .als-status .als-stat:not([data-keep]) { display: none; }
+}
+@container (max-width: 540px) {
+  .als-dock .als-btn .lbl, .als-dock .als-sep { display: none; }
+}
+
+/* ---- Under 1180 px the booth slides in over the room (top-bar "Director") ---- */
+@media (max-width: 1180px) {
+  .als-booth {
+    position: absolute; top: 0; bottom: 0; left: 0; z-index: 6; width: min(340px, 100%);
+    transform: translateX(-102%); visibility: hidden;
+    transition: transform 0.35s var(--ease), visibility 0s linear 0.35s;
+    box-shadow: 30px 0 80px -30px rgba(0, 0, 0, 0.9);
+  }
+  .als-booth[data-open="true"] { transform: none; visibility: visible; transition: transform 0.35s var(--ease); }
+  .als .als-booth-close { display: grid; }
+  .als .als-booth-toggle { display: inline-flex; }
+  .als-ticker { top: 12px; left: 12px; }
+}
+@media (max-width: 1180px) and (min-width: 901px) {
+  .als-main { grid-template-columns: minmax(0, 1fr) 360px; }
+}
+@media (max-width: 900px) {
+  .als-booth { width: 100%; border-right: 0; }
+  .als .als-booth-toggle { height: 36px; padding: 0 11px; }
+  .als-bselect { height: 40px; }
+  .als-top { min-width: 0; }
+  .als-brand { min-width: 0; }
+  .als-title { overflow: hidden; text-overflow: ellipsis; }
+}
+@media (max-width: 420px) {
+  /* A phone's top bar keeps what matters live: back, title, Director, LIVE. */
+  .als-top .als-chip-demo, .als-top .als-count { display: none; }
+
+  .als-tb button { height: 48px; }
+  .als .als-type { min-height: 36px; padding: 0 10px; font-size: 12px; }
+  .als .als-chip { min-height: 36px; }
+  .als .als-link { min-height: 36px; }
+  .als-target button { width: 36px; height: 36px; }
+  .als-input.priv, .als .als-psend { height: 44px; }
+  .als .als-psend { width: 44px; }
+  .als-ticker { top: 96px; }
+  .als-next { display: none; }
+  .als-selacts .als-act { height: 34px; }
+}

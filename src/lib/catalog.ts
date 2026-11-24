@@ -684,6 +684,30 @@ export const PROJECTS: CatalogProject[] = [
     hue: [152, 44],
   },
   {
+    slug: "ai-live-studio",
+    title: "AI Live Studio",
+    tag: "A real-time AI host for TikTok LIVE",
+    category: "Video",
+    overview:
+      "Run a photoreal AI host on a TikTok LIVE stream and keep your hand on the room. The host reads the " +
+      "chat and answers people by name, out loud, in a Phonon voice — gifts and follows first, @mentions " +
+      "next, repeat questions dropped, and a line of its own whenever the room goes quiet. The face is your " +
+      "chosen portrait, breathing and lit by the voice as it speaks; or LiveTalking's lip-synced wav2lip " +
+      "stream when it runs on this PC (measured at 40-49 fps inference, a steady 25 fps stream, under 3 GB " +
+      "of the 6 GB card). Nothing a viewer types is read aloud until it passes moderation: harassment, " +
+      "links, phone numbers, spam and your own blocked words are held back and shown to you crossed out, " +
+      "and the model's own replies are checked the same way. Any comment can be answered now, skipped, or " +
+      "its sender muted; you can type a line for the host to say next, word for word; Pause and Mute are " +
+      "one press each. Five personality presets and every slider — humour, energy, style, voice, speed, " +
+      "how often it answers, how soon it fills a silence — change how the host really talks, mid-stream, " +
+      "synced to every device. A scripted demo audience runs the whole pipeline before TikTok is " +
+      "connected, and Stage only puts just the face and captions full screen for the stream to capture.",
+    status: "live",
+    appUrl: "/apps/ai-live-studio",
+    iconStyle: "waves",
+    hue: [26, 36],
+  },
+  {
     slug: "workflow-maker",
     title: "Workflow Maker",
     tag: "Show it any process — it builds the working tool",
@@ -1080,6 +1104,8 @@ export function getProject(slug: string): CatalogProject | null {
  */
 const UNPREVIEWABLE = new Set([
   "money-agent-studio",
+  // Framing it would open a LiveTalking session and an audio graph on this PC.
+  "ai-live-studio",
   "workflow-maker",
   "custom-video-swap",
   "dashboard",

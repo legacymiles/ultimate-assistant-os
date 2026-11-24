@@ -112,6 +112,20 @@ function typeInto(el: HTMLElement, words: string): void {
   document.execCommand?.("insertText", false, words);
 }
 
+/**
+ * Pages that own the microphone and speakers themselves, so the floating orb
+ * stays off them: Jarvis's own chat; and AI Live Studio, a live broadcast
+ * where a second voice listening while the AI host talks out loud would hear
+ * the host, and where the orb would sit on top of the Go live button.
+ */
+const NO_ORB = ["/apps/jarvis", "/apps/ai-live-studio"];
+/**
+ * Pages where Jarvis's voice may not listen at all, even with Hands-free on.
+ * AI Live Studio has its own private director mic; a second listener there
+ * would hear the host on air and the owner's private directions.
+ */
+const NO_LISTEN = ["/apps/ai-live-studio"];
+
 export function VoiceProvider({ children }: { children: ReactNode }) {
   const pathname = usePathname() ?? "/";
   const router = useRouter();
@@ -123,7 +137,8 @@ export function VoiceProvider({ children }: { children: ReactNode }) {
       setFramed(true);
     }
   }, []);
-  const allowed = !framed && routeAccess(pathname, new Set()) === "owner";
+  const allowed = !framed && routeAccess(pathname, new Set()) === "owner" && !NO_LISTEN.some((p) => pathname.startsWith(p));
+
 
   const [speakReplies, setSpeakReplies] = useState(true);
   const regRef = useRef<Registry>(new Map());
@@ -326,8 +341,8 @@ export function VoiceProvider({ children }: { children: ReactNode }) {
       {/* Pages with a Jarvis chat (a registered target) carry the avatar
           INSIDE their chat box as its one voice button (ChatVoiceAvatar), so
           nothing floats over the page. Every other owner page keeps the small
-          orb as its one voice button. */}
-      {allowed && voice.supported && !target && !pathname.startsWith("/apps/jarvis") ? <VoiceOrb /> : null}
+          orb as its one voice button — except the pages in NO_ORB below. */}
+      {allowed && voice.supported && !target && !NO_ORB.some((p) => pathname.startsWith(p)) ? <VoiceOrb /> : null}
     </Ctx.Provider>
   );
 }
