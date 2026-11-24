@@ -272,3 +272,31 @@ export const inspireMono = localFont({
   variable: "--font-insp-mono",
   fallback: ["ui-monospace", "SFMono-Regular", "Menlo", "Consolas", "Liberation Mono", "monospace"],
 });
+
+// H3 Prompt Lab (/apps/h3-experiments): the grading-suite look — Instrument
+// Serif for titles and version numbers, Geist for UI, Geist Mono for
+// timecodes, scores and knob values. Same files as above, the lab's own
+// CSS variables.
+export const h3Serif = localFont({
+  src: "../../../public/fonts/instrument-serif-400.woff2",
+  weight: "400",
+  display: "swap",
+  variable: "--font-h3-serif",
+  fallback: ["Georgia", "Cambria", "Times New Roman", "serif"],
+});
+
+export const h3Sans = localFont({
+  src: "../../../public/fonts/geist-variable.woff2",
+  weight: "100 900",
+  display: "swap",
+  variable: "--font-h3-sans",
+  fallback: ["system-ui", "-apple-system", "Segoe UI", "Roboto", "Helvetica Neue", "Arial", "sans-serif"],
+});
+
+export const h3Mono = localFont({
+  src: "../../../public/fonts/geist-mono-variable.woff2",
+  weight: "100 900",
+  display: "swap",
+  variable: "--font-h3-mono",
+  fallback: ["ui-monospace", "SFMono-Regular", "Menlo", "Consolas", "Liberation Mono", "monospace"],
+});

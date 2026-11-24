@@ -1,11 +1,11 @@
 import type { Metadata } from "next";
-import { H3Lab } from "@/components/h3-lab/H3Lab";
+import { LabShell } from "@/components/h3-lab/lab/LabShell";
 
 export const metadata: Metadata = {
-  title: "H3 Experiments",
-  description: "Which skill actually makes a good film — the same brief, every skill, measured.",
+  title: "H3 Prompt Lab",
+  description: "The self-improving MiniMax H3 prompting lab: one Master Prompt Guide, experiments that test techniques against it on the local H3, and the evidence for every change.",
 };
 
-export default function H3ExperimentsPage() {
-  return <H3Lab />;
+export default function H3PromptLabPage() {
+  return <LabShell />;
 }

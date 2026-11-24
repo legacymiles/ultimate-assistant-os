@@ -1,0 +1,23 @@
+# H3 Prompt Lab — keeps the research agent thinking while the laptop is off.
+# Every 30 minutes GitHub asks the live site to run one agent step for every
+# owner with a paired worker: evaluate finished renders, conclude experiments,
+# propose guide changes, design the next experiment, research. Renders still
+# need the PC (they wait in the queue). Does nothing until the H3LAB_TICK_TOKEN
+# secret is set here AND on Vercel — the tick route refuses calls without it.
+name: h3-lab-tick
+on:
+  schedule:
+    - cron: "*/30 * * * *"
+  workflow_dispatch: {}
+jobs:
+  tick:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Advance the lab's agent one step
+        env:
+          TOKEN: ${{ secrets.H3LAB_TICK_TOKEN }}
+          SITE: ${{ vars.PERSONAS_SITE_URL || 'https://ultimate-assistant-os.vercel.app' }}
+        run: |
+          if [ -z "$TOKEN" ]; then echo "H3LAB_TICK_TOKEN is not set; skipping."; exit 0; fi
+          curl -fsS --max-time 130 -X POST -H "Authorization: Bearer $TOKEN" "$SITE/api/h3-lab/worker/tick" || echo "tick failed; next run retries"

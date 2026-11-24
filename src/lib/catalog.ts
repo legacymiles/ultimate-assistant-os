@@ -405,21 +405,23 @@ export const PROJECTS: CatalogProject[] = [
   },
   {
     slug: "h3-experiments",
-    title: "H3 Experiments",
-    tag: "Which skill actually makes a good film",
+    title: "H3 Prompt Lab",
+    tag: "The self-improving MiniMax H3 prompting lab",
     category: "Video",
     overview:
-      "A lab ledger for video. Every skill that can drive a render shows as a folder; inside it are " +
-      "the films it actually produced and the skill's own description, so the comparison is between " +
-      "skills rather than between half-remembered attempts. A brief is the controlled variable — the " +
-      "same short story goes to every skill, and the runs line up underneath it. Each run is a single " +
-      "dense row that is also the film: hover and it plays in place, drag across it and the row's " +
-      "width becomes the timeline, so twenty takes compare in twenty seconds without opening a single " +
-      "player. Rate a run good, mixed or bad, tag what went wrong from a fixed vocabulary — identity " +
-      "drift, style break, dead shot, bad join — and the tags are counted per skill, which turns one " +
-      "bad film into a pattern worth fixing. The Queue pane lists every skill that has never rendered " +
-      "a given brief, so work that has not been done is visible instead of remembered. Skills are read " +
-      "off disk, so adding one to the library adds it here.",
+      "One Master Prompt Guide for MiniMax H3 that gets better on its own. The guide holds the official " +
+      "production-brief format, camera and length discipline, continuity methods and 43 genre modules — a " +
+      "fight scene is not prompted like a sitcom. Experiments never replace it wholesale: each one changes a " +
+      "few compiler techniques (lead with the cast, explicit set layout, plain big camera moves, timed cuts), " +
+      "renders paired tests on the owner's own H3 in WanGP with the same seed as the master, measures every " +
+      "clip with ffmpeg (cuts, frame similarity, freezes, exposure, camera motion) and has a vision judge " +
+      "score what it sees, then credits each technique separately and ranks by the lower bound of its " +
+      "interval so one lucky render proves nothing. Winning techniques are combined into a proposed change " +
+      "with its evidence; nothing reaches the guide without approval, every version is kept and can be " +
+      "rolled back, and the approved guide publishes as the one h3-prompt skill. Reverse-engineer any " +
+      "reference video into a shot blueprint and recreate it with your own cast; keep character, " +
+      "environment and production bibles; inspect continuity frame by frame. A PC worker renders and " +
+      "measures around the clock while the laptop is on.",
     status: "live",
     appUrl: "/apps/h3-experiments",
     iconStyle: "waves",
@@ -1109,6 +1111,8 @@ export function getProject(slug: string): CatalogProject | null {
  * panel. Neither is wanted, so they keep the animated icon instead.
  */
 const UNPREVIEWABLE = new Set([
+  // The owner's prompting research; the page polls the lab and nudges its agent.
+  "h3-experiments",
   "money-agent-studio",
   // Framing it would open a LiveTalking session and an audio graph on this PC.
   "ai-live-studio",

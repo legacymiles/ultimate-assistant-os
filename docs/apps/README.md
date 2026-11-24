@@ -35,7 +35,7 @@
 |---|---|---|
 | **Viral Studio Content** | `/apps/viral-studio-content` | Four boards for the clips worth saving — Viral audio (sounds and songs), Fights, Dances and Motion (surfing, hoops, rap performances and anything else that moves). |
 | **Music Video Studio** | `/apps/seedance-studio` | An audio-driven video engine: drop a song and the film is cut TO it, not laid over it. |
-| **H3 Experiments** | `/apps/h3-experiments` | A lab ledger for video. |
+| **H3 Prompt Lab** | `/apps/h3-experiments` | One Master Prompt Guide for MiniMax H3 that gets better on its own. |
 | **Smart Shot Videos** | `/apps/smart-shot-videos` | One prompt and your own photos become a full production sheet before a single frame of video is rendered. |
 | **Video Studio Arena** | `/apps/video-studio-arena` | The studio every other video idea plugs into, so there is one place to make a video instead of eight apps. |
 | **Money Agent Studio** | `/apps/money-agent-studio` | Standing agents whose only job is income from video. |

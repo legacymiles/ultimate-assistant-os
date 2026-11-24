@@ -76,6 +76,14 @@ const TOKEN_AUTH_PATHS = new Set([
   "/api/video-studio/runner/progress",
   "/api/video-studio/runner/clip",
   "/api/video-studio/runner/fail",
+  // H3 Prompt Lab's PC worker (bearer worker token) and the scheduled tick
+  // (H3LAB_TICK_TOKEN). Each route verifies its own token.
+  "/api/h3-lab/worker/claim",
+  "/api/h3-lab/worker/progress",
+  "/api/h3-lab/worker/upload",
+  "/api/h3-lab/worker/result",
+  "/api/h3-lab/worker/think",
+  "/api/h3-lab/worker/tick",
   "/api/mp3-download/runner/claim",
   "/api/mp3-download/runner/result",
   "/api/mp3-download/runner/fail",
