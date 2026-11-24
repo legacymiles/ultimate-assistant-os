@@ -5,6 +5,8 @@ stream: it reads the comments, answers out loud in a real voice, and a
 photoreal face on screen moves its mouth to the words.
 
 Status: **design approved 2026-11-23, not yet built.**
+**Revised 2026-11-23 after measuring LiveTalking on this laptop — the face is no
+longer hand-built from mouth plates. See §1.1 for the numbers that changed it.**
 
 ---
 
@@ -15,7 +17,7 @@ measured, not estimated.
 
 | Fact | Source | Consequence |
 |---|---|---|
-| The GPU is an **RTX 3050 Laptop, 6 GB** | `nvidia-smi` | No realtime photoreal lip-sync model fits. MuseTalk's realtime mode recommends 8 GB; its own repo's minimum-tested card (3050 Ti 4 GB) takes **~5 minutes per 8 seconds** of video in fp16 |
+| The GPU is an **RTX 3050 Laptop, 6 GB** | `nvidia-smi` | Enough, as it turns out — see §1.1. The earlier conclusion here ("no realtime photoreal lip-sync model fits") was reasoning from MuseTalk's README and was **wrong** |
 | **Phonon runs at ~5.5x realtime on CPU and never touches the GPU** | `tools/phonon-tts/README.md`, measured on this Ryzen 5 7235HS | The voice costs 0 VRAM. The whole 6 GB stays free |
 | **Comments arrive as text**, not audio | TikTokLive reads the Webcast websocket | Phase 1 needs no speech recognition at all |
 
@@ -24,6 +26,37 @@ is built around the expensive half — listening to a microphone, detecting
 end-of-turn, transcribing. On TikTok LIVE, viewers *type*. Spoken audio only
 exists if someone joins as a guest, or if it is the owner talking. So the
 hard half is optional, and it is deferred to phases 2 and 3.
+
+## 1.1 What was measured, 2026-11-23
+
+An earlier draft of this spec built the face by hand: WanGP-rendered mouth
+plates composited on a canvas, driven by `visemes.ts`. That existed only
+because a realtime lip-sync *model* was assumed not to fit in 6 GB. It was
+tested instead of assumed, and the assumption did not survive.
+
+[LiveTalking](https://github.com/lipku/LiveTalking) (Apache-2.0, 10.9k stars),
+`wav2lip256`, on this laptop, read from its own logs:
+
+| | Measured | Needed |
+|---|---|---|
+| `actual avg infer fps` (GPU) | **40.2, then 49.0** | ≥ 25 |
+| `actual avg final fps` (streamed) | 15.4 cold, then **24.97 / 24.97 / 25.05 / 24.96 / 25.12 / 24.86 / 25.09** | ≥ 25 |
+| VRAM, `batch_size 16`, `modelres 256` | **2807 MiB of 6144** | < 6144 |
+
+`final fps` sits at 25.0 because 25 **is the target** — `--fps 25`, and the
+config says "must be 25". Inference running at 40-49 while the stream paces at
+25 means the GPU is at roughly half capacity, not straining.
+
+Three predictions in the earlier draft were wrong, all in the same direction:
+`batch_size 16` was expected to exhaust 6 GB (it used under half), 4 CPU cores
+were expected to starve the stream (it held 25.0 across seven readings), and
+inference was guessed at 25-35 fps (it hit 40-49).
+
+**Limits of that test.** One session, no OBS encoding running alongside, and
+the browser was rendering the video. Production adds OBS's encode on the same
+4 cores. `infer fps` is an average over only two 100-frame windows, against
+seven for `final fps`. The margin is wide, but it is not a production-load
+measurement.
 
 ### Rejected, and why
 
@@ -51,34 +84,41 @@ This is most of the build. Nothing below needs writing.
 | Piece | Where | State |
 |---|---|---|
 | **Voice** | `tools/phonon-tts/` — `POST /v1/tts`, port 8123 | Working. `phonon-31m-en` q8_0, 65 MB GGUF, 102 voices, 24 kHz mono, CPU-only. `TTS_BACKEND=phonon` is already the active setting, with `FISH_API_KEY` as fallback |
-| **Lip-sync driver** | `src/lib/new-jarvis/avatar/visemes.ts` (89 lines, pure) | Working, tested in `visemes.test.ts`. `visemeFromSpectrum()` turns one frame of `getByteFrequencyData` into `{open, wide, round}` — jaw from low-band energy, lip spread from high formants, rounding from a low-mid peak with no top end. `approach()` smooths frame-rate-independently |
-| **Face renderer** | `tools/wangp-image/` | Working. Flux 2 Klein 4B on the local GPU via WanGP. Measured: ~128 s cold, **~18 s warm** per image. Long-lived server, binds 127.0.0.1 |
+| **Face + lip sync** | `C:\dev\livetalking` (outside this repo) | Installed and measured 2026-11-23 — see §1.1. Python 3.12.10 venv via `uv`, torch 2.9.1+cu128, `models/wav2lip.pth`, `data/avatars/wav2lip256_avatar1/`. Not vendored into this repo: it is a 3rd-party project with its own 5.1 GB venv |
+| **Character stills** | `tools/wangp-image/` | Working. Flux 2 Klein 4B locally. ~128 s cold, **~18 s warm** per image. Still used — but to make the *source clip* for the avatar, not mouth plates |
 | **Streaming-server pattern** | `tools/realtime-lucy/` | Reference only. An aiohttp + aiortc WebRTC server with a `low_mem` path engineered for this exact 6 GB card, plus `server/bench.py`, which measures fps and VRAM and emits a proof video. Its benchmark harness is the model for proving any future GPU face model fits. **Note: vendored lingbot-world-v2 is CC BY-NC-SA 4.0 — non-commercial. Do not reuse its model code in a monetized stream.** |
 
-### The lip-sync decision
+### What `visemes.ts` is no longer doing
 
-An earlier draft of this design drove the mouth from **phoneme timings** out
-of the TTS. That rested on an unverified assumption — that the TTS exposes
-per-phoneme alignment. Phonon's API (`/v1/tts` → audio bytes) does not, and
-nor does Kokoro necessarily.
+Two earlier drafts drove the mouth themselves: first from **phoneme timings**
+(an unverified assumption — Phonon's `/v1/tts` returns audio bytes and exposes
+no alignment), then from `visemeFromSpectrum()` reading an `AnalyserNode`.
 
-`visemeFromSpectrum()` sidesteps the question entirely: it measures the mouth
-from the audio that is actually playing, every frame. It therefore works with
-**any** TTS, needs no alignment data, and costs nothing. It is also already
-proven in `AvatarScene.tsx`.
+LiveTalking does its own lip sync from the audio it is given, so **neither is
+needed**. `src/lib/new-jarvis/avatar/visemes.ts` stays exactly where it is,
+still driving `AvatarScene.tsx`; this project simply no longer touches it.
+`src/lib/tiktok-agent/plates.ts` is not built at all.
 
-The only difference here is what the viseme drives. `AvatarScene.tsx` maps it
-onto a stylized Three.js shader form; this maps it onto photographs.
+That is the whole shape of the revision: the half of the system that turns
+sound into a moving face is now someone else's working code, and what remains
+to build is the half that LiveTalking has none of — TikTok.
 
 ---
 
 ## 3. Architecture
 
 ```
-TikTok comments ─┐
-owner mic ───────┼─→ [ director ] → [ brain ] → [ voice ] ─→ stage page ─→ OBS
-guest audio ─────┘                                            (audio + face)
+TikTok comments ─┐                                        LiveTalking :8010
+owner mic ───────┼→ [ director ] → [ brain ] → [ voice ] ──→ /humanaudio
+guest audio ─────┘      ^^^^ all three in the stage page ^^^      │
+                                                            wav2lip256
+                                                                  │
+                        stage page renders its WebRTC stream ──→ OBS
 ```
+
+The stage page both **drives** LiveTalking (posting Phonon's wav to
+`/humanaudio`) and **displays** it (rendering the WebRTC stream back). One OBS
+browser source therefore still carries audio and picture together.
 
 Five modules. Each has one job, a stated interface, and is testable alone.
 
@@ -161,47 +201,58 @@ drift.
 
 What it does:
 
-1. Receives `{text, audio, emotion}` over a websocket from the director
-2. Plays the audio through a WebAudio `AnalyserNode`
-3. Per frame: `visemeFromSpectrum(getByteFrequencyData(...))` → `approach()` →
-   `{open, wide, round}`
-4. Composites the matching mouth plate onto the idle loop on a canvas
+1. On load, does the WebRTC handshake against `POST 127.0.0.1:8010/offer`
+   (`{sdp, type}`, as `web/client.js` does) and renders the returned stream
+2. Receives events over a websocket from the relay, and runs the director
+3. Calls `/api/tts` for each sentence, getting a wav back
+4. `POST`s that wav to `127.0.0.1:8010/humanaudio` as multipart
+   (`sessionid` + `file`). LiveTalking does the lip sync
 
-**One browser source in OBS carries both the audio and the face.** OBS captures
-browser-source audio, so no virtual audio cable is needed — which is just as
-well, since none is installed.
+Cross-origin works: LiveTalking configures `aiohttp_cors` on every route.
 
-### 3.6 The face assets
+**One browser source in OBS still carries audio and picture**, so no virtual
+audio cable is needed — which matters, because none is installed. This is why
+the `webrtc` transport is used rather than `virtualcam`: virtualcam emits
+**video only** and routes audio to a separate system device
+(`--audio_output_device`), which would drag the virtual-cable dependency back.
+It also needs `pyvirtualcam`, which is absent from `requirements.txt`.
 
-Generated once, offline, through `tools/wangp-image`:
+### 3.6 The avatar
 
-- the character, as a locked-off head-and-shoulders idle loop
-- **~9 mouth plates** at the corners and midpoints of the `{open, wide, round}`
-  space
-- optional emotion variants of the plate set
+LiveTalking reads an avatar from
+`data/avatars/<avatar_id>/{full_imgs/, face_imgs/, coords.pkl}`.
 
-At ~18 s warm per image, nine plates is about three minutes of GPU time.
+- **For now:** `wav2lip256_avatar1`, the author's sample (550 frames), already
+  installed and measured.
+- **For the real character:** render a clip in WanGP, then
+  `python avatars/wav2lip/genavatar.py --video_path <clip> --avatar_id <name> --img_size 256`.
+  **`--img_size` defaults to 96** — leaving it would quietly produce a blurry
+  mouth against a 256-px model. The face detector downloads its own s3fd
+  weights via `torch.utils.model_zoo`, so there is no manual step.
 
-**Plates are selected by snapping to nearest, not cross-faded.** Cross-fading
-photographs ghosts; `approach()` already smooths the input, so snapping at
-24 fps should read cleanly. Assets are gitignored — they are regenerable
-output, not source.
+Avatars are regenerable output and live outside this repo.
 
 ---
 
 ## 4. Budgets
 
-| VRAM (6 GB) | | Latency, comment → first audio | |
+| VRAM (6144 MiB) | | Latency, comment → first audio | |
 |---|---|---|---|
-| Phonon | **0** (CPU-only) | TikTokLive event | 200–500 ms |
-| Visemes + canvas | **0** (browser) | LLM first sentence | 300–700 ms |
-| Whisper small int8 (ph. 2) | ~1 GB | Phonon, 1 sentence | ~900 ms |
-| OBS NVENC | ~0.5 GB | Browser audio start | ~50 ms |
-| **Free** | **~4.5 GB** | **Total** | **~1.5–2.2 s** |
+| **LiveTalking** (measured) | **2807 MiB** | TikTokLive event | 200–500 ms |
+| Phonon | **0** (CPU-only) | LLM first sentence | 300–700 ms |
+| Whisper small int8 (ph. 2) | ~1000 MiB | Phonon, 1 sentence | ~900 ms |
+| OBS NVENC | ~500 MiB | `/humanaudio` → first frame | **not measured** |
+| **Free** | **~1800 MiB** | **Total** | **≥1.4 s, upper bound unknown** |
 
-Under 2.5 s reads as reactive. The headroom is what makes a GPU face model
-worth *testing* later — using `realtime-lucy`'s bench harness to measure it
-rather than trusting a README.
+Only the first three latency rows are grounded. The hand-off to LiveTalking
+was never timed end-to-end, because the fps test drove it directly rather than
+through the director. **Measure comment → first spoken word before trusting
+any total**, and record it in the tool README.
+
+The VRAM column is now the tight one: ~1800 MiB spare, and phase 2's Whisper
+eats more than half of that. If phase 2 runs short, Whisper moves to CPU
+(slower) or `batch_size` drops below 16 — LiveTalking has ~2x fps headroom to
+spend, so trading some for VRAM is the cheaper move.
 
 ---
 
@@ -251,7 +302,11 @@ worst possible debugging environment.
 
 | Risk | Note |
 |---|---|
-| **Viseme plates may look uncanny** | The one unproven piece. Build the compositor *first* and look at it before building anything around it. If it fails, fall back to photoreal state-machine loops (idle / talking / laughing) — the same WanGP assets serve both, so nothing is wasted |
+| **Not tested under production load** | The fps run had no OBS encoding alongside it, and the browser was rendering the video. Production adds OBS's encode to the same 4 cores. The margin is wide (inference at ~2x the bar) but this is the untested edge. Re-read `actual avg final fps` with OBS running before going live |
+| **wav2lip's open weights are research / non-commercial** | Fine for building and testing; a licensing question the moment the stream earns money. `musetalk` is MIT but recommends a 3080Ti, so it is not a drop-in on this card |
+| **LiveTalking requires a watermark on published video** | Its README: video built on it and posted to short-video platforms (it names Douyin) "需带上 LiveTalking 水印和标识" — must carry the LiveTalking watermark and logo. Apache-2.0 on the code, but this is a condition on the stream |
+| **LiveTalking lives outside this repo** | `C:\dev\livetalking`, with its own 5.1 GB venv, pinned to nothing. A `git pull` there can change behaviour under us. Record the working commit in the tool README |
+| **Fallback if it regresses** | The viseme-plate design is preserved in this file's git history (`19af1f0b` and earlier). `visemes.ts` is untouched and still works. Nothing was deleted to make room for LiveTalking |
 | **TikTok needs ~1,000 followers** for desktop stream-key access | Not a code problem, but phase 1 cannot go live without it. It *can* still be built and judged against a recorded fixture with OBS recording to file |
 | **TikTok requires disclosing AI-generated content** | Label the stream. An undisclosed synthetic human talking to viewers is what gets accounts removed |
 | **TikTokLive is unofficial** | Can break on any TikTok change. Treat reconnect logic as a first-class feature, not an afterthought |
@@ -280,7 +335,25 @@ tools/tiktok-live-agent/
   director/tests/        the unit tests that matter
   voice.py               Phonon → fish.audio → canned
   brain.py               hosted LLM + per-viewer memory
-  plates/                generated assets (gitignored)
 
-src/app/stage/tiktok-agent/page.tsx    OBS browser source
+src/app/stage/tiktok-agent/page.tsx    OBS browser source; drives and displays
+                                       LiveTalking
 ```
+
+Outside this repo, not vendored:
+
+```
+C:\dev\livetalking\      LiveTalking + its 5.1 GB venv
+  models/wav2lip.pth     204.7 MB
+  data/avatars/<id>/     full_imgs/ face_imgs/ coords.pkl
+```
+
+Started with:
+
+```
+.venv/Scripts/python.exe app.py --transport webrtc --model wav2lip \
+  --avatar_id wav2lip256_avatar1 --modelres 256 --REF_FILE en-US-AriaNeural
+```
+
+`--modelres 256` is not optional: the default is **192**, which is wrong for a
+256-px model.

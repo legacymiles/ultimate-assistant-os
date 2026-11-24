@@ -4,17 +4,24 @@
 
 **Goal:** A TikTok LIVE stream where a photoreal character reads the comments, answers out loud in Phonon's voice, and moves its mouth to its own speech.
 
-**Architecture:** A thin Python process holds the only Python-only dependency (TikTokLive) and writes one JSON line per event to stdout. A Node relay forwards those lines over a websocket. **Every piece of logic lives in TypeScript under `src/lib/tiktok-agent/` and runs in the browser**, inside a Next route that is also the OBS browser source — so the pure modules are tested with vitest like the rest of this repo, consumed by the page with no bundling step, and sit in the same process as the `AnalyserNode` and canvas they drive. Audio comes from the existing `POST /api/tts`; the mouth comes from the existing `visemes.ts`.
+**Architecture:** A thin Python process holds the only Python-only dependency (TikTokLive) and writes one JSON line per event to stdout. A Node relay forwards those lines over a websocket. **Every piece of logic lives in TypeScript under `src/lib/tiktok-agent/` and runs in the browser**, inside a Next route that is also the OBS browser source — so the pure modules are tested with vitest like the rest of this repo and are consumed by the page with no bundling step. Audio comes from the existing `POST /api/tts`. The face comes from **LiveTalking**, already installed and measured at `C:\dev\livetalking`: the page posts each wav to its `/humanaudio` and renders the WebRTC stream it sends back.
 
-**Tech Stack:** TypeScript, Next.js App Router, vitest, Python 3.10+ with `uv` (the `tools/phonon-tts` pattern), TikTokLive, Phonon TTS via `/api/tts`, WanGP via `tools/wangp-image`, OBS.
+**Tech Stack:** TypeScript, Next.js App Router, vitest, Python 3.10+ with `uv` (the `tools/phonon-tts` pattern), TikTokLive, Phonon TTS via `/api/tts`, LiveTalking (`wav2lip256`), OBS.
 
 **Spec:** `docs/superpowers/specs/tiktok-live-voice-agent.md`
+
+> **Revised 2026-11-23.** The original plan built the face by hand from WanGP
+> mouth plates on a canvas. LiveTalking was then measured on this laptop —
+> inference 40–49 fps, stream locked at 25.0, 2807 MiB of 6144 — so it does
+> that job instead. **Tasks 1–4 and 6–9 are unchanged.** Task 5 is now a
+> LiveTalking client rather than plate selection; Tasks 10–12 changed. See
+> spec §1.1 for the measurements.
 
 ---
 
 ## Why the logic is in the browser, not the relay
 
-`tools/film3d-render` esbuild-bundles `capture.ts` because it needs repo TypeScript inside plain Node. Phase 1 avoids that entirely: the stage page must exist anyway (it is the OBS source, and it owns the `AnalyserNode` and canvas), so putting the director there means `src/lib/tiktok-agent/*` is imported natively by Next and needs no build step. The relay stays dumb plumbing with nothing worth testing.
+`tools/film3d-render` esbuild-bundles `capture.ts` because it needs repo TypeScript inside plain Node. Phase 1 avoids that entirely: the stage page must exist anyway — it is the OBS browser source, and it holds the WebRTC connection to LiveTalking — so putting the director there means `src/lib/tiktok-agent/*` is imported natively by Next with no build step. The relay stays dumb plumbing with nothing worth testing.
 
 ---
 
@@ -26,12 +33,11 @@
 | `src/lib/tiktok-agent/priority.ts` | One number per event — gifts beat followers beat mentions beat questions beat chatter |
 | `src/lib/tiktok-agent/limits.ts` | Question normalizing, the 5-minute dedupe window, the 8-per-minute cap |
 | `src/lib/tiktok-agent/director.ts` | The queue. Picks the next turn, emits idle filler, decides interrupts |
-| `src/lib/tiktok-agent/plates.ts` | `{open, wide, round}` → which of 9 mouth plates to draw |
+| `src/lib/tiktok-agent/livetalking.ts` | Talking to LiveTalking: the `/offer` body, the `/humanaudio` multipart, reading its `{code,msg}` |
 | `tools/tiktok-live-agent/ingest.py` | TikTokLive → one JSON line per event on stdout. No logic |
 | `tools/tiktok-live-agent/start.mjs` | Makes the venv, spawns the Python, relays stdout to a websocket |
 | `src/app/api/tiktok-agent/reply/route.ts` | The brain. Comment in, reply line out, via `src/lib/ai/provider.ts` |
-| `src/app/stage/tiktok-agent/page.tsx` | The OBS surface: websocket → director → `/api/tts` → analyser → visemes → canvas |
-| `tools/tiktok-live-agent/plates.mjs` | Renders the character and 9 mouth plates through `tools/wangp-image` |
+| `src/app/stage/tiktok-agent/page.tsx` | The OBS surface: websocket → director → `/api/tts` → LiveTalking `/humanaudio`, and renders the stream back |
 | `src/lib/tiktok-agent/fixtures/stream.jsonl` | A recorded comment stream, for testing with nothing live |
 
 Everything in `src/lib/tiktok-agent/` is pure: no timers, no `Date.now()` inside, no fetch. Time is always a parameter. That is what makes the director testable.
@@ -633,131 +639,233 @@ git commit -m "TikTok Live agent: the director that decides what to say next"
 
 ---
 
-## Task 5: Plate selection
+## Task 5: The LiveTalking client
 
 **Files:**
-- Create: `src/lib/tiktok-agent/plates.ts`
-- Test: `src/lib/tiktok-agent/plates.test.ts`
+- Create: `src/lib/tiktok-agent/livetalking.ts`
+- Test: `src/lib/tiktok-agent/livetalking.test.ts`
 
-`visemeFromSpectrum` gives three continuous axes. Nine rendered photographs have to cover that space. Snap to the nearest, never cross-fade — blending photographs ghosts, and `approach()` already smooths the input.
+Everything the stage page says to LiveTalking, in one place, with an injectable `fetch` so the exact request shape is asserted without a server running.
+
+These field names are **not guesses** — they are read from `web/client.js` and `docs/api.md` in the LiveTalking checkout. A typo in `sessionid` or `file` does not throw: it comes back `{"code": -1}` and the avatar simply never speaks, which is the worst kind of bug to find live.
 
 - [ ] **Step 1: Write the failing test**
 
 ```ts
-// src/lib/tiktok-agent/plates.test.ts
-import { describe, expect, it } from "vitest";
-import { REST } from "@/lib/new-jarvis/avatar/visemes";
-import { PLATE_IDS, plateFor } from "./plates";
+// src/lib/tiktok-agent/livetalking.test.ts
+import { describe, expect, it, vi } from "vitest";
+import { LiveTalking, isOk } from "./livetalking";
 
-describe("plateFor", () => {
-  it("draws a closed mouth at rest", () => {
-    expect(plateFor(REST)).toBe("rest");
+const okJson = (body: unknown) => ({ ok: true, json: async () => body });
+
+describe("isOk", () => {
+  it("accepts code 0 and rejects everything else", () => {
+    expect(isOk({ code: 0, msg: "ok" })).toBe(true);
+    expect(isOk({ code: -1, msg: "no session" })).toBe(false);
+    expect(isOk(null)).toBe(false);
+    expect(isOk({})).toBe(false);
+  });
+});
+
+describe("LiveTalking.offer", () => {
+  it("posts sdp and type as JSON to /offer", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(okJson({ sdp: "answer-sdp", type: "answer", sessionid: 0 }));
+    const lt = new LiveTalking("http://127.0.0.1:8010", fetchMock);
+
+    const answer = await lt.offer({ sdp: "my-sdp", type: "offer" });
+
+    const [url, init] = fetchMock.mock.calls[0];
+    expect(url).toBe("http://127.0.0.1:8010/offer");
+    expect(init.method).toBe("POST");
+    expect(JSON.parse(init.body)).toEqual({ sdp: "my-sdp", type: "offer" });
+    expect(answer.sessionid).toBe(0);
   });
 
-  it("opens wide for a loud open jaw", () => {
-    expect(plateFor({ open: 0.9, wide: 0.1, round: 0 })).toBe("open");
+  it("throws when the handshake is refused", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({ ok: false, json: async () => ({}) });
+    await expect(new LiveTalking("http://x", fetchMock).offer({ sdp: "s", type: "offer" }))
+      .rejects.toThrow();
+  });
+});
+
+describe("LiveTalking.speak", () => {
+  it("posts the wav as multipart with sessionid and file", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(okJson({ code: 0, msg: "ok" }));
+    const lt = new LiveTalking("http://127.0.0.1:8010", fetchMock);
+    const wav = new Blob([new Uint8Array([1, 2, 3])], { type: "audio/wav" });
+
+    const sent = await lt.speak("0", wav);
+
+    const [url, init] = fetchMock.mock.calls[0];
+    expect(url).toBe("http://127.0.0.1:8010/humanaudio");
+    expect(init.body).toBeInstanceOf(FormData);
+    expect((init.body as FormData).get("sessionid")).toBe("0");
+    expect((init.body as FormData).get("file")).toBeInstanceOf(Blob);
+    expect(sent).toBe(true);
   });
 
-  it("spreads the lips when wide dominates", () => {
-    expect(plateFor({ open: 0.8, wide: 0.9, round: 0 })).toBe("open-wide");
+  it("never sets Content-Type by hand, so FormData can supply the boundary", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(okJson({ code: 0 }));
+    await new LiveTalking("http://x", fetchMock).speak("0", new Blob([]));
+    const headers = (fetchMock.mock.calls[0][1].headers ?? {}) as Record<string, string>;
+    expect(Object.keys(headers)).not.toContain("Content-Type");
   });
 
-  it("rounds the lips when round dominates", () => {
-    expect(plateFor({ open: 0.8, wide: 0, round: 0.9 })).toBe("open-round");
+  it("reports false when LiveTalking rejects it", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(okJson({ code: -1, msg: "no session" }));
+    expect(await new LiveTalking("http://x", fetchMock).speak("9", new Blob([]))).toBe(false);
   });
 
-  it("uses the half-open set for a mid jaw", () => {
-    expect(plateFor({ open: 0.4, wide: 0, round: 0 })).toBe("half");
-    expect(plateFor({ open: 0.4, wide: 0.9, round: 0 })).toBe("half-wide");
-    expect(plateFor({ open: 0.4, wide: 0, round: 0.9 })).toBe("half-round");
+  it("reports false instead of throwing when the server is down", async () => {
+    const fetchMock = vi.fn().mockRejectedValue(new Error("ECONNREFUSED"));
+    expect(await new LiveTalking("http://x", fetchMock).speak("0", new Blob([]))).toBe(false);
+  });
+});
+
+describe("LiveTalking.isSpeaking", () => {
+  it("reads whether the avatar is still talking", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(okJson({ code: 0, data: true }));
+    const lt = new LiveTalking("http://127.0.0.1:8010", fetchMock);
+    expect(await lt.isSpeaking("0")).toBe(true);
+    expect(fetchMock.mock.calls[0][0]).toBe("http://127.0.0.1:8010/is_speaking");
+    expect(JSON.parse(fetchMock.mock.calls[0][1].body)).toEqual({ sessionid: "0" });
   });
 
-  it("shows a closed-but-shaped mouth when the jaw is shut but lips are not", () => {
-    expect(plateFor({ open: 0.05, wide: 0.9, round: 0 })).toBe("closed-wide");
-    expect(plateFor({ open: 0.05, wide: 0, round: 0.9 })).toBe("closed-round");
+  it("assumes still speaking when it cannot tell, so turns never overlap", async () => {
+    const fetchMock = vi.fn().mockRejectedValue(new Error("ECONNREFUSED"));
+    expect(await new LiveTalking("http://x", fetchMock).isSpeaking("0")).toBe(true);
   });
+});
 
-  it("only ever returns a known plate", () => {
-    for (let o = 0; o <= 1; o += 0.1)
-      for (let w = 0; w <= 1; w += 0.25)
-        for (let r = 0; r <= 1; r += 0.25)
-          expect(PLATE_IDS).toContain(plateFor({ open: o, wide: w, round: r }));
-  });
-
-  it("names exactly nine plates", () => {
-    expect(PLATE_IDS).toHaveLength(9);
+describe("LiveTalking.interrupt", () => {
+  it("posts the sessionid to /interrupt_talk", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(okJson({ code: 0 }));
+    await new LiveTalking("http://127.0.0.1:8010", fetchMock).interrupt("0");
+    expect(fetchMock.mock.calls[0][0]).toBe("http://127.0.0.1:8010/interrupt_talk");
+    expect(JSON.parse(fetchMock.mock.calls[0][1].body)).toEqual({ sessionid: "0" });
   });
 });
 ```
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `npx vitest run src/lib/tiktok-agent/plates.test.ts`
-Expected: FAIL — `Failed to resolve import "./plates"`
+Run: `npx vitest run src/lib/tiktok-agent/livetalking.test.ts`
+Expected: FAIL — `Failed to resolve import "./livetalking"`
 
 - [ ] **Step 3: Write minimal implementation**
 
 ```ts
-// src/lib/tiktok-agent/plates.ts
-// Nine photographs cover the {open, wide, round} space. Snap to the nearest;
-// never cross-fade two photographs, which ghosts. The smoothing already
-// happened in `approach()` on the way in.
+// src/lib/tiktok-agent/livetalking.ts
+// Everything we say to LiveTalking (C:\dev\livetalking, port 8010).
+//
+// Two calls only: /offer to open the WebRTC session, /humanaudio to hand it a
+// wav. LiveTalking does the lip sync and streams the face back.
 
-import type { Viseme } from "@/lib/new-jarvis/avatar/visemes";
+export interface OfferRequest {
+  sdp: string;
+  type: string;
+}
 
-export const PLATE_IDS = [
-  "rest",
-  "closed-wide",
-  "closed-round",
-  "half",
-  "half-wide",
-  "half-round",
-  "open",
-  "open-wide",
-  "open-round",
-] as const;
+export interface OfferAnswer {
+  sdp: string;
+  type: string;
+  sessionid: number;
+}
 
-export type PlateId = (typeof PLATE_IDS)[number];
+/** Narrow shape so tests can inject a fake without pulling in DOM fetch types. */
+type Fetch = (url: string, init?: RequestInit) => Promise<{ ok: boolean; json: () => Promise<unknown> }>;
 
-/** Below this the jaw reads as shut. */
-const JAW_SHUT = 0.12;
-/** At or above this the jaw reads as fully open. */
-const JAW_OPEN = 0.6;
-/** Below this the lips read as neutral rather than spread or rounded. */
-const LIP_FLAT = 0.35;
+/** LiveTalking answers `{code: 0, msg: "ok"}` on success, non-zero on failure. */
+export function isOk(body: unknown): boolean {
+  return !!body && typeof body === "object" && (body as { code?: unknown }).code === 0;
+}
 
-export function plateFor(v: Viseme): PlateId {
-  const shape = v.wide >= LIP_FLAT && v.wide >= v.round
-    ? "wide"
-    : v.round >= LIP_FLAT
-      ? "round"
-      : "flat";
+export class LiveTalking {
+  constructor(
+    private base = "http://127.0.0.1:8010",
+    private fetchFn: Fetch = fetch as unknown as Fetch,
+  ) {}
 
-  if (v.open < JAW_SHUT) {
-    if (shape === "wide") return "closed-wide";
-    if (shape === "round") return "closed-round";
-    return "rest";
+  /** The WebRTC handshake, exactly as web/client.js does it. */
+  async offer(req: OfferRequest): Promise<OfferAnswer> {
+    const res = await this.fetchFn(`${this.base}/offer`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ sdp: req.sdp, type: req.type }),
+    });
+    if (!res.ok) throw new Error("LiveTalking /offer refused the handshake");
+    return (await res.json()) as OfferAnswer;
   }
 
-  const jaw = v.open >= JAW_OPEN ? "open" : "half";
-  if (shape === "flat") return jaw;
-  return `${jaw}-${shape}` as PlateId;
+  /**
+   * Hand one wav to the avatar. Returns false rather than throwing — a missed
+   * line is survivable, an exception that kills the stage page is not.
+   */
+  async speak(sessionid: string, wav: Blob): Promise<boolean> {
+    const form = new FormData();
+    form.append("sessionid", sessionid);
+    form.append("file", wav, "speech.wav");
+    try {
+      // No Content-Type here on purpose: fetch must set the multipart
+      // boundary itself, and setting it by hand breaks the upload.
+      const res = await this.fetchFn(`${this.base}/humanaudio`, { method: "POST", body: form });
+      return res.ok && isOk(await res.json());
+    } catch {
+      return false;
+    }
+  }
+
+  private async post(path: string, sessionid: string): Promise<unknown> {
+    const res = await this.fetchFn(`${this.base}${path}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ sessionid }),
+    });
+    return res.json();
+  }
+
+  /**
+   * `speak()` returns as soon as LiveTalking ACCEPTS the audio, not when the
+   * avatar stops talking — so this is the only way to pace turns.
+   *
+   * On any error it answers `true` (still speaking). Guessing "busy" costs a
+   * pause; guessing "free" makes the character talk over itself.
+   */
+  async isSpeaking(sessionid: string): Promise<boolean> {
+    try {
+      const body = (await this.post("/is_speaking", sessionid)) as { data?: unknown };
+      return body?.data !== false;
+    } catch {
+      return true;
+    }
+  }
+
+  /** Cut the current line short — the director's barge-in. */
+  async interrupt(sessionid: string): Promise<void> {
+    try {
+      await this.post("/interrupt_talk", sessionid);
+    } catch {
+      /* a failed interrupt is not worth killing the stream over */
+    }
+  }
 }
 ```
 
 - [ ] **Step 4: Run test to verify it passes**
 
-Run: `npx vitest run src/lib/tiktok-agent/plates.test.ts`
-Expected: PASS, 9 tests
+Run: `npx vitest run src/lib/tiktok-agent/livetalking.test.ts`
+Expected: PASS, 10 tests
 
 - [ ] **Step 5: Run the whole module's tests together and commit**
 
 Run: `npx vitest run src/lib/tiktok-agent/`
-Expected: PASS, 43 tests across 5 files
+Expected: PASS, 44 tests across 5 files (events 8, priority 6, limits 8, director 12, livetalking 10)
 
 ```bash
-git add src/lib/tiktok-agent/plates.ts src/lib/tiktok-agent/plates.test.ts
-git commit -m "TikTok Live agent: pick one of nine mouth plates from a viseme"
+git add src/lib/tiktok-agent/livetalking.ts src/lib/tiktok-agent/livetalking.test.ts
+git commit -m "TikTok Live agent: the client that hands audio to LiveTalking"
 ```
 
 ---
@@ -1244,111 +1352,60 @@ git commit -m "TikTok Live agent: the brain route, with a canned line when no ke
 
 ---
 
-## Task 10: Render the character and the nine plates
+## Task 10: Bring up LiveTalking, then build your own avatar
 
 **Files:**
-- Create: `tools/tiktok-live-agent/plates.mjs`
-- Create: `tools/tiktok-live-agent/plates/.gitignore`
+- Modify: nothing in this repo. LiveTalking lives at `C:\dev\livetalking`
 
-Nine plates at ~18 s warm is about three minutes of GPU time. Assets are regenerable output, so they are gitignored.
+This is already installed and measured (spec §1.1). This task is confirming it still runs, then replacing the stock avatar with your character.
 
-- [ ] **Step 1: Ignore the output**
-
-```
-# tools/tiktok-live-agent/plates/.gitignore
-*
-!.gitignore
-```
-
-- [ ] **Step 2: Write the renderer**
-
-```js
-#!/usr/bin/env node
-// tools/tiktok-live-agent/plates.mjs
-//
-//   node tools/wangp-image/server.mjs          # in one terminal
-//   node tools/tiktok-live-agent/plates.mjs    # in another
-//
-// Renders the idle face plus one image per mouth shape, all from the same
-// prompt stem and the same seed, so only the mouth changes between them.
-
-import { mkdir, writeFile } from "node:fs/promises";
-import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
-
-const here = dirname(fileURLToPath(import.meta.url));
-const OUT = join(here, "plates");
-const WANGP = process.env.WANGP_URL || "http://127.0.0.1:8188";
-
-// Keep this identical across every plate except the mouth clause.
-const STEM =
-  "photorealistic head-and-shoulders portrait of a friendly woman in her late twenties, " +
-  "soft studio key light, plain dark background, looking straight into the camera, " +
-  "head perfectly still and centred, sharp focus on the face, 85mm lens";
-
-const MOUTHS = {
-  rest: "mouth closed and relaxed, lips together",
-  "closed-wide": "mouth closed but lips spread in a slight smile, teeth not showing",
-  "closed-round": "mouth closed with lips pushed forward and rounded",
-  half: "mouth slightly open, jaw dropped a little, lips neutral",
-  "half-wide": "mouth slightly open with lips spread wide, saying 'eh'",
-  "half-round": "mouth slightly open with lips rounded, saying 'oh'",
-  open: "mouth open wide, jaw dropped, saying 'ah'",
-  "open-wide": "mouth open with lips spread wide, saying 'ee'",
-  "open-round": "mouth open with lips tightly rounded, saying 'oo'",
-};
-
-const SEED = 20261123;
-
-async function draw(name, prompt) {
-  const res = await fetch(`${WANGP}/image`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ prompt, seed: SEED, width: 768, height: 768 }),
-  });
-  if (!res.ok) throw new Error(`${name}: ${res.status} ${await res.text()}`);
-  const buf = Buffer.from(await res.arrayBuffer());
-  await writeFile(join(OUT, `${name}.png`), buf);
-  console.log(`[plates] ${name}.png (${(buf.length / 1024).toFixed(0)} KB)`);
-}
-
-await mkdir(OUT, { recursive: true });
-for (const [name, mouth] of Object.entries(MOUTHS)) {
-  await draw(name, `${STEM}, ${mouth}`);
-}
-console.log(`[plates] done — ${Object.keys(MOUTHS).length} plates in ${OUT}`);
-```
-
-- [ ] **Step 3: Check the WanGP server's actual request shape before running**
-
-Run: `grep -n -E "\"/image\"|req.url|prompt|seed|width" tools/wangp-image/server.mjs | head -20`
-
-If the endpoint path or field names differ from `POST /image` with `{prompt, seed, width, height}`, correct `draw()` to match that server — it is the authority, not this plan.
-
-- [ ] **Step 4: Render the plates**
-
-Run, in two terminals:
+- [ ] **Step 1: Start it and confirm it loads**
 
 ```powershell
-node tools/wangp-image/server.mjs
+cd C:\dev\livetalking; .venv\Scripts\python.exe app.py --transport webrtc --model wav2lip --avatar_id wav2lip256_avatar1 --modelres 256 --REF_FILE en-US-AriaNeural
 ```
+
+Expected in the log, in order: `Using cuda for inference.` · `Registered avatar/wav2lip: LipReal` · `Load checkpoint from: ./models/wav2lip.pth` · two 550-frame progress bars · `warmup model...` · `start http server; http://<serverip>:8010`
+
+**`--modelres 256` is not optional.** The default is 192, which is wrong for a 256-px model and silently degrades the mouth rather than erroring.
+
+- [ ] **Step 2: Confirm it still clears the bar on this machine**
+
+Open `http://localhost:8010/index-en.html`, set Ref Audio to `en-US-AriaNeural`, press Connect, paste a paragraph into the Text box (Echo mode) and press Send. It needs **several seconds of continuous speech** — both fps counters only print every 100 frames, and only while speaking.
+
+Then:
 
 ```powershell
-node tools/tiktok-live-agent/plates.mjs
+Select-String -Path $env:TEMP\livetalking-run.log -Pattern 'actual avg (infer|final) fps'
 ```
 
-Expected: nine `.png` files in `tools/tiktok-live-agent/plates/`. The first takes ~128 s (cold), the rest ~18 s each.
+Expected: `infer fps` ≥ 25 (measured 40–49) and `final fps` ≈ 25.0 (measured 24.86–25.12).
 
-- [ ] **Step 5: Look at them before going further**
+**Note the spelling.** The README calls these `inferfps` and `finalfps`; the code logs `actual avg infer fps` and `actual avg final fps`, with spaces. Grepping the README's spelling returns nothing and looks like the feature is missing.
 
-Open all nine. Every one must be the same person, same framing, same lighting, with **only** the mouth differing. If the head moves between plates, lower the temperature or fix the seed harder and re-render — a drifting head makes the composite unusable, and this is cheaper to fix now than after the stage page is built.
+- [ ] **Step 3: Render your character's source clip in WanGP**
 
-- [ ] **Step 6: Commit**
+A few seconds of a head-and-shoulders shot, facing camera, mouth moving. LiveTalking only ever re-draws the mouth region, so everything else in that clip — hair, lighting, background, the person — is what viewers will see for the whole stream. Favour a calm, well-lit, front-on shot over a dramatic one.
 
-```bash
-git add tools/tiktok-live-agent/plates.mjs tools/tiktok-live-agent/plates/.gitignore
-git commit -m "TikTok Live agent: render the character and nine mouth plates in WanGP"
+- [ ] **Step 4: Turn the clip into an avatar**
+
+```powershell
+cd C:\dev\livetalking; .venv\Scripts\python.exe avatars\wav2lip\genavatar.py --video_path <your-clip.mp4> --avatar_id mychar --img_size 256
 ```
+
+**`--img_size` defaults to 96.** Leaving it gives a 96-px mouth pasted into a 256-px pipeline — a blurry mouth on a sharp face, which reads as uncanny without being obviously broken. The s3fd face detector downloads its own weights via `torch.utils.model_zoo`, so there is no manual step.
+
+- [ ] **Step 5: Verify the generated avatar**
+
+```powershell
+Get-ChildItem C:\dev\livetalking\data\avatars\mychar
+(Get-ChildItem C:\dev\livetalking\data\avatars\mychar\full_imgs).Count
+(Get-ChildItem C:\dev\livetalking\data\avatars\mychar\face_imgs).Count
+```
+
+Expected: `full_imgs/`, `face_imgs/` and `coords.pkl`, with equal counts in the two image folders. Unequal counts means face detection failed on some frames — re-shoot with the face more clearly visible rather than proceeding.
+
+Then restart with `--avatar_id mychar` and look at it before building anything on top.
 
 ---
 
@@ -1359,23 +1416,23 @@ git commit -m "TikTok Live agent: render the character and nine mouth plates in 
 
 Deliberately not under `src/app/apps/` — it is an OBS surface, not a catalog app, so it needs no `catalog.ts` entry and no `docs/apps/<slug>.md` record, and `check:records` stays green.
 
+The page does two jobs at once: it **drives** LiveTalking (posting each wav to `/humanaudio`) and **displays** it (rendering the WebRTC stream back). That is why one OBS browser source still carries audio and picture together, and why no virtual audio cable is needed.
+
 - [ ] **Step 1: Write the page**
 
 ```tsx
 "use client";
 // src/app/stage/tiktok-agent/page.tsx
 //
-// The OBS browser source. Holds the director, plays the audio, and draws the
-// face. One source carries both audio and picture, so no virtual audio cable
-// is needed.
+// The OBS browser source. Holds the director, drives LiveTalking, and shows
+// the face it streams back.
 //
-// Open with ?handle=someone&character=Lumi
+// Open with ?character=Lumi&persona=...&port=8787&lt=http://127.0.0.1:8010
 
 import { useEffect, useRef, useState } from "react";
-import { REST, approach, visemeFromSpectrum, type Viseme } from "@/lib/new-jarvis/avatar/visemes";
 import { Director, type Turn } from "@/lib/tiktok-agent/director";
 import { parseEvent } from "@/lib/tiktok-agent/events";
-import { PLATE_IDS, plateFor, type PlateId } from "@/lib/tiktok-agent/plates";
+import { LiveTalking } from "@/lib/tiktok-agent/livetalking";
 import { splitSentences } from "@/lib/tiktok-agent/speech";
 
 const FILLERS = [
@@ -1386,7 +1443,7 @@ const FILLERS = [
 ];
 
 export default function TikTokAgentStage() {
-  const canvas = useRef<HTMLCanvasElement>(null);
+  const video = useRef<HTMLVideoElement>(null);
   const [status, setStatus] = useState("starting");
   const [caption, setCaption] = useState("");
 
@@ -1395,28 +1452,45 @@ export default function TikTokAgentStage() {
     const character = params.get("character") || "Lumi";
     const persona = params.get("persona") || "Warm, quick and a little cheeky.";
     const port = params.get("port") || "8787";
+    const lt = new LiveTalking(params.get("lt") || "http://127.0.0.1:8010");
 
     const director = new Director({ characterName: character, fillers: FILLERS });
     const memory = new Map<string, string[]>();
-    const plates = new Map<PlateId, HTMLImageElement>();
-    const mouth: Viseme = { ...REST };
 
-    let audioCtx: AudioContext | null = null;
-    let analyser: AnalyserNode | null = null;
-    let data = new Uint8Array(0);
+    let sessionid = "";
     let speakingPriority = -1;
-    let current: HTMLAudioElement | null = null;
-    let interrupted = false;
     let stopped = false;
 
-    for (const id of PLATE_IDS) {
-      const img = new Image();
-      img.src = `/tiktok-agent-plates/${id}.png`;
-      plates.set(id, img);
+    // ---- 1. WebRTC: the same handshake web/client.js performs -------------
+    const pc = new RTCPeerConnection({ iceServers: [] });
+    pc.addTransceiver("video", { direction: "recvonly" });
+    pc.addTransceiver("audio", { direction: "recvonly" });
+    pc.ontrack = (e) => {
+      if (video.current) video.current.srcObject = e.streams[0];
+    };
+
+    async function connect() {
+      await pc.setLocalDescription(await pc.createOffer());
+      // LiveTalking expects a complete SDP, so wait out ICE gathering.
+      await new Promise<void>((done) => {
+        if (pc.iceGatheringState === "complete") return done();
+        const check = () => {
+          if (pc.iceGatheringState === "complete") {
+            pc.removeEventListener("icegatheringstatechange", check);
+            done();
+          }
+        };
+        pc.addEventListener("icegatheringstatechange", check);
+      });
+      const local = pc.localDescription!;
+      const answer = await lt.offer({ sdp: local.sdp, type: local.type });
+      sessionid = String(answer.sessionid);
+      await pc.setRemoteDescription({ sdp: answer.sdp, type: answer.type as RTCSdpType });
+      setStatus(`live · session ${sessionid}`);
     }
 
+    // ---- 2. Events in ------------------------------------------------------
     const ws = new WebSocket(`ws://127.0.0.1:${port}`);
-    ws.onopen = () => setStatus("listening");
     ws.onclose = () => setStatus("relay closed");
     ws.onerror = () => setStatus("relay unreachable");
     ws.onmessage = (msg) => {
@@ -1430,14 +1504,12 @@ export default function TikTokAgentStage() {
       if (!ev) return;
       director.enqueue(ev);
       // A gift mid-sentence is worth cutting off; chatter is not.
-      if (current && director.shouldInterrupt(ev, speakingPriority)) {
-        interrupted = true;
-        current.pause();
-        current = null;
+      if (speakingPriority >= 0 && director.shouldInterrupt(ev, speakingPriority)) {
+        void lt.interrupt(sessionid);
       }
     };
 
-    /** One sentence -> audio bytes, or null when no TTS backend answered. */
+    // ---- 3. Voice ----------------------------------------------------------
     async function synth(text: string): Promise<Blob | null> {
       try {
         const res = await fetch("/api/tts", {
@@ -1453,58 +1525,35 @@ export default function TikTokAgentStage() {
       }
     }
 
-    async function play(blob: Blob): Promise<void> {
-      const url = URL.createObjectURL(blob);
-      const el = new Audio(url);
-
-      audioCtx ??= new AudioContext();
-      if (!analyser) {
-        analyser = audioCtx.createAnalyser();
-        analyser.fftSize = 512;
-        analyser.connect(audioCtx.destination);
-        data = new Uint8Array(analyser.frequencyBinCount);
-      }
-      audioCtx.createMediaElementSource(el).connect(analyser);
-
-      current = el;
-      await el.play().catch(() => {});
-      await new Promise<void>((done) => {
-        el.onended = () => done();
-        el.onpause = () => done();
-        el.onerror = () => done();
-      });
-      URL.revokeObjectURL(url);
-      if (current === el) current = null;
-    }
-
-    /**
-     * Speaks sentence by sentence, synthesizing the NEXT one while the
-     * current one plays. Phonon returns whole files, so this is what keeps
-     * time-to-first-audio inside the budget on a two-sentence reply.
-     */
+    /** Synthesizes the NEXT sentence while the current one is being handed over. */
     async function speak(text: string, priority: number) {
       const pieces = splitSentences(text);
-      if (!pieces.length) return;
+      if (!pieces.length || !sessionid) return;
 
-      interrupted = false;
       speakingPriority = priority;
       setCaption(text);
 
       let pending = synth(pieces[0]);
-      for (let i = 0; i < pieces.length && !interrupted; i += 1) {
+      for (let i = 0; i < pieces.length && !stopped; i += 1) {
         const blob = await pending;
         pending = i + 1 < pieces.length ? synth(pieces[i + 1]) : Promise.resolve(null);
-        if (blob) await play(blob);
+        if (blob) await lt.speak(sessionid, blob);
+      }
+
+      // speak() returns when LiveTalking ACCEPTS audio, not when the avatar
+      // stops. Wait it out, or the next turn talks over this one.
+      while (!stopped && (await lt.isSpeaking(sessionid))) {
+        await new Promise((r) => setTimeout(r, 200));
       }
 
       speakingPriority = -1;
       setCaption("");
     }
 
+    // ---- 4. The turn loop --------------------------------------------------
     async function turnLoop() {
       while (!stopped) {
-        const now = Date.now();
-        const turn: Turn | null = current ? null : director.next(now);
+        const turn: Turn | null = speakingPriority >= 0 ? null : director.next(Date.now());
         if (!turn) {
           await new Promise((r) => setTimeout(r, 250));
           continue;
@@ -1535,52 +1584,25 @@ export default function TikTokAgentStage() {
       }
     }
 
-    let raf = 0;
-    let last = performance.now();
-    function frame(t: number) {
-      const dt = Math.min(0.1, (t - last) / 1000);
-      last = t;
-
-      let target: Viseme = REST;
-      if (analyser && current && !current.paused) {
-        analyser.getByteFrequencyData(data);
-        target = visemeFromSpectrum(data, analyser.context.sampleRate, analyser.fftSize);
-      }
-      mouth.open = approach(mouth.open, target.open, 22, dt);
-      mouth.wide = approach(mouth.wide, target.wide, 14, dt);
-      mouth.round = approach(mouth.round, target.round, 14, dt);
-
-      const el = canvas.current;
-      const ctx = el?.getContext("2d");
-      if (el && ctx) {
-        const img = plates.get(plateFor(mouth));
-        ctx.fillStyle = "#000";
-        ctx.fillRect(0, 0, el.width, el.height);
-        if (img?.complete && img.naturalWidth) {
-          const scale = Math.max(el.width / img.naturalWidth, el.height / img.naturalHeight);
-          const w = img.naturalWidth * scale;
-          const h = img.naturalHeight * scale;
-          ctx.drawImage(img, (el.width - w) / 2, (el.height - h) / 2, w, h);
-        }
-      }
-      raf = requestAnimationFrame(frame);
-    }
-
-    raf = requestAnimationFrame(frame);
-    void turnLoop();
+    connect()
+      .then(() => void turnLoop())
+      .catch((e) => setStatus(`LiveTalking unreachable: ${String(e)}`));
 
     return () => {
       stopped = true;
-      cancelAnimationFrame(raf);
       ws.close();
-      current?.pause();
-      void audioCtx?.close();
+      pc.close();
     };
   }, []);
 
   return (
     <main style={{ margin: 0, background: "#000", width: "100vw", height: "100vh", position: "relative" }}>
-      <canvas ref={canvas} width={1080} height={1920} style={{ width: "100%", height: "100%", display: "block" }} />
+      <video
+        ref={video}
+        autoPlay
+        playsInline
+        style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
+      />
       <div style={{ position: "absolute", left: 24, right: 24, bottom: 96, color: "#fff", font: "500 34px system-ui", textShadow: "0 2px 12px #000", textAlign: "center" }}>
         {caption}
       </div>
@@ -1590,26 +1612,18 @@ export default function TikTokAgentStage() {
 }
 ```
 
-- [ ] **Step 2: Serve the plates**
+Note the `<video>` is **not muted**. A muted element would give OBS a silent source, and browsers only block autoplay-with-audio on user gesture for *outbound* pages — an OBS browser source plays it. If OBS captures video but no audio, this is the first thing to check.
 
-The page loads plates from `/tiktok-agent-plates/<id>.png`, so they must sit under `public/`. Create the link once:
-
-```powershell
-New-Item -ItemType Junction -Path public\tiktok-agent-plates -Target tools\tiktok-live-agent\plates
-```
-
-Then add `public/tiktok-agent-plates` to `.gitignore` so generated output is never committed.
-
-- [ ] **Step 3: Typecheck**
+- [ ] **Step 2: Typecheck**
 
 Run: `npx tsc -p tsconfig.json --noEmit`
-Expected: no errors. If `ws` or the `Uint8Array` generic complains, fix it here rather than casting to `any`.
+Expected: no errors. Fix any `RTCSdpType` or `localDescription` nullability complaints here rather than casting to `any`.
 
-- [ ] **Step 4: Commit**
+- [ ] **Step 3: Commit**
 
 ```bash
-git add src/app/stage/tiktok-agent/page.tsx .gitignore
-git commit -m "TikTok Live agent: the OBS stage page that speaks and moves its mouth"
+git add src/app/stage/tiktok-agent/page.tsx
+git commit -m "TikTok Live agent: the OBS stage page that drives and shows LiveTalking"
 ```
 
 ---
@@ -1679,7 +1693,11 @@ wss.on("connection", async (ws) => {
 
 - [ ] **Step 3: Run it**
 
-Three terminals:
+Four terminals. LiveTalking goes first — without it the stage page shows "LiveTalking unreachable" and nothing speaks.
+
+```powershell
+cd C:\dev\livetalking; .venv\Scripts\python.exe app.py --transport webrtc --model wav2lip --avatar_id mychar --modelres 256 --REF_FILE en-US-AriaNeural
+```
 
 ```powershell
 npm run tts:phonon
@@ -1706,13 +1724,13 @@ Expected, in order:
 - About 20 s after the fixture ends, the character speaks unprompted
 - Throughout: the mouth moves with the speech and is closed when silent
 
-If the mouth looks wrong but the audio is right, the fault is in the plates or `plateFor`, not in the audio chain — check the plates first, as Task 10 Step 5 warns.
+If the audio is right but the mouth is wrong, the fault is in the avatar or the model resolution, not in anything this repo owns — check that LiveTalking was started with `--modelres 256` and that `genavatar.py` was run with `--img_size 256`, as Task 10 warns.
 
 - [ ] **Step 5: Add the OBS source**
 
 In OBS: add a **Browser** source, URL `http://localhost:3000/stage/tiktok-agent?character=Lumi`, 1080×1920, and tick **Control audio via OBS**. Confirm the OBS audio meter moves when the character speaks.
 
-Then satisfy the spec's "never a silent stream" rule for the one failure the page cannot handle itself — the page crashing: add an **Image** source *below* the browser source in the same scene, pointing at `tools/tiktok-live-agent/plates/rest.png`. If the browser source dies, the character's resting face stays on screen instead of a black rectangle.
+Then satisfy the spec's "never a silent stream" rule for the one failure the page cannot handle itself — the page crashing: add an **Image** source *below* the browser source in the same scene, pointing at any single frame from your avatar, e.g. `C:\dev\livetalking\data\avatars\mychar\full_imgs\00000000.png`. If the browser source dies, a still of the character stays on screen instead of a black rectangle.
 
 Record 60 s to a file and watch it back — that recording is the phase 1 deliverable.
 
@@ -1744,6 +1762,10 @@ draws a photoreal mouth that moves with the speech.
 ## Run it
 
 ```bash
+# the face — must be first, everything else talks to it
+cd C:\dev\livetalking && .venv\Scripts\python.exe app.py --transport webrtc \
+  --model wav2lip --avatar_id mychar --modelres 256 --REF_FILE en-US-AriaNeural
+
 npm run tts:phonon                              # the voice
 npm run dev                                     # the stage page
 npm run tiktok:agent -- @handle                 # the comments
@@ -1761,17 +1783,21 @@ RTX 3050 6 GB, Ryzen 5 7235HS, 32 GB RAM:
 
 | | |
 |---|---|
-| Plate render, cold / warm | FILL IN s / FILL IN s each |
-| Comment to first audio | FILL IN ms |
-| VRAM in use while streaming | FILL IN GB |
-| Mouth held up? | FILL IN — and if not, which plates were wrong |
+| Comment to first spoken word | FILL IN ms (never yet measured end-to-end) |
+| `actual avg infer fps`, with OBS encoding | FILL IN (40-49 without OBS) |
+| `actual avg final fps`, with OBS encoding | FILL IN (24.86-25.12 without OBS) |
+| VRAM while streaming | FILL IN MiB (2807 for LiveTalking alone) |
+| LiveTalking commit it was working at | FILL IN |
 
 ## What breaks it
 
 - TikTokLive is unofficial: TikTok changes break it. The relay retries with
   backoff; `ingest.py` is where to look first.
 - The stage page must stay open — it IS the OBS source and holds the director.
-- Plates live in `plates/` (gitignored). Re-render with `plates.mjs`.
+- LiveTalking must be running first (`C:\dev\livetalking`, port 8010), or the
+  stage page shows "LiveTalking unreachable" and nothing speaks.
+- Avatars live in `C:\dev\livetalking\data\avatars\`. Rebuild with
+  `genavatar.py --img_size 256`.
 ````
 
 Replace every `FILL IN` with a real number before committing. A README with estimates in it is worse than no README, because the next session will trust it.
