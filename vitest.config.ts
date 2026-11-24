@@ -20,7 +20,11 @@ export default defineConfig({
     // src. Scoped to that one folder on purpose: other tools (unreal-builder,
     // video-studio-runner) ship tests written against `node:test`, which
     // vitest collects and then reports as empty suites.
-    include: ["src/**/*.test.ts", "tools/jarvis-bridge/*.test.mjs"],
+    // scripts/build-lock keeps parallel `next build`s from corrupting one .next —
+    // every session's Stop hook depends on it, so it is tested too. Named, not
+    // globbed, for the same reason as above.
+    include: ["src/**/*.test.ts", "tools/jarvis-bridge/*.test.mjs", "scripts/build-lock.test.mjs"],
+
     exclude: ["**/node_modules/**", "src/lib/auteur/director/director.test.ts"],
   },
   resolve: {

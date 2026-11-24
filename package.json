@@ -9,7 +9,7 @@
   "scripts": {
     "dev": "next dev",
     "prebuild": "node scripts/timeline-log.mjs --quiet-fail",
-    "build": "next build",
+    "build": "node scripts/build-lock.mjs next build",
     "start": "next start",
     "lint": "next lint",
     "dev:preview": "node scripts/dev-preview.mjs 3210",
