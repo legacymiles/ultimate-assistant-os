@@ -16,6 +16,7 @@
 // uses (`/offer`, `/humanaudio`, `/is_speaking`, `/interrupt_talk`).
 
 import { LiveTalking } from "@/lib/ai-live-studio/livetalking";
+import { localAsrAvailable } from "@/lib/ai-live-studio/localRecognition";
 import { voiceSink, type VoiceSink } from "../voiceSink";
 import { speechMsForText, wavDurationMs } from "./wav";
 
@@ -26,6 +27,8 @@ export interface LiveFaceSnapshot {
   stream: MediaStream | null;
   /** Lip sync switched on for this device. */
   enabled: boolean;
+  /** LiveTalking's own speech recognition answers too — Jarvis hears through it while live. */
+  asr: boolean;
 }
 
 const PREF_KEY = "jarvis-avatar:livetalking";
@@ -36,7 +39,7 @@ const FALLBACK_VOICE = "en-US-AndrewNeural";
 
 const lt = new LiveTalking();
 const listeners = new Set<() => void>();
-let snap: LiveFaceSnapshot = { state: "off", stream: null, enabled: false };
+let snap: LiveFaceSnapshot = { state: "off", stream: null, enabled: false, asr: false };
 let loaded = false;
 let wanted = 0;
 let pc: RTCPeerConnection | null = null;
@@ -223,6 +226,8 @@ async function connect() {
     if (pc !== peer) return;
     emit({ state: "live" });
     voiceSink.set(sink);
+    // Hear through LiveTalking too, when its recognizer is installed (funasr).
+    void localAsrAvailable(true).then((asr) => emit({ asr }));
   } catch {
     close();
     emit({ state: "unavailable" });

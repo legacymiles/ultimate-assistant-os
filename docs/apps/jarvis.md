@@ -116,6 +116,15 @@ Your memory, folders, photos, lists, calendar and Record in one place. Every req
   "Lip sync (LiveTalking on this PC)" with its live status; on by default only on localhost
   (reaching 127.0.0.1 from the public site makes Chrome ask). A "Lip sync" badge shows on the face
   while live. Same engine as the TikTok Live agent, so talking to it proves that pipeline.
+- **The real face hears you on this PC too (Nov 24 2026)** — while the lip-synced face is live and
+  LiveTalking's own recognizer is on (SenseVoiceSmall at `ws://127.0.0.1:8010/api/asr`, needs
+  `funasr` + `modelscope` in LiveTalking's venv), Jarvis listens through it instead of the
+  browser's speech recognition, so your voice never leaves the machine
+  (`lib/ai-live-studio/localRecognition.ts`: an energy voice detector with a learned noise floor
+  and a 350 ms pre-roll, 16 kHz PCM per utterance). While you speak it sends a "…" interim mark
+  so Jarvis doesn't end your turn early; the mark is never treated as words. The face popover says
+  "he hears you and his lips move … all on this PC" when it's on. Recognizer off → the browser's,
+  as before. Measured: "Make yourself look happier." transcribed exactly, ~0.4 s once warm.
 - **Answers speak in the voice you picked** — the hub voice sent `/api/tts` the text alone, so
   every spoken answer was Phonon's default voice; it now sends `ttsBody` with the Voice stage's
   voice, speed, expression and consistency, like the preview does.
@@ -179,6 +188,9 @@ _The flows a user would notice breaking. Sign-in, data rules, routes and keys ar
   spoken request is answered by Alex's moving lips, heard once (never twice, never the browser
   voice), and Jarvis listens again only after he finishes. LiveTalking not running → the
   portrait, and Jarvis speaks as before. Phonon down → LiveTalking's own voice, still lip-synced.
+- **Local hearing never cuts you off** — with LiveTalking's recognizer on, a spoken request is
+  heard whole (the turn stays open while you talk) and answered; recognizer down → the browser's
+  speech recognition takes over with no error.
 - **3D | Real switches everywhere at once** — the big avatar, every chat box's face and its
   popover show the same agent, kept across reloads and devices; switching back to 3D never crashes
   the page, even when the 3D scene's code fails to load. "Switch the lights to real time mode" is

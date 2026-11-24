@@ -33,6 +33,8 @@ import {
   shouldEndpoint,
 } from "./wake";
 import { loadVoiceSettings, ttsBody } from "@/lib/voice-settings/settings";
+import { HEARING_MARK, LocalRecognition } from "@/lib/ai-live-studio/localRecognition";
+import { liveFace } from "./avatar/liveFace";
 import { voiceSink } from "./voiceSink";
 
 export type VoiceState = "off" | "waiting" | "hearing" | "thinking" | "speaking";
@@ -52,6 +54,11 @@ interface RecognitionLike extends EventTarget {
 
 function recognitionCtor(): (new () => RecognitionLike) | null {
   if (typeof window === "undefined") return null;
+  // The real face is live on LiveTalking and its recognizer answers: hear
+  // through it — on this PC, the same ears the TikTok Live agent uses —
+  // instead of sending the voice to the browser's cloud recognizer.
+  const lf = liveFace.get();
+  if (lf.state === "live" && lf.asr) return LocalRecognition as unknown as new () => RecognitionLike;
   const w = window as unknown as {
     SpeechRecognition?: new () => RecognitionLike;
     webkitSpeechRecognition?: new () => RecognitionLike;
@@ -478,6 +485,12 @@ export function useWakeVoice({ onCommand, onInterrupt, speakReplies = true }: Wa
     (text: string) => {
       const said = text.trim();
       if (!said) return;
+      // LiveTalking's recognizer saying "still hearing you" (no words yet):
+      // keep the turn open, but never treat it as words.
+      if (said === HEARING_MARK) {
+        if (armed.current) lastWordAt.current = Date.now();
+        return;
+      }
 
       // Its own voice coming back through the speakers. Ignore it entirely, or
       // it answers itself for the rest of the session.

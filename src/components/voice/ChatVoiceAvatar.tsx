@@ -175,7 +175,9 @@ function LipSyncRow() {
     !lf.enabled
       ? "Off — the portrait speaks, lit by his voice."
       : lf.state === "live"
-        ? "On — his lips move with every answer (LiveTalking on this PC)."
+        ? lf.asr
+          ? "On — he hears you and his lips move with every answer, all on this PC (LiveTalking)."
+          : "On — his lips move with every answer (LiveTalking on this PC)."
         : lf.state === "checking" || lf.state === "connecting"
           ? "Connecting to LiveTalking on this PC…"
           : lf.state === "unavailable"

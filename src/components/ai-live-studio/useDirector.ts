@@ -22,6 +22,7 @@ import {
 
 
 } from "@/lib/ai-live-studio/command";
+import { LocalRecognition, localAsrAvailable, localAsrKnown } from "@/lib/ai-live-studio/localRecognition";
 import { afterWakeWord, isEcho, needsConfirm, talkbackVerdict, type ListenMode, type OutputDevice } from "@/lib/ai-live-studio/routing";
 import { splitSentences } from "@/lib/ai-live-studio/speech";
 import { loadLocal, saveLocal } from "@/lib/sync/appState";
@@ -83,6 +84,9 @@ interface RecognitionLike {
 
 function recognitionCtor(): (new () => RecognitionLike) | null {
   if (typeof window === "undefined") return null;
+  // LiveTalking's own recognizer on this PC (SenseVoice) when it's running:
+  // the director's voice never leaves the machine — the same ears the stream uses.
+  if (localAsrKnown()) return LocalRecognition as unknown as new () => RecognitionLike;
   const w = window as unknown as { SpeechRecognition?: new () => RecognitionLike; webkitSpeechRecognition?: new () => RecognitionLike };
   return w.SpeechRecognition ?? w.webkitSpeechRecognition ?? null;
 }
@@ -489,6 +493,8 @@ export function useDirector(studio: Studio, boothRef: RefObject<HTMLElement | nu
   }, [on, boothRef]);
 
   const setDirectorMode = useCallback(async (v: boolean) => {
+    // Check for LiveTalking's recognizer first, so this session listens through it if it's there.
+    if (v) await localAsrAvailable(true);
     if (!v) {
       setOn(false);
       onRef.current = false;
