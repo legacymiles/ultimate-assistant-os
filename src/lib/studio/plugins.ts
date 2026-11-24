@@ -53,6 +53,7 @@ export const PLUGIN_SLUGS = [
   "search-infrastructure",
   "dtf-studio",
   "ai-live-studio",
+  "h3-experiments",
 ] as const;
 
 /**
@@ -149,6 +150,12 @@ function firstSentence(text: string): string {
 }
 
 const WHY: Record<string, string> = {
+  "h3-experiments":
+    "The lab that teaches itself how to prompt MiniMax H3. One Master Prompt Guide - the only one, published "
+    + "as the one h3-prompt skill - and experiments that change a few prompting techniques at a time, render "
+    + "them against the guide on your own WanGP with the same seed, measure every clip with ffmpeg and have a "
+    + "judge score what it sees. A technique only reaches the guide when the evidence clears the bar, and you "
+    + "approve it. 43 genre modules, because a fight scene is not prompted like a sitcom.",
   "search-infrastructure":
     "The one plugin every other plugin uses without knowing it. Each of these searches the web at some "
     + "point — for a price, a campaign, a headline, a fact — and none of them holds a provider or a key: "
