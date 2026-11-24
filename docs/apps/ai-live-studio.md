@@ -56,7 +56,7 @@ Design spec and plan: `docs/superpowers/specs/tiktok-live-voice-agent.md`, `docs
 ## Requested, not built yet
 
 - **TikTok relay** (`tools/tiktok-live-agent/`, plan Tasks 7–8) — the studio's side is built and listens on `ws://127.0.0.1:8787`; the relay that reads TikTok and forwards comments is next.
-- **Alex's own LiveTalking avatar** — LiveTalking currently serves its sample face. Needs a short video of Alex (from the portrait, via WanGP) → `genavatar.py --img_size 256` (plan Task 10).
+- **Alex's own LiveTalking avatar — built 2026-11-24.** `alex_portrait` (150 frames, 540×960) was made from the portrait itself: a 6 s seamless "breathing" loop (`ffmpeg … zoompan z='1.0+0.012*sin(2*PI*on/150)'` → `C:\dev\livetalking\data\source\alex_portrait.mp4`) through `PYTHONPATH=. .venv/Scripts/python.exe avatars/wav2lip/genavatar.py --video_path data/source/alex_portrait.mp4 --img_size 256 --avatar_id alex_portrait`. Start LiveTalking with `--model wav2lip --avatar_id alex_portrait --modelres 256 --transport webrtc --listenport 8010`; it is now the default `avatarId`. A real video of Alex (WanGP) would add head motion; the still loop already lip-syncs.
 - **Local speech recognition** — the booth uses the browser's speech recognition (Chrome/Edge send audio to their cloud to transcribe). `faster-whisper` on the PC (spec phase 2) would keep the director's voice on the machine.
 
 - **Expression stills** — real smiles/surprise need expression variants of the portrait (Flux 2 Klein in WanGP, free); until then expressions are performed by moving the frame.

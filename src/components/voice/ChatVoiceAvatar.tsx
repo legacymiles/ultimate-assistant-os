@@ -24,6 +24,8 @@ import { ChevronUp } from "lucide-react";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { FaceSwitch, JarvisAvatar, avatarStateLabel } from "../new-jarvis/avatar/JarvisAvatar";
+import { useLiveFace } from "../new-jarvis/avatar/RealFace";
+import { liveFace } from "@/lib/new-jarvis/avatar/liveFace";
 import { PRESETS } from "@/lib/new-jarvis/avatar/looks";
 import { avatarStore, useAvatar } from "@/lib/new-jarvis/avatar/store";
 import { useHubVoice } from "./VoiceProvider";
@@ -147,6 +149,7 @@ function AvatarPopover({ anchor, busy, onClose }: { anchor: React.RefObject<HTML
       <FaceSwitch className="jav-face--pop" />
       <div className="jav-pop__opts">
         {!real && <Switch on={av.prefs.cycle} onChange={(on) => avatarStore.apply([{ type: "cycle", on }])} label="Transform every few seconds" />}
+        {real && <LipSyncRow />}
         <Switch on={hub.handsFree} onChange={hub.setHandsFree} label="Always listen for “Jarvis”" />
         <Switch on={hub.speakReplies} onChange={hub.setSpeakReplies} label="Speak answers aloud" />
         {av.prefs.custom && !real && (
@@ -162,6 +165,34 @@ function AvatarPopover({ anchor, busy, onClose }: { anchor: React.RefObject<HTML
       </p>
     </div>,
     document.body,
+  );
+}
+
+/** Lip sync for the real face: LiveTalking on this PC, switched on per device. */
+function LipSyncRow() {
+  const lf = useLiveFace();
+  const status =
+    !lf.enabled
+      ? "Off — the portrait speaks, lit by his voice."
+      : lf.state === "live"
+        ? "On — his lips move with every answer (LiveTalking on this PC)."
+        : lf.state === "checking" || lf.state === "connecting"
+          ? "Connecting to LiveTalking on this PC…"
+          : lf.state === "unavailable"
+            ? "LiveTalking isn't running on this PC — start it, then try again."
+            : "Waiting for the face to show.";
+  return (
+    <div className="jav-lips">
+      <Switch on={lf.enabled} onChange={(on) => liveFace.setEnabled(on)} label="Lip sync (LiveTalking on this PC)" />
+      <p className="jav-lips__status" data-state={lf.enabled ? lf.state : "off"} role="status">
+        {status}
+        {lf.enabled && lf.state === "unavailable" && (
+          <button type="button" className="jav-lips__retry" onClick={() => liveFace.retry()}>
+            Try again
+          </button>
+        )}
+      </p>
+    </div>
   );
 }
 

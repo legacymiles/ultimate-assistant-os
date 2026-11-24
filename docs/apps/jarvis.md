@@ -103,6 +103,19 @@ Your memory, folders, photos, lists, calendar and Record in one place. Every req
   3D look ("be a blue wolf") switches back to 3D so it shows; "go back to normal" keeps the
   chosen agent. If the 3D scene's code fails to load, the glowing core shows instead of the page
   crashing (`SceneBoundary` in `JarvisAvatar.tsx`).
+- **The real face talks with real lip sync (Nov 24 2026)** — when LiveTalking runs on this PC
+  (`C:\dev\livetalking`, :8010, started with `--avatar_id alex_portrait`), the real face is Alex's
+  live LiveTalking video and every spoken answer is said by him, lips moving: `useWakeVoice`'s
+  `speak()` hands the WAV to a voice sink (`lib/new-jarvis/voiceSink.ts`) instead of playing it,
+  and `lib/new-jarvis/avatar/liveFace.ts` sends it to `/humanaudio`, so the voice is heard once,
+  from his stream. If the voice server (Phonon) is down, LiveTalking says the text in its own
+  voice (`/human`, Edge `en-US-AndrewNeural`) — still lip-synced — before the browser's voice.
+  ONE LiveTalking session per page (every face shares the stream; one audible copy), closed on
+  page exit. Turn-taking waits for him to finish by the clip's own length (`avatar/wav.ts`) and
+  `is_speaking`, so the mic isn't handed back mid-sentence. Per-device switch in the face popover,
+  "Lip sync (LiveTalking on this PC)" with its live status; on by default only on localhost
+  (reaching 127.0.0.1 from the public site makes Chrome ask). A "Lip sync" badge shows on the face
+  while live. Same engine as the TikTok Live agent, so talking to it proves that pipeline.
 - **Answers speak in the voice you picked** — the hub voice sent `/api/tts` the text alone, so
   every spoken answer was Phonon's default voice; it now sends `ttsBody` with the Voice stage's
   voice, speed, expression and consistency, like the preview does.
@@ -162,6 +175,10 @@ _The flows a user would notice breaking. Sign-in, data rules, routes and keys ar
   the chat unchanged (`avatar.test.ts` pins the cases).
 - **A chosen look survives a reload and another device**, and "go back to normal" returns to the
   transforming default.
+- **The lip-synced real face answers out loud** — with LiveTalking and Phonon running here, a
+  spoken request is answered by Alex's moving lips, heard once (never twice, never the browser
+  voice), and Jarvis listens again only after he finishes. LiveTalking not running → the
+  portrait, and Jarvis speaks as before. Phonon down → LiveTalking's own voice, still lip-synced.
 - **3D | Real switches everywhere at once** — the big avatar, every chat box's face and its
   popover show the same agent, kept across reloads and devices; switching back to 3D never crashes
   the page, even when the 3D scene's code fails to load. "Switch the lights to real time mode" is
@@ -444,6 +461,7 @@ _Rewritten by `npm run apps:records` from the source — do not edit by hand. `n
 - `src/lib/new-jarvis/askEvent.test.ts`
 - `src/lib/new-jarvis/autopilotChat.test.ts`
 - `src/lib/new-jarvis/avatar/avatar.test.ts`
+- `src/lib/new-jarvis/avatar/wav.test.ts`
 - `src/lib/new-jarvis/board.test.ts`
 - `src/lib/new-jarvis/breath.test.ts`
 - `src/lib/new-jarvis/bridge.test.ts`

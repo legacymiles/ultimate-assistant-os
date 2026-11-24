@@ -33,6 +33,7 @@ import {
   shouldEndpoint,
 } from "./wake";
 import { loadVoiceSettings, ttsBody } from "@/lib/voice-settings/settings";
+import { voiceSink } from "./voiceSink";
 
 export type VoiceState = "off" | "waiting" | "hearing" | "thinking" | "speaking";
 
@@ -259,6 +260,8 @@ export function useWakeVoice({ onCommand, onInterrupt, speakReplies = true }: Wa
   const hush = useCallback(() => {
     if (speakingText.current) speech.current = { ...speech.current, startedAt: 0, interruptedAt: performance.now() };
     speakingText.current = "";
+    // The real face speaking through LiveTalking stops mid-sentence too.
+    voiceSink.get()?.interrupt();
     if (typeof window !== "undefined") window.speechSynthesis?.cancel();
     if (audioEl.current) {
       audioEl.current.pause();
@@ -281,13 +284,31 @@ export function useWakeVoice({ onCommand, onInterrupt, speakReplies = true }: Wa
       // the owner auditioned is what answers. (It used to send the text
       // alone, which made every spoken answer Phonon's default voice.)
       try {
+        // The real face, lip-synced by LiveTalking on this PC, says it instead
+        // (voiceSink.ts) — LiveTalking reads WAV, so ask for that.
+        const sink = voiceSink.get();
         const res = await fetch("/api/tts", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(ttsBody(say.slice(0, 2000), loadVoiceSettings())),
+          body: JSON.stringify({ ...ttsBody(say.slice(0, 2000), loadVoiceSettings()), ...(sink ? { format: "wav" } : {}) }),
         });
         if (res.ok && (res.headers.get("content-type") ?? "").startsWith("audio")) {
-          const url = URL.createObjectURL(await res.blob());
+          const blob = await res.blob();
+          if (sink) {
+            analyser.current = sink.analyser();
+            speech.current = { text: say, startedAt: performance.now(), interruptedAt: speech.current.interruptedAt };
+            const said = await sink.speak(blob);
+            if (said) {
+              speech.current = { ...speech.current, startedAt: 0 };
+              analyser.current = micAnalyser.current;
+              speakingText.current = "";
+              if (stateRef.current === "speaking") setState(wantOn.current ? "waiting" : "off");
+              return;
+            }
+            // LiveTalking couldn't take it: play the same audio here, as always.
+            speech.current = { ...speech.current, startedAt: 0 };
+          }
+          const url = URL.createObjectURL(blob);
           const el = new Audio(url);
           audioEl.current = el;
 
@@ -357,6 +378,22 @@ export function useWakeVoice({ onCommand, onInterrupt, speakReplies = true }: Wa
         }
       } catch {
         // Fall through to the browser voice.
+      }
+
+      // No audio from the voice server (Phonon is down): the lip-synced real
+      // face can still say it, in LiveTalking's own voice, before the browser's.
+      const textSink = voiceSink.get();
+      if (textSink) {
+        analyser.current = textSink.analyser();
+        speech.current = { text: say, startedAt: performance.now(), interruptedAt: speech.current.interruptedAt };
+        if (await textSink.speakText(say)) {
+          speech.current = { ...speech.current, startedAt: 0 };
+          analyser.current = micAnalyser.current;
+          speakingText.current = "";
+          if (stateRef.current === "speaking") setState(wantOn.current ? "waiting" : "off");
+          return;
+        }
+        speech.current = { ...speech.current, startedAt: 0 };
       }
 
       if (typeof window === "undefined" || !window.speechSynthesis) {

@@ -6,27 +6,47 @@
 // three.js voice agent and this real looking voice agent"; the picked mockup
 // put a 3D | Real switch under the face).
 //
-// It is the AI Live Studio host's portrait, performed rather than rendered:
-// it breathes and sways, a warm key light follows Jarvis's own voice while
-// he speaks, and a cool ring follows YOUR voice while he listens. It reads the
-// same analyser the 3D head reads (`voice.analyser` — Jarvis's voice while
-// speaking, the microphone while hearing), every frame, writing two CSS
-// variables — opacity and transform only, never layout.
+// Two levels, best first:
+//   1. LIP-SYNCED — LiveTalking runs on this PC and lip sync is on for this
+//      device: Alex's face as a live video whose mouth says every answer
+//      (liveFace.ts; Jarvis's voice is routed there by voiceSink.ts). This is
+//      the same engine the TikTok Live agent uses, so talking to it proves
+//      the live pipeline works.
+//   2. PORTRAIT — anywhere else: the still, breathing and swaying, lit by
+//      Jarvis's voice. Never a blank face.
 //
-// The lips don't move: a still photograph can't, honestly. Real lip sync is
-// LiveTalking's job and runs only on the owner's PC (AI Live Studio).
+// The light reads LiveTalking's own audio while lip-synced, otherwise the
+// same analyser the 3D head reads. Every frame writes two CSS variables —
+// opacity and transform only, never layout.
 // ---------------------------------------------------------------------------
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useSyncExternalStore } from "react";
+import { liveFace } from "@/lib/new-jarvis/avatar/liveFace";
 import type { AvatarVariant, AvatarVoice } from "./AvatarScene";
 
 /** The real face. Shared with AI Live Studio's host. */
 export const REAL_FACE_SRC = "/ai-live-studio/alex.jpg";
 
+const OFF = { state: "off" as const, stream: null, enabled: false };
+
+export function useLiveFace() {
+  return useSyncExternalStore(liveFace.subscribe, liveFace.get, () => OFF);
+}
+
 export function RealFace({ voice, variant, reduced }: { voice: AvatarVoice | null; variant: AvatarVariant; reduced: boolean }) {
   const root = useRef<HTMLDivElement>(null);
+  const video = useRef<HTMLVideoElement>(null);
+  const lf = useLiveFace();
+  const live = lf.state === "live" && !!lf.stream;
   const stateRef = useRef(voice?.state ?? "off");
   stateRef.current = voice?.state ?? "off";
+
+  // While a real face is on screen, LiveTalking may lip-sync it (one shared connection).
+  useEffect(() => liveFace.want(), []);
+
+  useEffect(() => {
+    if (video.current) video.current.srcObject = live ? lf.stream : null;
+  }, [live, lf.stream]);
 
   useEffect(() => {
     const el = root.current;
@@ -59,12 +79,23 @@ export function RealFace({ voice, variant, reduced }: { voice: AvatarVoice | nul
   }, [voice, reduced]);
 
   return (
-    <div className={`jrf jrf--${variant}`} ref={root}>
+    <div className={`jrf jrf--${variant}`} ref={root} data-live={live ? "true" : "false"}>
       <span className="jrf-light" aria-hidden />
       <span className="jrf-ring" aria-hidden />
+      {live && variant !== "pill" && (
+        <span className="jrf-live" aria-label="Lip sync on">
+          <i aria-hidden />
+          Lip sync
+        </span>
+      )}
       <span className="jrf-frame">
-        {/* eslint-disable-next-line @next/next/no-img-element -- a small local still, shown at three sizes */}
-        <img className="jrf-photo" src={REAL_FACE_SRC} alt="" width={900} height={1612} draggable={false} decoding="async" />
+        {live ? (
+          // Muted: the page has ONE audible copy of his voice (liveFace.ts), however many faces show.
+          <video ref={video} className="jrf-photo jrf-video" autoPlay playsInline muted />
+        ) : (
+          // eslint-disable-next-line @next/next/no-img-element -- a small local still, shown at three sizes
+          <img className="jrf-photo" src={REAL_FACE_SRC} alt="" width={900} height={1612} draggable={false} decoding="async" />
+        )}
       </span>
     </div>
   );

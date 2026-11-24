@@ -108,7 +108,8 @@ export const DEFAULT_SETTINGS: StudioSettings = {
   preset: "friendly",
   blocklist: [],
   tiktokHandle: "",
-  avatarId: "wav2lip256_avatar1",
+  // Alex's own LiveTalking avatar, built from his portrait (livetalking/data/avatars/alex_portrait).
+  avatarId: "alex_portrait",
 };
 
 const clamp = (n: unknown, lo: number, hi: number, fallback: number): number => {

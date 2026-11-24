@@ -84,3 +84,20 @@ describe("LiveTalking.isSpeaking / interrupt / reachable", () => {
     expect(await new LiveTalking("http://x", down).reachable()).toBe(false);
   });
 });
+
+describe("LiveTalking.say (its own voice, when the hub's is down)", () => {
+  it("posts the text as an echo for that session, with an optional voice", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(okJson({ code: 0, msg: "ok" }));
+    const lt = new LiveTalking("http://127.0.0.1:8010", fetchMock);
+    expect(await lt.say("7", "Hello there", "en-US-AndrewNeural")).toBe(true);
+    const [url, init] = fetchMock.mock.calls[0];
+    expect(url).toBe("http://127.0.0.1:8010/human");
+    expect(JSON.parse(init.body)).toEqual({ sessionid: "7", type: "echo", text: "Hello there", interrupt: false, tts: { voice: "en-US-AndrewNeural" } });
+    await lt.say("7", "Hi");
+    expect(JSON.parse(fetchMock.mock.calls[1][1].body)).not.toHaveProperty("tts");
+  });
+  it("reports false when refused or down, never throws", async () => {
+    expect(await new LiveTalking("x", vi.fn().mockResolvedValue(okJson({ code: -1 }))).say("1", "x")).toBe(false);
+    expect(await new LiveTalking("x", vi.fn().mockRejectedValue(new Error("down"))).say("1", "x")).toBe(false);
+  });
+});

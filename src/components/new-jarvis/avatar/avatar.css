@@ -278,3 +278,17 @@
   .jrf-photo, .jav--real .jrf-frame { animation: none !important; }
   .jrf-ring, .jav-face__opt { transition: none; }
 }
+
+/* Lip sync (LiveTalking on this PC): a live badge on the face, and its row in the popover. */
+.jrf-video { background: #05080d; }
+.jrf-live {
+  position: absolute; left: 10px; bottom: 10px; z-index: 3; display: inline-flex; align-items: center; gap: 6px;
+  padding: 3px 9px; border-radius: 999px; font: 500 10.5px/1.2 inherit; font-family: inherit; color: #e6f8ff;
+  background: rgb(6 12 20 / 0.72); border: 1px solid rgb(127 217 255 / 0.35);
+}
+.jrf-live i { width: 6px; height: 6px; border-radius: 50%; background: #5fd39a; box-shadow: 0 0 8px #5fd39a; }
+.jav-lips { display: grid; gap: 4px; }
+.jav-lips__status { margin: 0 0 0 36px; font-size: 11px; line-height: 1.4; color: #8aa3b8; }
+.jav-lips__status[data-state="live"] { color: #9fe7c4; }
+.jav-lips__status[data-state="unavailable"] { color: #e6c84f; }
+.jav-lips__retry { margin-left: 6px; padding: 0; border: 0; background: none; color: var(--jav-cyan, #47e8ff); font: inherit; cursor: pointer; text-decoration: underline; text-underline-offset: 2px; }

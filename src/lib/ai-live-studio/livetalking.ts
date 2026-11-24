@@ -75,6 +75,24 @@ export class LiveTalking {
     }
   }
 
+  /**
+   * Have LiveTalking say the TEXT itself, with its own text-to-speech (Edge
+   * voices), lip-synced. The net for when the hub's voice server (Phonon) is
+   * down: the face still speaks, in a voice LiveTalking picks or `voice`.
+   */
+  async say(sessionid: string, text: string, voice?: string): Promise<boolean> {
+    try {
+      const res = await this.fetchFn(`${this.base}/human`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ sessionid, type: "echo", text, interrupt: false, ...(voice ? { tts: { voice } } : {}) }),
+      });
+      return res.ok && isOk(await res.json());
+    } catch {
+      return false;
+    }
+  }
+
   private async post(path: string, sessionid: string): Promise<unknown> {
     const res = await this.fetchFn(`${this.base}${path}`, {
       method: "POST",
