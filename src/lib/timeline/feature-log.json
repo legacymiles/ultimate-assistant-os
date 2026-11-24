@@ -1,5 +1,32 @@
 [
  {
+  "id": "98cc2d84:jarvis",
+  "date": "2026-11-24",
+  "slug": "jarvis",
+  "title": "The real face answers out loud with LiveTalking lip sync",
+  "detail": "When LiveTalking runs on this PC, Jarvis's real face is Alex's live LiveTalking video, and every spoken answer is said by him with his lips moving. Same engine as the TikTok Live agent, so talking to it proves that pipeline.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "98cc2d84:voice",
+  "date": "2026-11-24",
+  "slug": "voice",
+  "title": "The real face answers out loud with LiveTalking lip sync",
+  "detail": "When LiveTalking runs on this PC, Jarvis's real face is Alex's live LiveTalking video, and every spoken answer is said by him with his lips moving. Same engine as the TikTok Live agent, so talking to it proves that pipeline.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "98cc2d84:ai-live-studio",
+  "date": "2026-11-24",
+  "slug": "ai-live-studio",
+  "title": "The real face answers out loud with LiveTalking lip sync",
+  "detail": "When LiveTalking runs on this PC, Jarvis's real face is Alex's live LiveTalking video, and every spoken answer is said by him with his lips moving. Same engine as the TikTok Live agent, so talking to it proves that pipeline.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
   "id": "baf708a7:jarvis",
   "date": "2026-11-24",
   "slug": "jarvis",
