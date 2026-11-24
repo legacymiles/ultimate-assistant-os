@@ -1,5 +1,23 @@
 [
  {
+  "id": "06cf5134:h3-experiments",
+  "date": "2026-11-24",
+  "slug": "h3-experiments",
+  "title": "One master H3 guide that experiments improve with evidence",
+  "detail": "H3 Experiments at /apps/h3-experiments grows into the H3 Prompt Lab (same slug, so every existing link still works; the old skill-films ledger still opens inside Experiment Comparisons).",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "06cf5134:fonts",
+  "date": "2026-11-24",
+  "slug": "fonts",
+  "title": "One master H3 guide that experiments improve with evidence",
+  "detail": "H3 Experiments at /apps/h3-experiments grows into the H3 Prompt Lab (same slug, so every existing link still works; the old skill-films ledger still opens inside Experiment Comparisons).",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
   "id": "2e691005:ai-live-studio",
   "date": "2026-11-24",
   "slug": "ai-live-studio",
