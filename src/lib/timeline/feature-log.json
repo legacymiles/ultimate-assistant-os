@@ -1,5 +1,23 @@
 [
  {
+  "id": "aad86360:image-studio",
+  "date": "2026-11-24",
+  "slug": "image-studio",
+  "title": "Inspire — AI image inspiration library with Prompt DNA, Reverse Prompt and a Prompt Builder",
+  "detail": "A public inspiration library inside Image Studio at /apps/image-studio/inspire. Explore opens on a WebGL Prompt Scan hero: each featured picture is drawn out of its own prompt words and the cursor trail scans the real image through, with its ingredients pinned to the parts they describe. The gallery",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "aad86360:fonts",
+  "date": "2026-11-24",
+  "slug": "fonts",
+  "title": "Inspire — AI image inspiration library with Prompt DNA, Reverse Prompt and a Prompt Builder",
+  "detail": "A public inspiration library inside Image Studio at /apps/image-studio/inspire. Explore opens on a WebGL Prompt Scan hero: each featured picture is drawn out of its own prompt words and the cursor trail scans the real image through, with its ingredients pinned to the parts they describe. The gallery",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
   "id": "98cc2d84:jarvis",
   "date": "2026-11-24",
   "slug": "jarvis",
