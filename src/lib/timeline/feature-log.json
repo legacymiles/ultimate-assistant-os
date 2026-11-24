@@ -1,5 +1,23 @@
 [
  {
+  "id": "7a5f317a:jarvis",
+  "date": "2026-11-24",
+  "slug": "jarvis",
+  "title": "Picking the real face turns on lip sync everywhere, and a silent face says why",
+  "detail": "The real face answered nothing on the hosted hub: lip sync defaulted on only on localhost, and its switch lived in a popover the owner never opened, so the face sat as a still portrait with no hint that anything was off.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "7a5f317a:voice",
+  "date": "2026-11-24",
+  "slug": "voice",
+  "title": "Picking the real face turns on lip sync everywhere, and a silent face says why",
+  "detail": "The real face answered nothing on the hosted hub: lip sync defaulted on only on localhost, and its switch lived in a popover the owner never opened, so the face sat as a still portrait with no hint that anything was off.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
   "id": "0857ee29:jarvis",
   "date": "2026-11-24",
   "slug": "jarvis",
