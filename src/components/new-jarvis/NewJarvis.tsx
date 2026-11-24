@@ -26,7 +26,7 @@ import { HudField, Reactor } from "./HudField";
 import { WorldField } from "./WorldField";
 
 import { StatusDock } from "./StatusDock";
-import { JarvisAvatar, VoiceButton } from "./avatar/JarvisAvatar";
+import { FaceSwitch, JarvisAvatar, VoiceButton } from "./avatar/JarvisAvatar";
 import { ChatVoiceAvatar } from "../voice/ChatVoiceAvatar";
 import { QueueBoard } from "./QueueBoard";
 import { SiteErrorsPage } from "./SiteErrors";
@@ -1574,6 +1574,8 @@ ${reflex.best.excerpt ?? ""}`.trim()
                 heroAvatar={
                   <div className="jav-hero">
                     <JarvisAvatar voice={voice} busy={running} variant="hero" />
+                    {/* Which agent: the Three.js avatar or the real-looking face (picked mockup, 2026-11-24). */}
+                    <FaceSwitch />
                   </div>
                 }
                 heroVoice={

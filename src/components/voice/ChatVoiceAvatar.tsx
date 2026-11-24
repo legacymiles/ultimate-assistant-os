@@ -23,7 +23,7 @@
 import { ChevronUp } from "lucide-react";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { JarvisAvatar, avatarStateLabel } from "../new-jarvis/avatar/JarvisAvatar";
+import { FaceSwitch, JarvisAvatar, avatarStateLabel } from "../new-jarvis/avatar/JarvisAvatar";
 import { PRESETS } from "@/lib/new-jarvis/avatar/looks";
 import { avatarStore, useAvatar } from "@/lib/new-jarvis/avatar/store";
 import { useHubVoice } from "./VoiceProvider";
@@ -121,7 +121,8 @@ function AvatarPopover({ anchor, busy, onClose }: { anchor: React.RefObject<HTML
 
   if (!hub) return null;
   const voice = hub.voice;
-  const lookName = av.prefs.custom ? "Your look" : (PRESETS.find((p) => p.look === av.showing)?.name ?? "Transforming");
+  const real = av.prefs.face === "real";
+  const lookName = real ? "Real face — lit by his voice" : av.prefs.custom ? "Your look" : (PRESETS.find((p) => p.look === av.showing)?.name ?? "Transforming");
 
   return createPortal(
     <div
@@ -143,17 +144,22 @@ function AvatarPopover({ anchor, busy, onClose }: { anchor: React.RefObject<HTML
       <JarvisAvatar voice={voice} busy={busy} variant="panel" />
       <p className="jav-pop__look">{lookName}</p>
       {(voice.heard || voice.error) && <p className={`jav-pop__heard ${voice.error ? "is-err" : ""}`}>{voice.error || voice.heard}</p>}
+      <FaceSwitch className="jav-face--pop" />
       <div className="jav-pop__opts">
-        <Switch on={av.prefs.cycle} onChange={(on) => avatarStore.apply([{ type: "cycle", on }])} label="Transform every few seconds" />
+        {!real && <Switch on={av.prefs.cycle} onChange={(on) => avatarStore.apply([{ type: "cycle", on }])} label="Transform every few seconds" />}
         <Switch on={hub.handsFree} onChange={hub.setHandsFree} label="Always listen for “Jarvis”" />
         <Switch on={hub.speakReplies} onChange={hub.setSpeakReplies} label="Speak answers aloud" />
-        {av.prefs.custom && (
+        {av.prefs.custom && !real && (
           <button type="button" className="jav-pop__reset" onClick={() => avatarStore.apply([{ type: "reset" }])}>
             Back to the usual look
           </button>
         )}
       </div>
-      <p className="jav-pop__try">Tap the face to talk. Try: “turn yourself into a blue holographic wolf” · “make your eyes glowing red”</p>
+      <p className="jav-pop__try">
+        {real
+          ? "Tap the face to talk. Say “go back to 3D” to switch. Lip sync runs only with LiveTalking on your PC."
+          : "Tap the face to talk. Try: “turn yourself into a blue holographic wolf” · “switch to your real face”"}
+      </p>
     </div>,
     document.body,
   );

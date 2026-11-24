@@ -91,6 +91,18 @@ Your memory, folders, photos, lists, calendar and Record in one place. Every req
   `JarvisAvatar.tsx` hero + big voice button), `src/components/voice/ChatVoiceAvatar.tsx`,
   logic + tests `src/lib/new-jarvis/avatar/`. Off-screen or hidden it stops drawing; reduced
   motion stops the transforming; no WebGL shows a glowing core.
+- **Two agents: 3D or Real (Nov 24 2026)** — picked from three mockups (1, "Switch under face").
+  A small **3D | Real** switch sits under the big avatar, and the same switch is in the popover of
+  every chat box's face. **Real** is the real-looking agent: the AI Live Studio host's portrait
+  (`RealFace.tsx`), breathing and swaying, a warm key light driven by Jarvis's own voice while he
+  speaks and a cyan ring following yours while he listens — it reads the same analyser the 3D head
+  reads. It moves no lips (a still can't; lip sync is LiveTalking's, on the PC, in AI Live
+  Studio). The choice is the synced `face` setting in `jarvis-avatar:v1`, so the big avatar, every
+  chat box and every device show the same agent. Say or type "switch to your real face" / "go
+  back to 3D" (the fast reader, no model), or the agent's `avatar` tool sets `face`. Asking for a
+  3D look ("be a blue wolf") switches back to 3D so it shows; "go back to normal" keeps the
+  chosen agent. If the 3D scene's code fails to load, the glowing core shows instead of the page
+  crashing (`SceneBoundary` in `JarvisAvatar.tsx`).
 - **Answers speak in the voice you picked** — the hub voice sent `/api/tts` the text alone, so
   every spoken answer was Phonon's default voice; it now sends `ttsBody` with the Voice stage's
   voice, speed, expression and consistency, like the preview does.
@@ -150,6 +162,10 @@ _The flows a user would notice breaking. Sign-in, data rules, routes and keys ar
   the chat unchanged (`avatar.test.ts` pins the cases).
 - **A chosen look survives a reload and another device**, and "go back to normal" returns to the
   transforming default.
+- **3D | Real switches everywhere at once** — the big avatar, every chat box's face and its
+  popover show the same agent, kept across reloads and devices; switching back to 3D never crashes
+  the page, even when the 3D scene's code fails to load. "Switch the lights to real time mode" is
+  not a face switch.
 - **Spoken answers use the picked Phonon voice.** `useWakeVoice.speak` sends `ttsBody(…,
   loadVoiceSettings())`, never the text alone.
 - **No backend is not a crash.** With nothing configured, `/api/tts` answers `{ fallback: true }`

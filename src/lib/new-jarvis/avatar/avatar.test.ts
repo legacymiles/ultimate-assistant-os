@@ -184,3 +184,36 @@ describe("visemes", () => {
     expect(visemeForChar("m").open).toBe(0);
   });
 });
+
+describe("the two agents: Three.js or the real face", () => {
+  const face = (text: string) => parseAvatarCommand(text)?.actions.find((a) => a.type === "face");
+  it("switches by voice, either way", () => {
+    expect(face("Switch to your real face")).toEqual({ type: "face", face: "real" });
+    expect(face("Jarvis, show me the real-looking version")).toEqual({ type: "face", face: "real" });
+    expect(face("Go back to your 3D look")).toEqual({ type: "face", face: "3d" });
+    expect(face("switch to the hologram avatar")).toEqual({ type: "face", face: "3d" });
+  });
+  it("leaves ordinary requests to the chat", () => {
+    expect(parseAvatarCommand("Is this a real question?")).toBeNull();
+    expect(parseAvatarCommand("switch the lights to real time mode")).toBeNull();
+  });
+  it("keeps the choice, and keeps it through a reset", () => {
+    const real = applyActions(INITIAL_STATE, [{ type: "face", face: "real" }], 0);
+    expect(real.prefs.face).toBe("real");
+    expect(applyActions(real, [{ type: "reset" }], 0).prefs.face).toBe("real");
+  });
+  it("shows the 3D avatar again when asked for a 3D look", () => {
+    const real = applyActions(INITIAL_STATE, [{ type: "face", face: "real" }], 0);
+    const wolf = applyActions(real, parseAvatarCommand("Turn yourself into a blue holographic wolf")!.actions, 0);
+    expect(wolf.prefs.face).toBe("3d");
+  });
+  it("starts in 3D, and cleans whatever was saved", () => {
+    expect(INITIAL_STATE.prefs.face).toBe("3d");
+    expect(clampPrefs({ face: "real" }).face).toBe("real");
+    expect(clampPrefs({ face: "hologram-ish" }).face).toBe("3d");
+    expect(clampPrefs(null).face).toBe("3d");
+  });
+  it("lets the agent's tool switch it", () => {
+    expect(actionsFromToolArgs({ face: "real" }).actions).toEqual([{ type: "face", face: "real" }]);
+  });
+});

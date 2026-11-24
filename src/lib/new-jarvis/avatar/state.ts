@@ -11,7 +11,12 @@
 import type { AvatarAction } from "./commands";
 import { DEFAULT_LOOK, clampLook, type AvatarLook, type Emotion, type Gesture } from "./looks";
 
+/** Which agent is on screen: the Three.js avatar, or the real-looking face. */
+export type AvatarFace = "3d" | "real";
+
 export interface AvatarPrefs {
+  /** "3d" = the transforming Three.js avatar · "real" = the real-looking face, lit by the voice. */
+  face: AvatarFace;
   look: AvatarLook;
   /** True once the owner has picked a look (it is then what shows). */
   custom: boolean;
@@ -20,7 +25,7 @@ export interface AvatarPrefs {
   seconds: number;
 }
 
-export const DEFAULT_PREFS: AvatarPrefs = { look: DEFAULT_LOOK, custom: false, cycle: true, seconds: 5 };
+export const DEFAULT_PREFS: AvatarPrefs = { face: "3d", look: DEFAULT_LOOK, custom: false, cycle: true, seconds: 5 };
 
 export interface AvatarState {
   prefs: AvatarPrefs;
@@ -37,6 +42,7 @@ export function clampPrefs(raw: unknown): AvatarPrefs {
   const r = (raw && typeof raw === "object" ? raw : {}) as Partial<AvatarPrefs>;
   const seconds = Number(r.seconds);
   return {
+    face: r.face === "real" ? "real" : "3d",
     look: clampLook(r.look as Partial<AvatarLook> | undefined),
     custom: r.custom === true,
     cycle: r.cycle !== false,
@@ -50,7 +56,10 @@ export function applyActions(state: AvatarState, actions: AvatarAction[], now: n
   let next = state;
   for (const a of actions) {
     if (a.type === "reset") {
-      next = { ...next, prefs: { ...DEFAULT_PREFS }, emotion: null };
+      // "Back to your usual self" resets the 3D look — not which agent they chose.
+      next = { ...next, prefs: { ...DEFAULT_PREFS, face: next.prefs.face }, emotion: null };
+    } else if (a.type === "face") {
+      next = { ...next, prefs: { ...next.prefs, face: a.face } };
     } else if (a.type === "cycle") {
       next = { ...next, prefs: { ...next.prefs, cycle: a.on, ...(a.on ? { custom: false } : next.showing && !next.prefs.custom ? { look: next.showing, custom: true } : {}) } };
     } else if (a.type === "look") {
@@ -60,7 +69,9 @@ export function applyActions(state: AvatarState, actions: AvatarAction[], now: n
       const scale = a.relative?.scale ? base.scale * a.relative.scale : (a.patch.scale ?? base.scale);
       const look = clampLook({ ...base, ...a.patch, scale }, base);
       const cycleSaid = actions.some((x) => x.type === "cycle" && x.on);
-      next = { ...next, prefs: { ...next.prefs, look, custom: true, cycle: cycleSaid }, showing: look };
+      // Asking for a 3D look ("be a blue wolf") while the real face shows means: show me the wolf.
+      next = { ...next, prefs: { ...next.prefs, look, custom: true, cycle: cycleSaid, face: "3d" }, showing: look };
+
     } else if (a.type === "emotion") {
       next = { ...next, emotion: { name: a.emotion, until: now + a.seconds * 1000 } };
     } else if (a.type === "gesture") {

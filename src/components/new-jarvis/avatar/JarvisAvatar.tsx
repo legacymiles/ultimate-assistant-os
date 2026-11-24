@@ -13,13 +13,31 @@
 // ---------------------------------------------------------------------------
 
 import dynamic from "next/dynamic";
-import { useEffect, useState } from "react";
+import { Component, useEffect, useState, type ReactNode } from "react";
 import { Mic, Square } from "lucide-react";
+import { avatarStore, useAvatar } from "@/lib/new-jarvis/avatar/store";
 import type { VoiceState } from "@/lib/new-jarvis/useWakeVoice";
 import type { AvatarVariant, AvatarVoice } from "./AvatarScene";
+import { REAL_FACE_SRC, RealFace } from "./RealFace";
 import "./avatar.css";
 
 const AvatarScene = dynamic(() => import("./AvatarScene"), { ssr: false, loading: () => <div className="jav-fallback" aria-hidden /> });
+
+/**
+ * The 3D scene loads as its own chunk — on first view, or later when someone
+ * switches back from the real face. If that load fails (a flaky network, a
+ * deploy mid-session) the glowing core shows instead of the whole page
+ * crashing; the next view tries again.
+ */
+class SceneBoundary extends Component<{ children: ReactNode }, { failed: boolean }> {
+  state = { failed: false };
+  static getDerivedStateFromError() {
+    return { failed: true };
+  }
+  render() {
+    return this.state.failed ? <div className="jav-fallback" aria-hidden /> : this.props.children;
+  }
+}
 
 function useReducedMotion(): boolean {
   const [reduced, setReduced] = useState(false);
@@ -58,11 +76,43 @@ export function JarvisAvatar({ voice, busy, variant, className = "" }: { voice: 
   const reduced = useReducedMotion();
   const [gl, setGl] = useState<boolean | null>(null);
   useEffect(() => setGl(hasWebgl()), []);
+  // Which agent: the Three.js avatar, or the real-looking face. One setting,
+  // synced, so every chat box and the big avatar show the same one.
+  const real = useAvatar().prefs.face === "real";
   const state = voice?.state ?? "off";
   return (
-    <div className={`jav jav--${variant} ${className}`} data-state={busy && state === "off" ? "thinking" : state} aria-hidden>
-      <div className="jav-aura" />
-      {gl ? <AvatarScene voice={voice} busy={busy} variant={variant} reduced={reduced} /> : <div className="jav-fallback" />}
+    <div className={`jav jav--${variant}${real ? " jav--real" : ""} ${className}`} data-state={busy && state === "off" ? "thinking" : state} aria-hidden>
+      {!real && <div className="jav-aura" />}
+      {real ? (
+        <RealFace voice={voice} variant={variant} reduced={reduced} />
+      ) : gl ? (
+        <SceneBoundary>
+          <AvatarScene voice={voice} busy={busy} variant={variant} reduced={reduced} />
+        </SceneBoundary>
+      ) : (
+        <div className="jav-fallback" />
+      )}
+    </div>
+  );
+}
+
+/**
+ * The 3D | Real switch (the picked mockup: a small pill under the face).
+ * The same control sits in the avatar popover of every chat box.
+ */
+export function FaceSwitch({ className = "" }: { className?: string }) {
+  const face = useAvatar().prefs.face;
+  const pick = (f: "3d" | "real") => avatarStore.apply([{ type: "face", face: f }]);
+  return (
+    <div className={`jav-face ${className}`} role="radiogroup" aria-label="Jarvis's face">
+      <button type="button" role="radio" aria-checked={face === "3d"} className="jav-face__opt" onClick={() => pick("3d")}>
+        <span className="jav-face__dot jav-face__dot--3d" aria-hidden />
+        3D
+      </button>
+      <button type="button" role="radio" aria-checked={face === "real"} className="jav-face__opt" onClick={() => pick("real")}>
+        <span className="jav-face__dot" style={{ backgroundImage: `url(${REAL_FACE_SRC})` }} aria-hidden />
+        Real
+      </button>
     </div>
   );
 }

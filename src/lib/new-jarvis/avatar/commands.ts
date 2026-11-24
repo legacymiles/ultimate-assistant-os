@@ -34,6 +34,8 @@ export type AvatarAction =
   | { type: "emotion"; emotion: Emotion; seconds: number }
   | { type: "gesture"; gesture: Gesture }
   | { type: "cycle"; on: boolean }
+  /** Which agent shows: the Three.js avatar or the real-looking face. */
+  | { type: "face"; face: "3d" | "real" }
   | { type: "reset" };
 
 export interface AvatarCommand {
@@ -176,6 +178,18 @@ export function parseAvatarCommand(raw: string): AvatarCommand | null {
   const cycleOff = CYCLE_OFF.test(s);
   const reset = RESET.test(s) && (self || /\b(look|avatar|appearance)\b/.test(s) || /^ (go back to|reset)/.test(s));
 
+  // Which agent: "switch to your real face", "go back to 3D". Checked before
+  // reset, so "go back to 3D" is a switch and not a reset.
+  const switchVerb = /\b(switch|change|go|turn|show|use|be|become|bring|want|put)\b/.test(s);
+  const aboutFace = self || /\b(face|look|avatar|agent|version|mode)\b/.test(s);
+  // The word has to name the agent ("real face", "real-looking version"), so
+  // "switch the lights to real time mode" stays a chat message.
+  const AGENT = "(?:face|look|version|person|avatar|agent|mode|self|you|one)";
+  const toReal = switchVerb && aboutFace && new RegExp(`\\b(?:real|realistic|human|lifelike|photoreal|real[- ]looking) ${AGENT}\\b`).test(s);
+  const to3d = switchVerb && aboutFace && new RegExp(`\\b(?:3d|3-d|three d|three-d|hologram|holographic) ${AGENT}\\b`).test(s) && form === undefined;
+  if (toReal && !TASK.test(s)) return { actions: [{ type: "face", face: "real" }], reply: "Switching to my real face." };
+  if (to3d && !TASK.test(s)) return { actions: [{ type: "face", face: "3d" }], reply: "Back to my 3D look." };
+
   // A job that happens to say "yourself" ("make yourself a note to buy a red
   // dress") is the chat's, unless it also clearly asks for a new form.
   if (TASK.test(s) && !(transform && form) && !cycleOn && !cycleOff) return null;
@@ -270,6 +284,10 @@ export function actionsFromToolArgs(args: Record<string, unknown>): AvatarComman
   const actions: AvatarAction[] = [];
   const said: string[] = [];
   if (args.reset === true) return { actions: [{ type: "reset" }], reply: "Back to my usual self." };
+  if (args.face === "real" || args.face === "3d") {
+    actions.push({ type: "face", face: args.face });
+    said.push(args.face === "real" ? "showing my real face" : "back to my 3D look");
+  }
 
   const colour = (v: unknown) => (typeof v === "string" ? colourIn(` ${v.toLowerCase()} `) : undefined);
   const patch: Partial<AvatarLook> = {};

@@ -532,6 +532,7 @@ export const AGENT_TOOLS: AgentTool[] = [
         transforming: { type: "boolean", description: "true = change into a new form every few seconds on your own; false = hold the current look." },
         model: str("Optional: a https link to a .glb/.gltf 3D model to wear instead of your own body, only if the owner gives one."),
         reset: { type: "boolean", description: "true = back to the default look." },
+        face: { type: "string", enum: ["3d", "real"], description: "Which agent shows: \"3d\" = your transforming Three.js avatar, \"real\" = your real-looking face (a person, lit by your voice). Set it when the owner asks to switch, e.g. \"show your real face\", \"go back to 3D\"." },
       },
     },
   },

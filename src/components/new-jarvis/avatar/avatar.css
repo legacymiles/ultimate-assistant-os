@@ -194,3 +194,87 @@
   .jav-aura, .jav-fallback, .jav-voice__ring, .jav-chat__ring, .jav-pop { animation: none !important; }
   .jav-voice__btn, .jav-switch__knob, .jav-aura, .jav-chat__face { transition: none; }
 }
+
+/* --- the real-looking agent (picked mockup 2026-11-24: "Switch under face") ---
+   The portrait, performed: breathing and sway, a warm key light driven by
+   Jarvis's voice (--rf-lvl, written per frame by RealFace.tsx), a cyan ring
+   that follows the owner's voice while he listens. Opacity/transform only. */
+
+.jav--real.jav--hero { width: min(190px, 46vw); aspect-ratio: 19 / 24; }
+/* The chat hero sizes the 3D avatar by the window height too; the real face keeps its portrait shape. */
+.njc-hero[data-avatar] .jav--real.jav--hero { width: min(190px, 46vw, 30vh); }
+.jav--real.jav--panel { width: 100%; height: 280px; }
+.jav-pop .jav--real.jav--panel { height: 220px; }
+
+.jrf { position: absolute; inset: 0; --rf-lvl: 0; }
+.jrf-frame {
+  position: absolute; inset: 0; overflow: hidden; border-radius: 26px;
+  box-shadow: 0 0 0 1px rgb(127 217 255 / 0.55), 0 0 60px rgb(71 232 255 / 0.3);
+  background: #05080d;
+}
+.jrf--panel .jrf-frame { border-radius: 18px; }
+.jrf--pill .jrf-frame { border-radius: 50%; box-shadow: none; }
+.jrf-photo {
+  position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: 50% 28%;
+  transform-origin: 50% 80%;
+  animation: jrf-breathe 6.2s ease-in-out infinite, jrf-sway 11s ease-in-out infinite;
+  scale: calc(1.03 + var(--rf-lvl) * 0.012);
+  will-change: transform;
+}
+.jrf--pill .jrf-photo { object-position: 50% 24%; scale: calc(1.55 + var(--rf-lvl) * 0.02); transform-origin: 50% 32%; }
+/* A soft shade at the bottom, so the face reads on any background. */
+.jrf-frame::after { content: ""; position: absolute; inset: 0; background: linear-gradient(180deg, transparent 62%, rgb(4 7 12 / 0.45)); pointer-events: none; }
+.jrf--pill .jrf-frame::after { display: none; }
+
+/* The key light: Jarvis's own voice, by intensity (warm white — the same
+   meaning it has on the AI Live Studio stage). */
+.jrf-light {
+  position: absolute; inset: -28% -40%; z-index: -1; pointer-events: none;
+  background: radial-gradient(closest-side at 50% 44%, rgb(255 243 234 / 0.32), transparent 72%);
+  opacity: calc(var(--rf-lvl) * 1.1);
+  transform: scale(calc(0.96 + var(--rf-lvl) * 0.08));
+  will-change: opacity, transform;
+}
+/* The listening ring: the owner's voice, in Jarvis's cyan. */
+.jrf-ring {
+  position: absolute; inset: -6px; border-radius: 30px; pointer-events: none;
+  border: 1.5px solid rgb(71 232 255 / 0.75); box-shadow: 0 0 22px rgb(71 232 255 / 0.45);
+  opacity: 0; transform: scale(calc(0.99 + var(--rf-lvl) * 0.04));
+  transition: opacity 0.35s ease;
+}
+.jrf--panel .jrf-ring { border-radius: 22px; }
+.jrf--pill .jrf-ring { border-radius: 50%; inset: -3px; }
+.jav--real[data-state="hearing"] .jrf-ring { opacity: calc(0.35 + var(--rf-lvl) * 0.65); }
+.jav--real[data-state="thinking"] .jrf-frame { box-shadow: 0 0 0 1px rgb(124 92 255 / 0.7), 0 0 60px rgb(124 92 255 / 0.35); animation: jrf-think 2.4s ease-in-out infinite; }
+.jav--real[data-state="speaking"] .jrf-frame { box-shadow: 0 0 0 1px rgb(255 243 234 / 0.6), 0 0 70px rgb(255 243 234 / 0.25); }
+.jrf--pill .jrf-light { inset: -40%; }
+
+@keyframes jrf-breathe { 0%, 100% { transform: translate3d(0, 0, 0); } 50% { transform: translate3d(0, -0.4%, 0); } }
+@keyframes jrf-sway { 0%, 100% { rotate: -0.25deg; } 50% { rotate: 0.3deg; } }
+@keyframes jrf-think { 0%, 100% { opacity: 1; } 50% { opacity: 0.86; } }
+
+/* The 3D | Real switch. */
+.jav-face {
+  margin-top: 12px; display: inline-flex; padding: 3px; border-radius: 999px; position: relative; z-index: 1;
+  background: rgb(8 14 22 / 0.85); border: 1px solid rgb(127 217 255 / 0.22);
+}
+.jav-face__opt {
+  display: inline-flex; align-items: center; gap: 6px; min-height: 28px; padding: 0 12px; border-radius: 999px;
+  font: 500 12px/1 inherit; font-family: inherit; color: #7d97aa; background: none; border: 0; cursor: pointer;
+  transition: color 0.2s ease, background 0.2s ease, box-shadow 0.2s ease;
+}
+.jav-face__opt:hover { color: #cfefff; }
+.jav-face__opt[aria-checked="true"] { color: #e6f8ff; background: rgb(127 217 255 / 0.16); box-shadow: inset 0 0 0 1px rgb(127 217 255 / 0.5); }
+.jav-face__opt:focus-visible { outline: 2px solid var(--jav-cyan, #47e8ff); outline-offset: 2px; }
+.jav-face__dot { width: 12px; height: 12px; border-radius: 50%; background-size: cover; background-position: 50% 28%; flex: none; }
+.jav-face__dot--3d { background: radial-gradient(circle at 40% 35%, #a8ffc6, #3a8f9c 55%, #5a2fb0); }
+.jav-face--pop { margin: 8px auto 4px; display: flex; width: max-content; }
+
+@media (max-width: 640px) {
+  .jav--real.jav--hero { width: min(170px, 46vw); }
+  .jav-face__opt { min-height: 36px; padding: 0 14px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .jrf-photo, .jav--real .jrf-frame { animation: none !important; }
+  .jrf-ring, .jav-face__opt { transition: none; }
+}
