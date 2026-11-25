@@ -183,7 +183,9 @@ describe("state merge", () => {
 
 describe("config", () => {
   it("fills defaults and trims the site address", () => {
-    const { config, errors } = L.normalizeConfig({ siteUrl: "https://shop.example/", token: " t " });
+    // The defaults are a Windows station's (C:\DTF\Print Jobs); pin win so this
+    // passes on Linux CI too, where path.isAbsolute("C:\\…") is false.
+    const { config, errors } = L.normalizeConfig({ siteUrl: "https://shop.example/", token: " t " }, true);
     expect(errors).toEqual([]);
     expect(config.siteUrl).toBe("https://shop.example");
     expect(config.token).toBe("t");
@@ -201,6 +203,14 @@ describe("config", () => {
     expect(errors.join(" ")).toMatch(/exportDir/);
     expect(L.normalizeConfig({ siteUrl: "http://shop.example" }).warnings[0]).toMatch(/unencrypted/);
     expect(warnings).toEqual([]);
+  });
+
+  it("checks exportDir with the station's own path rules", () => {
+    const site = { siteUrl: "https://a.b" };
+    expect(L.normalizeConfig({ ...site, exportDir: "C:\\DTF\\Print Jobs" }, true).errors).toEqual([]);
+    expect(L.normalizeConfig({ ...site, exportDir: "/srv/dtf/jobs" }, false).errors).toEqual([]);
+    expect(L.normalizeConfig({ ...site, exportDir: "C:\\DTF\\Print Jobs" }, false).errors.join(" ")).toMatch(/starts with \//);
+    expect(L.normalizeConfig({ ...site, exportDir: "relative" }, true).errors.join(" ")).toMatch(/drive letter/);
   });
 
   it("clamps the poll interval", () => {
