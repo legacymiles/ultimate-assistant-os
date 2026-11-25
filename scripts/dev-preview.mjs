@@ -6,10 +6,14 @@
 // so poking at it can never touch the real gate file or the family board.
 //
 // Local only. Never point this at a directory you care about.
-import { spawn } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import { resolve } from "node:path";
 
 const port = process.argv[2] ?? "3210";
+
+// --no-parent-watch keeps the server alive after whatever started this script
+// exits. Only for a deliberately detached run; see the watchdog at the bottom.
+const noParentWatch = process.argv.includes("--no-parent-watch");
 
 // --no-auth blanks the public Supabase keys, which turns the hub's sign-in wall
 // off (middleware only gates when Supabase is configured) and drops every app
@@ -34,7 +38,7 @@ const extraEnv = Object.fromEntries(
     .map((a) => [a.slice(0, a.indexOf("=")), a.slice(a.indexOf("=") + 1)]),
 );
 
-spawn("npx", ["next", "dev", "-p", port], {
+const child = spawn("npx", ["next", "dev", "-p", port], {
   stdio: "inherit",
   shell: true,
   env: {
@@ -57,3 +61,71 @@ spawn("npx", ["next", "dev", "-p", port], {
     ...extraEnv,
   },
 });
+
+// Everything below exists so this server dies with the session that asked for
+// it. `shell: true` above means the real Next server is a GRANDCHILD:
+//
+//   this script -> cmd.exe -> npx -> next -> next/dist/server/.../start-server.js
+//
+// and on Windows a child is NOT killed when its parent dies. Without this, every
+// run leaked a multi-GB Next server that outlived its session forever. On
+// 2026-11-25 four of them were holding 12 GB of RAM between them.
+
+let shuttingDown = false;
+
+function killTree() {
+  if (shuttingDown) return;
+  shuttingDown = true;
+  if (!child.pid) return;
+  if (process.platform === "win32") {
+    // /T takes the whole descendant tree, which is the point — killing the
+    // cmd.exe alone would leave the Next server running.
+    spawnSync("taskkill", ["/pid", String(child.pid), "/T", "/F"], {
+      stdio: "ignore",
+    });
+  } else {
+    try {
+      child.kill("SIGTERM");
+    } catch {}
+  }
+}
+
+// Ctrl-C and ordinary termination: tear the tree down, then leave.
+for (const signal of ["SIGINT", "SIGTERM", "SIGHUP", "SIGBREAK"]) {
+  process.on(signal, () => {
+    killTree();
+    process.exit(0);
+  });
+}
+
+// Last-resort sweep for any exit path that did not go through a signal.
+process.on("exit", killTree);
+
+// If Next falls over on its own, don't linger as an empty parent.
+child.on("exit", (code) => {
+  shuttingDown = true;
+  process.exit(code ?? 0);
+});
+
+// The watchdog, and the only part that catches the case that actually leaked:
+// when the parent is killed outright (a closed session, taskkill /F) this
+// script gets no signal at all, so none of the handlers above ever run. Poll
+// for the parent instead and shut down once it is gone.
+if (!noParentWatch) {
+  const parentPid = process.ppid;
+  const watch = setInterval(() => {
+    try {
+      // Signal 0 tests for existence without touching the process.
+      process.kill(parentPid, 0);
+    } catch (err) {
+      // ESRCH means gone. EPERM means it exists but is not ours to signal —
+      // still alive, so keep running.
+      if (err.code === "ESRCH") {
+        killTree();
+        process.exit(0);
+      }
+    }
+  }, 5000);
+  // Don't let the timer itself hold the process open.
+  watch.unref();
+}
