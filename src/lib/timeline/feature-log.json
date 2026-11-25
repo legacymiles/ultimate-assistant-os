@@ -1,5 +1,41 @@
 [
  {
+  "id": "447d61b4:jarvis",
+  "date": "2026-11-25",
+  "slug": "jarvis",
+  "title": "Autonomous task engine with Jarvis's chat on a trail-reveal stage",
+  "detail": "In Queue becomes the 24/7 Queue - real background work on the VPS that keeps running with the PC off and the browser closed.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "447d61b4:queue247",
+  "date": "2026-11-25",
+  "slug": "queue247",
+  "title": "Autonomous task engine with Jarvis's chat on a trail-reveal stage",
+  "detail": "In Queue becomes the 24/7 Queue - real background work on the VPS that keeps running with the PC off and the browser closed.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "447d61b4:queue-247",
+  "date": "2026-11-25",
+  "slug": "queue-247",
+  "title": "Autonomous task engine with Jarvis's chat on a trail-reveal stage",
+  "detail": "In Queue becomes the 24/7 Queue - real background work on the VPS that keeps running with the PC off and the browser closed.",
+  "group": "core",
+  "source": "git"
+ },
+ {
+  "id": "447d61b4:h3-experiments",
+  "date": "2026-11-25",
+  "slug": "h3-experiments",
+  "title": "Autonomous task engine with Jarvis's chat on a trail-reveal stage",
+  "detail": "In Queue becomes the 24/7 Queue - real background work on the VPS that keeps running with the PC off and the browser closed.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
   "id": "423bacc8:profiles",
   "date": "2026-11-25",
   "slug": "profiles",
@@ -23,6 +59,15 @@
   "slug": "jarvis",
   "title": "Folders RAG agent on the shared harness, Drive accounts dashboard, Folders + Photos redesign",
   "detail": "- Fix \"Reached maximum number of turns (1)\" in the main chat: the PC brain (tools/jarvis-bridge/brain.mjs) now removes Claude Code's built-in tools (tools: []) instead of only denying them, with turn headroom. - Folders Ask Jarvis uses the shared model pick (nj.chat-model:v1) with a model menu; \"Cla",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "9876224d:dtf",
+  "date": "2026-11-24",
+  "slug": "dtf",
+  "title": "Artwork stays inside its placeholder, centred mockups, bigger sleeve zone",
+  "detail": "Four placement fixes the owner reported.",
   "group": "supporting",
   "source": "git"
  },
@@ -225,6 +270,24 @@
   "source": "git"
  },
  {
+  "id": "1439247f:dtf",
+  "date": "2026-11-23",
+  "slug": "dtf",
+  "title": "A print-on-demand studio and production board for the DTF printer",
+  "detail": "Customers design on real garment photos (tee, oversized tee, hoodie, crewneck, long sleeve, tank, tote) recoloured live to the fabric. Uploaded art and type are pressed into the cloth and can be dragged, resized and rotated. The Showroom layout has a floating tool dock, a strip of live mockups and a",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "1439247f:dtf-production",
+  "date": "2026-11-23",
+  "slug": "dtf-production",
+  "title": "A print-on-demand studio and production board for the DTF printer",
+  "detail": "Customers design on real garment photos (tee, oversized tee, hoodie, crewneck, long sleeve, tank, tote) recoloured live to the fabric. Uploaded art and type are pressed into the cloth and can be dragged, resized and rotated. The Showroom layout has a floating tool dock, a strip of live mockups and a",
+  "group": "core",
+  "source": "git"
+ },
+ {
   "id": "1439247f:dtf-studio",
   "date": "2026-11-23",
   "slug": "dtf-studio",
@@ -248,6 +311,60 @@
   "slug": "jarvis",
   "title": "A print-on-demand studio and production board for the DTF printer",
   "detail": "Customers design on real garment photos (tee, oversized tee, hoodie, crewneck, long sleeve, tank, tote) recoloured live to the fabric. Uploaded art and type are pressed into the cloth and can be dragged, resized and rotated. The Showroom layout has a floating tool dock, a strip of live mockups and a",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "43a67ef8:search",
+  "date": "2026-11-22",
+  "slug": "search",
+  "title": "A result is a page, not a click-through",
+  "detail": "BuildFlip's first live pricing run came back with duckduckgo.com/y.js?ad_domain=amazon.com&… as the top result for \"2x4x8 pressure treated lumber price buy\": 1,200 characters of ad tracking, titled \"Amazon Official Site\", on its way to becoming a buy link on someone's build plan. It was filtered app",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "2200a1f0:search",
+  "date": "2026-11-22",
+  "slug": "search",
+  "title": "Keys belong to people, so access can be given away",
+  "detail": "The first cut had one kind of key: the owner's. This adds the second — a key issued TO someone, with their own ceiling, their own usage and an optional expiry — so the search service can be handed out without handing out the owner's quota or the owner's providers.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "2200a1f0:search-infra",
+  "date": "2026-11-22",
+  "slug": "search-infra",
+  "title": "Keys belong to people, so access can be given away",
+  "detail": "The first cut had one kind of key: the owner's. This adds the second — a key issued TO someone, with their own ceiling, their own usage and an optional expiry — so the search service can be handed out without handing out the owner's quota or the owner's providers.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "d77ebe9d:bills",
+  "date": "2026-11-22",
+  "slug": "bills",
+  "title": "Every bill you know about, on the calendar",
+  "detail": "The Calendar gets a Bills tab beside Month. Most bills are not typed there at all: they are read live out of the Profiles app on every render, so a payment filed under a profile is on the tab with no sync step, and editing the row in Profiles edits the bill. A row counts as a bill only when it has a",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "dce9b253:search",
+  "date": "2026-11-22",
+  "slug": "search",
+  "title": "One web search endpoint for every app and agent",
+  "detail": "No app holds a search provider or a key any more. A request walks one chain — SearXNG on this machine, SearXNG on the VPS, DuckDuckGo, then Tavily — and stops at the first that answers, so searches are free and private while the laptop is on, keep working from the VPS when it is not, and only reach ",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "dce9b253:search-infra",
+  "date": "2026-11-22",
+  "slug": "search-infra",
+  "title": "One web search endpoint for every app and agent",
+  "detail": "No app holds a search provider or a key any more. A request walks one chain — SearXNG on this machine, SearXNG on the VPS, DuckDuckGo, then Tavily — and stops at the first that answers, so searches are free and private while the laptop is on, keep working from the VPS when it is not, and only reach ",
   "group": "supporting",
   "source": "git"
  },
