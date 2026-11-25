@@ -1,5 +1,14 @@
 [
  {
+  "id": "e59e356e:dtf",
+  "date": "2026-11-25",
+  "slug": "dtf",
+  "title": "Print station checks its folder path by its own machine's rules, so CI passes",
+  "detail": "normalizeConfig used path.isAbsolute on exportDir, which follows the host OS. The default C:\\DTF\\Print Jobs is absolute on Windows but not on Linux, so the clean-clone CI run (ubuntu) reported \"exportDir must be a full path that starts with a drive letter\" and the config test failed there while pass",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
   "id": "447d61b4:jarvis",
   "date": "2026-11-25",
   "slug": "jarvis",
