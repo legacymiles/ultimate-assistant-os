@@ -5,6 +5,10 @@ import { useVoiceTarget } from "../voice/VoiceProvider";
 import { ChatVoiceAvatar } from "../voice/ChatVoiceAvatar";
 import { Icon } from "../icons";
 import { askAgent } from "@/lib/recall/agent";
+import { ModelPicker } from "../new-jarvis/ModelPicker";
+import { SavePreview } from "./SavePreview";
+import { useChatModel } from "@/lib/new-jarvis/useChatModel";
+import { modelLabel } from "@/lib/new-jarvis/chatModels";
 import { executeAction, folderPathString } from "@/lib/recall/store";
 import { getEvents } from "@/lib/recall/calendar/store";
 import { formatDayKey, formatTime } from "@/lib/recall/calendar/types";
@@ -32,6 +36,11 @@ interface Props {
   onPhotosChanged?: () => void;
   /** What the launcher and header call the assistant. Jarvis passes his own name. */
   label?: string;
+  /** A message to send exactly as typed (the Folders Ask bar); cleared after sending. */
+  say?: string | null;
+  onSayConsumed?: () => void;
+  /** The page has its own Ask bar, so the floating pill would be a second door. */
+  hideLauncher?: boolean;
 }
 
 function whenLabel(date: string, time?: string | null): string {
@@ -138,12 +147,19 @@ export function AgentChat({
   onCalendarChanged,
   onPhotosChanged,
   label = "Assistant",
+  say = null,
+  onSayConsumed,
+  hideLauncher = false,
 }: Props) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   /** Held only so proposed calendar changes can be described by name. */
   const [events, setEvents] = useState<CalendarEvent[]>([]);
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState(false);
+  // The one model pick every Jarvis chat shares (nj.chat-model:v1). Changing
+  // it here changes it in the main chat too, and vice versa.
+  const { model, setModel } = useChatModel();
+  const [wide, setWide] = useState(false);
   // messageId -> set of resolved (applied/dismissed) action indices
   const [resolved, setResolved] = useState<Record<string, Record<number, "applied" | "dismissed">>>({});
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -163,7 +179,8 @@ export function AgentChat({
     const userMsg: ChatMessage = { id: uid("msg"), role: "user", content: q };
     setMessages((m) => [...m, userMsg]);
     setBusy(true);
-    const reply = await askAgent(q, data);
+    const history = messages.slice(-8).map((m) => ({ role: m.role, content: m.content }));
+    const reply = await askAgent(q, data, { model, history });
     setMessages((m) => [
       ...m,
       {
@@ -173,6 +190,8 @@ export function AgentChat({
         citations: reply.citations,
         actions: reply.actions,
         engine: reply.engine,
+        model: reply.model,
+        brain: reply.brain,
       },
     ]);
     setBusy(false);
@@ -202,7 +221,18 @@ export function AgentChat({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ask]);
 
+  // The Ask bar hands over its text as-is — a question or something to file.
+  useEffect(() => {
+    if (say) {
+      onOpen();
+      void send(say);
+      onSayConsumed?.();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [say]);
+
   function applyAction(msgId: string, idx: number, action: AgentAction) {
+    if (resolved[msgId]?.[idx]) return;
     const res = executeAction(action);
     onData(res.data);
     if (res.calendarChanged) {
@@ -249,6 +279,7 @@ export function AgentChat({
   const citationItem = (id: string) => data.items.find((i) => i.id === id);
 
   if (!open) {
+    if (hideLauncher) return null;
     return (
       <button
         onClick={onOpen}
@@ -261,7 +292,12 @@ export function AgentChat({
   }
 
   return (
-    <div className="fixed bottom-0 right-0 z-40 flex h-[70vh] max-h-[620px] w-full flex-col border border-line bg-panel shadow-2xl sm:bottom-5 sm:right-5 sm:h-[560px] sm:w-[390px] sm:rounded-2xl">
+    <div
+      className={
+        "fixed bottom-0 right-0 z-40 flex h-[78vh] w-full flex-col border border-line bg-panel shadow-2xl transition-[width,height] sm:bottom-5 sm:right-5 sm:rounded-2xl " +
+        (wide ? "max-h-[860px] sm:h-[82vh] sm:w-[620px]" : "max-h-[680px] sm:h-[600px] sm:w-[420px]")
+      }
+    >
       {/* header */}
       <div className="flex items-center justify-between border-b border-line px-4 py-3">
         <div className="flex items-center gap-2">
@@ -270,9 +306,23 @@ export function AgentChat({
           </span>
           <span className="text-sm font-semibold text-ink">{label}</span>
         </div>
-        <button onClick={onClose} className="rounded-lg p-1.5 text-ink-faint hover:bg-panel-2 hover:text-ink" aria-label="Close chat">
-          <Icon.Close width={16} height={16} />
-        </button>
+        <div className="flex items-center gap-1">
+          {/* Wrapped: the picker carries order-1 for the main chat's composer. */}
+          <div className="flex">
+            <ModelPicker value={model} onChange={setModel} />
+          </div>
+          <button
+            onClick={() => setWide((v) => !v)}
+            className="hidden rounded-lg p-1.5 text-ink-faint hover:bg-panel-2 hover:text-ink sm:block"
+            aria-label={wide ? "Make the chat narrower" : "Make the chat wider"}
+            title={wide ? "Narrower" : "Wider"}
+          >
+            <Icon.Sidebar width={15} height={15} />
+          </button>
+          <button onClick={onClose} className="rounded-lg p-1.5 text-ink-faint hover:bg-panel-2 hover:text-ink" aria-label="Close chat">
+            <Icon.Close width={16} height={16} />
+          </button>
+        </div>
       </div>
 
       {/* messages */}
@@ -291,15 +341,15 @@ export function AgentChat({
             </p>
             <div className="mt-4 flex flex-col gap-1.5">
               {[
-                "Create a profile for my son",
+                "Where did I save my trading strategy?",
+                "Organise this and find the best place for it: ",
+                "Summarise what's in my biggest folder",
                 "What's on this week?",
-                "I just bought a domain on Cloudflare — log it with the renewal date",
-                "Show me what I've saved about this",
                 "Tidy the loose files into the right folders",
               ].map((s) => (
                 <button
                   key={s}
-                  onClick={() => send(s)}
+                  onClick={() => (s.endsWith(": ") ? setInput(s) : send(s))}
                   className="rounded-lg border border-line bg-canvas px-3 py-2 text-left text-xs text-ink-muted transition hover:border-brand/40 hover:text-ink"
                 >
                   {s}
@@ -319,7 +369,8 @@ export function AgentChat({
 
                 {/* citations */}
                 {m.citations && m.citations.length > 0 && (
-                  <div className="mt-2 flex flex-wrap gap-1.5">
+                  <div className="mt-2 space-y-1">
+                    <p className="text-[10px] font-semibold uppercase tracking-wider text-ink-faint">Sources</p>
                     {m.citations.map((id) => {
                       const it = citationItem(id);
                       if (!it) return null;
@@ -327,27 +378,51 @@ export function AgentChat({
                         <button
                           key={id}
                           onClick={() => onOpenItem(it)}
-                          className="inline-flex max-w-[200px] items-center gap-1 rounded-lg border border-line bg-canvas px-2 py-1 text-[11px] text-ink-muted transition hover:border-brand/40 hover:text-ink"
-                          title={folderPathString(data.folders, it.folderId)}
+                          className="flex w-full items-start gap-2 rounded-lg border border-line bg-canvas px-2.5 py-1.5 text-left transition hover:border-brand/40"
+                          title="Open it"
                         >
-                          <Icon.File width={11} height={11} />
-                          <span className="truncate">{it.title}</span>
+                          <Icon.File width={12} height={12} className="mt-0.5 shrink-0 text-brand" />
+                          <span className="min-w-0">
+                            <span className="block truncate text-[12px] font-medium text-ink">{it.title}</span>
+                            <span className="block truncate text-[10px] text-ink-faint">
+                              {folderPathString(data.folders, it.folderId)}
+                            </span>
+                          </span>
                         </button>
                       );
                     })}
                   </div>
                 )}
 
-                {/* proposed changes — nothing runs until you say so */}
-                {m.actions && m.actions.length > 0 && (
+                {/* "save this" proposals — full preview + exact destination first */}
+                {m.actions?.map((a, idx) =>
+                  a.type === "create_note" ? (
+                    <div key={`save-${idx}`} className="mt-2">
+                      <SavePreview
+                        title={a.title}
+                        body={a.body}
+                        tags={a.tags}
+                        path={a.path}
+                        reason={a.reason}
+                        folders={data.folders}
+                        state={resolved[m.id]?.[idx]}
+                        onSave={(path) => applyAction(m.id, idx, { ...a, path })}
+                        onDismiss={() => dismissAction(m.id, idx)}
+                      />
+                    </div>
+                  ) : null,
+                )}
+
+                {/* other proposed changes — nothing runs until you say so */}
+                {m.actions && m.actions.some((a) => a.type !== "create_note") && (
                   <div className="mt-2 space-y-1.5 rounded-xl border border-line bg-canvas p-2">
                     <div className="flex items-center gap-2">
                       <p className="text-[10px] font-semibold uppercase tracking-wider text-ink-faint">
-                        {m.actions.length === 1
+                        {m.actions.filter((a) => a.type !== "create_note").length === 1
                           ? "Proposed change"
-                          : `Plan · ${m.actions.length} changes`}
+                          : `Plan · ${m.actions.filter((a) => a.type !== "create_note").length} changes`}
                       </p>
-                      {m.actions.some((_, i) => !resolved[m.id]?.[i]) && (
+                      {m.actions.filter((a) => a.type !== "create_note").length > 1 && m.actions.some((_, i) => !resolved[m.id]?.[i]) && (
                         <span className="ml-auto flex items-center gap-1">
                           <button
                             onClick={() => applyAll(m.id, m.actions as AgentAction[])}
@@ -365,6 +440,7 @@ export function AgentChat({
                       )}
                     </div>
                     {m.actions.map((a, idx) => {
+                      if (a.type === "create_note") return null;
                       const state = resolved[m.id]?.[idx];
                       const destructive = DESTRUCTIVE_ACTIONS.has(a.type);
                       const caveat = actionCaveat(a);
@@ -422,7 +498,17 @@ export function AgentChat({
                 )}
 
                 {m.engine === "heuristic" && (
-                  <p className="mt-1 text-[10px] text-ink-faint">Offline answer · add an AI key for synthesis + actions</p>
+                  <p className="mt-1 text-[10px] text-ink-faint">Search only · no AI is connected for this answer</p>
+                )}
+                {m.engine === "error" && (
+                  <p className="mt-1 text-[10px] text-red-400/80">The AI call failed · {m.model ?? "model"}</p>
+                )}
+                {m.engine === "ai" && m.model && (
+                  <p className="mt-1 text-[10px] text-ink-faint">
+                    {m.brain === "subscription"
+                      ? `Your Claude plan, via the PC agent · ${m.model.replace(/^claude-subscription:?/, "") || "default"}`
+                      : `Cloud · ${modelLabel(m.model)}`}
+                  </p>
                 )}
               </div>
             )}
@@ -451,7 +537,7 @@ export function AgentChat({
                 send(input);
               }
             }}
-            placeholder="Ask or tell me to organize…"
+            placeholder="Ask, or paste something to file…"
             rows={1}
             className="max-h-24 flex-1 resize-none rounded-xl border border-line bg-canvas px-3 py-2 text-sm text-ink outline-none placeholder:text-ink-faint focus:border-brand focus:ring-2 focus:ring-brand/30"
           />

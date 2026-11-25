@@ -78,9 +78,16 @@ describe("needsGate — the complaint", () => {
     op("shell", { command: "git add -A" }),
     op("shell", { command: "git commit -m 'it works'" }),
     op("hub/lists_add_item", { list: "To-Do", text: "ship it" }),
-    op("hub/dashboard_add_note", { title: "notes" }),
     op("vault/append", { path: "Notes/log.md" }),
   ];
+
+  // Owner's rule, Nov 2026: nothing is filed into Folders without a yes —
+  // so saving a note is the one hub write that still asks on Trusted and Auto.
+  it("always shows a Folders save before it happens, below Full access", () => {
+    const save = op("hub/dashboard_add_note", { title: "notes", folder: "Trading > Gold" });
+    for (const trust of ["ask", "trusted", "auto"] as Trust[]) expect(asks(save, trust)).toBe(true);
+    expect(asks(save, "full")).toBe(false);
+  });
 
   it("asks for every one of them on Ask, which is what the owner was living with", () => {
     expect(build.filter((o) => asks(o, "ask")).length).toBe(build.length);

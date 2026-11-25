@@ -302,9 +302,13 @@ export function classify(op: BridgeOp): Verdict {
     case "hub/dashboard_add_note":
       return gate(
         "act",
-        `Save a note "${truncate(String(args.title ?? ""), 40)}"${args.folder ? ` in ${String(args.folder)}` : ""}.`,
-        "",
+        `Save "${truncate(String(args.title ?? ""), 40)}" to ${args.folder ? String(args.folder).split(/\s*(?:>|›|\/)\s*/).filter(Boolean).join(" › ") : "Unfiled"}.`,
+        // The card shows what is being saved, not just its name.
+        truncate(String(args.body ?? args.content ?? ""), 220) || "An empty note.",
       );
+
+    case "hub/folders_ask":
+      return free(`Ask Folders: "${truncate(String(args.question ?? ""), 60)}".`);
 
     case "hub/lists_add_item":
       return gate(

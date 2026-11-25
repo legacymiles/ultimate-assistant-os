@@ -16,7 +16,8 @@
 //     in the browser, because that is where two of the three stores live.
 // ---------------------------------------------------------------------------
 
-import { createItem, getData } from "@/lib/recall/store";
+import { createItem, ensureFolderPath, folderPathString, getData } from "@/lib/recall/store";
+import { resolveDestination } from "@/lib/recall/rag";
 import { createEvent, getEvents } from "@/lib/recall/calendar/store";
 import { compareEvents, todayKey } from "@/lib/recall/calendar/types";
 import { listsApi } from "@/lib/recall/lists/client";
@@ -31,7 +32,15 @@ import type { Priority } from "@/lib/recall/lists/types";
 // the agent may only propose, executed here in the browser because that is
 // where the store lives. Its digest is NOT in dashboardDigest() — the Life
 // Record belongs in the Chat tab's context, not in Studio's.
-export const DASHBOARD_TOOL_NAMES = ["dashboard_add_note", "dashboard_add_event", "lists_add_item", "record_set"];
+export const DASHBOARD_TOOL_NAMES = ["dashboard_add_note", "dashboard_add_event", "lists_add_item", "record_set", "folders_ask"];
+
+/** "Trading > Gold Strategies", "Trading › Gold", "Trading / Gold" → ["Trading", "Gold …"]. */
+export function splitFolderPath(raw: string): string[] {
+  return raw
+    .split(/\s*(?:>|›|\/|\\)\s*/)
+    .map((s) => s.trim())
+    .filter(Boolean);
+}
 
 export function isDashboardTool(name: string): boolean {
   return DASHBOARD_TOOL_NAMES.includes(name);
@@ -187,19 +196,61 @@ export async function runDashboardTool(name: string, args: Record<string, unknow
   if (name === "dashboard_add_note") {
     const data = getData();
     const folderName = str(args, "folder");
-    const folder = folderName ? findFolder(data.folders, folderName) : undefined;
     const title = str(args, "title") || "Note from Jarvis";
-    const body = str(args, "content");
+    // New Jarvis's tool names the text `body`; the old Chat's names it
+    // `content`. Reading only `content` saved every New Jarvis note EMPTY.
+    const body = str(args, "content") || str(args, "body");
+    // Nested paths: walk the real tree first ("trading > gold strategies"
+    // lands on Trading › Gold Strategies), then a one-name match anywhere,
+    // and only then create the missing steps — the owner saw this exact path
+    // on the confirm card before this ran.
+    const segs = splitFolderPath(folderName);
+    let folderId: string | null = null;
+    let created = 0;
+    if (segs.length) {
+      const steps = resolveDestination(segs, data.folders);
+      const loose = segs.length === 1 ? findFolder(data.folders, segs[0]) : undefined;
+      if (steps.length && steps.every((s) => s.exists)) folderId = steps[steps.length - 1].folderId;
+      else if (loose) folderId = loose.id;
+      else {
+        created = steps.filter((s) => !s.exists).length;
+        folderId = ensureFolderPath(segs, false).folderId;
+      }
+    }
     createItem({
       title,
       body,
       summary: body.slice(0, 200),
       kind: "note",
       source: "manual",
-      folderId: folder?.id ?? null,
+      folderId,
       tags: [],
     });
-    return folder ? `Saved to ${folder.name}.` : folderName ? `No folder called "${folderName}" — saved to Unfiled.` : "Saved to Unfiled.";
+    const where = folderId ? folderPathString(getData().folders, folderId) : "Unfiled";
+    return `Saved "${title}" to ${where}${created ? ` (created ${created} new folder${created === 1 ? "" : "s"})` : ""}.`;
+  }
+
+  if (name === "folders_ask") {
+    // The Folders agent, asked by another Jarvis chat. Read-only here: any
+    // change it proposes is reported back, never applied — saving goes
+    // through dashboard_add_note and its confirm card.
+    const { askAgent } = await import("@/lib/recall/agent");
+    const data = getData();
+    const r = await askAgent(str(args, "question"), data);
+    const sources = r.citations
+      .map((id) => data.items.find((i) => i.id === id))
+      .filter((i): i is NonNullable<typeof i> => Boolean(i))
+      .map((i) => `- ${i.title} — ${folderPathString(data.folders, i.folderId)}`);
+    const proposed = r.actions
+      .map((a) => (a.type === "create_note" ? `save "${a.title}" to ${a.path.join(" › ") || "Unfiled"}` : a.type.replace(/_/g, " ")))
+      .slice(0, 4);
+    return [
+      r.answer,
+      sources.length ? `Sources:\n${sources.join("\n")}` : "",
+      proposed.length ? `Folders also suggested (not done): ${proposed.join("; ")}.` : "",
+    ]
+      .filter(Boolean)
+      .join("\n\n");
   }
 
   if (name === "dashboard_add_event") {

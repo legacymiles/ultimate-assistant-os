@@ -100,19 +100,23 @@ function FolderNode({
         onClick={() => onSelect(folder.id)}
         onDelete={() => onDelete(folder)}
       />
-      {open &&
-        kids.map((k) => (
-          <FolderNode
-            key={k.id}
-            folder={k}
-            folders={folders}
-            items={items}
-            selected={selected}
-            onSelect={onSelect}
-            onDelete={onDelete}
-            depth={depth + 1}
-          />
-        ))}
+      {open && kids.length > 0 && (
+        // Indent guide: one hairline per level, so a deep path reads at a glance.
+        <div className="ml-[13px] border-l border-line pl-1">
+          {kids.map((k) => (
+            <FolderNode
+              key={k.id}
+              folder={k}
+              folders={folders}
+              items={items}
+              selected={selected}
+              onSelect={onSelect}
+              onDelete={onDelete}
+              depth={depth + 1}
+            />
+          ))}
+        </div>
+      )}
     </div>
   );
 }
@@ -144,9 +148,11 @@ function Row({
     <div
       className={
         "group flex items-center gap-1 rounded-lg pr-1.5 transition " +
-        (active ? "bg-brand/15 text-brand" : "text-ink-muted hover:bg-panel-2 hover:text-ink")
+        (active ? "bg-brand/15 text-ink" : "text-ink-muted hover:bg-panel-2 hover:text-ink")
       }
-      style={{ paddingLeft: 6 + depth * 14 }}
+      // Nesting is drawn by the guide wrapper, not by padding.
+      data-depth={depth}
+      style={{ paddingLeft: 4 }}
     >
       {hasChildren ? (
         <button
@@ -164,7 +170,7 @@ function Row({
       )}
       <button onClick={onClick} className="flex min-w-0 flex-1 items-center gap-2 py-1.5 text-left">
         <span className={active ? "text-brand" : "text-ink-faint"}>{icon}</span>
-        <span className="truncate">{label}</span>
+        <span className="truncate text-[12.5px]">{label}</span>
       </button>
       <span className="shrink-0 text-[11px] tabular-nums text-ink-faint group-hover:hidden">{count}</span>
       {onDelete && (

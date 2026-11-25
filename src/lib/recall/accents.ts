@@ -8,16 +8,18 @@
 export interface Accent {
   tile: string;
   ink: string;
+  /** A quiet tinted square behind a folder's icon (Folders home cards). */
+  soft?: string;
 }
 
 /** Big home tiles — a soft radial wash with a visible edge. */
 export const HOME_ACCENTS: Accent[] = [
-  { tile: "from-rose-500/35 via-rose-500/10 to-transparent border-rose-400/30", ink: "text-rose-200" },
-  { tile: "from-violet-500/35 via-violet-500/10 to-transparent border-violet-400/30", ink: "text-violet-200" },
-  { tile: "from-sky-500/35 via-sky-500/10 to-transparent border-sky-400/30", ink: "text-sky-200" },
-  { tile: "from-emerald-500/35 via-emerald-500/10 to-transparent border-emerald-400/30", ink: "text-emerald-200" },
-  { tile: "from-amber-500/35 via-amber-500/10 to-transparent border-amber-400/30", ink: "text-amber-200" },
-  { tile: "from-fuchsia-500/35 via-fuchsia-500/10 to-transparent border-fuchsia-400/30", ink: "text-fuchsia-200" },
+  { tile: "from-rose-500/35 via-rose-500/10 to-transparent border-rose-400/30", ink: "text-rose-200", soft: "bg-rose-500/15" },
+  { tile: "from-violet-500/35 via-violet-500/10 to-transparent border-violet-400/30", ink: "text-violet-200", soft: "bg-violet-500/15" },
+  { tile: "from-sky-500/35 via-sky-500/10 to-transparent border-sky-400/30", ink: "text-sky-200", soft: "bg-sky-500/15" },
+  { tile: "from-emerald-500/35 via-emerald-500/10 to-transparent border-emerald-400/30", ink: "text-emerald-200", soft: "bg-emerald-500/15" },
+  { tile: "from-amber-500/35 via-amber-500/10 to-transparent border-amber-400/30", ink: "text-amber-200", soft: "bg-amber-500/15" },
+  { tile: "from-fuchsia-500/35 via-fuchsia-500/10 to-transparent border-fuchsia-400/30", ink: "text-fuchsia-200", soft: "bg-fuchsia-500/15" },
 ];
 
 /** Small sub-folder tiles — same hues, dialled back. */

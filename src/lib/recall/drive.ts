@@ -77,7 +77,71 @@ export async function ensureLibraries(): Promise<void> {
  */
 let cachedToken: { token: string; expires: number } | null = null;
 
+// ----- several Google accounts ----------------------------------------------
+// Each connected account keeps its own one-hour token, in memory only, keyed
+// by the email Google reported for it. The "active" account is the backup
+// target: everything that calls accessToken() (backups, the Picker) uses it.
+// With no active account set, the original single-account behaviour is kept.
+const accountTokens = new Map<string, { token: string; expires: number }>();
+let activeEmail: string | null = null;
+
+export function setActiveDriveEmail(email: string | null): void {
+  activeEmail = email ? email.toLowerCase() : null;
+}
+
+export function activeDriveEmail(): string | null {
+  return activeEmail;
+}
+
+export function cacheAccountToken(email: string, token: string, expires: number): void {
+  accountTokens.set(email.toLowerCase(), { token, expires });
+}
+
+export function accountTokenLive(email: string): boolean {
+  const t = accountTokens.get(email.toLowerCase());
+  return Boolean(t && t.expires > Date.now());
+}
+
+/** The signed-in account behind a token, straight from Drive. */
+export async function whoIs(token: string): Promise<string> {
+  const res = await driveJson("https://www.googleapis.com/drive/v3/about?fields=user(emailAddress)", token);
+  return String(res?.user?.emailAddress ?? "").toLowerCase();
+}
+
+/**
+ * A token for one particular account. Google is asked with that account as
+ * the hint; if it signs in a different one anyway, that is said plainly
+ * rather than backing up into the wrong Drive.
+ */
+export async function tokenForAccount(email: string, opts: { interactive?: boolean } = {}): Promise<string> {
+  const want = email.toLowerCase();
+  const hit = accountTokens.get(want);
+  if (hit && hit.expires > Date.now()) return hit.token;
+  await ensureLibraries();
+  const t = await requestTokenRaw({ hint: want, prompt: opts.interactive ? "select_account" : "" });
+  const got = await whoIs(t.token);
+  accountTokens.set(got, t);
+  if (got !== want) throw new Error(`Google signed in as ${got}, not ${want}. Pick ${want} in Google's window.`);
+  return t.token;
+}
+
+/** Sign in one more Google account (always shows Google's account chooser). */
+export async function connectGoogleAccount(): Promise<{ email: string; token: string }> {
+  await ensureLibraries();
+  const t = await requestTokenRaw({ prompt: "select_account" });
+  const email = await whoIs(t.token);
+  accountTokens.set(email, t);
+  return { email, token: t.token };
+}
+
 function requestToken(): Promise<string> {
+  return requestTokenRaw({ prompt: "" }).then((t) => {
+    cachedToken = t;
+    return t.token;
+  });
+}
+
+function requestTokenRaw(opts: { prompt?: string; hint?: string }): Promise<{ token: string; expires: number }> {
   return new Promise((resolve, reject) => {
     const tokenClient = (window as any).google.accounts.oauth2.initTokenClient({
       client_id: CLIENT_ID,
@@ -87,8 +151,7 @@ function requestToken(): Promise<string> {
           const ttl = Number(resp.expires_in ?? 3600) * 1000;
           // Retire it a minute early rather than discovering it expired
           // halfway through a multi-file upload.
-          cachedToken = { token: resp.access_token, expires: Date.now() + ttl - 60_000 };
-          resolve(resp.access_token as string);
+          resolve({ token: resp.access_token as string, expires: Date.now() + ttl - 60_000 });
         } else reject(new Error(explainGoogleError(resp?.error, resp?.error_description)));
       },
       // Without this, a blocked or closed Google window left the promise pending
@@ -96,7 +159,7 @@ function requestToken(): Promise<string> {
       // "Checking what is already on Drive…" with no explanation at all.
       error_callback: (err: any) => reject(new Error(explainGoogleError(err?.type, err?.message))),
     });
-    tokenClient.requestAccessToken({ prompt: "" });
+    tokenClient.requestAccessToken({ prompt: opts.prompt ?? "", ...(opts.hint ? { hint: opts.hint } : {}) });
   });
 }
 
@@ -190,6 +253,7 @@ export async function pickFromDrive(): Promise<DriveFile[]> {
 
 /** A live token, from cache when one is still good. */
 export async function accessToken(): Promise<string> {
+  if (activeEmail) return tokenForAccount(activeEmail);
   if (cachedToken && cachedToken.expires > Date.now()) return cachedToken.token;
   await ensureLibraries();
   return requestToken();
@@ -223,6 +287,7 @@ export function driveClientConfigured(): boolean {
  * by the browser — so an automatic run waits for the user instead.
  */
 export function driveTokenLive(): boolean {
+  if (activeEmail) return accountTokenLive(activeEmail);
   return Boolean(cachedToken && cachedToken.expires > Date.now());
 }
 

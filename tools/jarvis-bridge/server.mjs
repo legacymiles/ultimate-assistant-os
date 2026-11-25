@@ -44,6 +44,7 @@
 // ---------------------------------------------------------------------------
 
 import * as brain from "./brain.mjs";
+import * as rclone from "./rclone.mjs";
 import http from "node:http";
 import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
@@ -171,6 +172,10 @@ const ROUTES = {
   // unmodified Claude Code on this PC. See brain.mjs.
   "POST /brain/claude": (b) => brain.think(b),
   "POST /brain/claude/check": () => brain.check(),
+
+  // Read-only list of the owner's rclone remotes and their real storage, for
+  // the Backups dashboard. See rclone.mjs.
+  "POST /rclone/remotes": () => rclone.remotes(),
 
   "POST /shell": async (body) => {
     const why = refuseReason(body.command);

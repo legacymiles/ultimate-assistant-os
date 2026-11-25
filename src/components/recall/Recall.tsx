@@ -87,6 +87,17 @@ export function Recall({ section, onSection }: RecallProps = {}) {
   const [agentOpen, setAgentOpen] = useState(false);
   const [askQuestion, setAskQuestion] = useState<string | null>(null);
   const [treeOpen, setTreeOpen] = useState(false);
+  /**
+   * On a wide screen the folder tree is a docked left panel (Folders "Richer
+   * cards", picked Nov 25 2026); on a phone it stays the drawer above. The
+   * docked choice is remembered on this device.
+   */
+  const [wide, setWide] = useState(false);
+  const [treeDocked, setTreeDocked] = useState(true);
+  /** Text from the Ask bar, sent to the agent as typed. */
+  const [agentSay, setAgentSay] = useState<string | null>(null);
+  const [askDraft, setAskDraft] = useState("");
+  const askRef = useRef<HTMLInputElement>(null);
   const [toast, setToast] = useState<string | null>(null);
   const [folderDialog, setFolderDialog] = useState<FolderDialogState | null>(null);
   const [movingFolder, setMovingFolder] = useState<Folder | null>(null);
@@ -149,6 +160,32 @@ export function Recall({ section, onSection }: RecallProps = {}) {
   );
 
   useEffect(() => {
+    const mq = window.matchMedia("(min-width: 1024px)");
+    const sync = () => setWide(mq.matches);
+    sync();
+    mq.addEventListener("change", sync);
+    try {
+      setTreeDocked(localStorage.getItem("recall:tree-docked") !== "0");
+    } catch {
+      /* storage blocked: docked by default */
+    }
+    return () => mq.removeEventListener("change", sync);
+  }, []);
+
+  const toggleTree = () => {
+    if (!wide) return setTreeOpen((v) => !v);
+    setTreeDocked((v) => {
+      try {
+        localStorage.setItem("recall:tree-docked", v ? "0" : "1");
+      } catch {
+        /* the choice lasts for this visit */
+      }
+      return !v;
+    });
+  };
+  const docked = wide && treeDocked;
+
+  useEffect(() => {
     fetch("/api/recall-unlock")
       .then((r) => r.json())
       .then((d: { gated?: boolean }) => setGated(Boolean(d.gated)))
@@ -166,6 +203,12 @@ export function Recall({ section, onSection }: RecallProps = {}) {
         e.preventDefault();
         searchRef.current?.focus();
         searchRef.current?.select();
+      }
+      // ⌘J — the Ask bar when it is on screen, else the chat itself.
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "j") {
+        e.preventDefault();
+        if (askRef.current) askRef.current.focus();
+        else setAgentOpen(true);
       }
       if (e.key === "Escape" && document.activeElement === searchRef.current) {
         setQuery("");
@@ -254,6 +297,8 @@ export function Recall({ section, onSection }: RecallProps = {}) {
   }
 
   const searching = query.trim().length > 0;
+  /** The Ask bar shows wherever folders are on screen. */
+  const showAskBar = ready && !searching && homeTab === "folders" && !profileId;
   const activeProfile =
     profileId && homeTab === "profiles"
       ? data.profiles.find((p) => p.id === profileId) ?? null
@@ -263,7 +308,7 @@ export function Recall({ section, onSection }: RecallProps = {}) {
     <div className={embedded ? "flex flex-col" : "flex min-h-dvh flex-col"}>
       {/* Top bar */}
       <header className="sticky top-0 z-30 border-b border-line bg-panel/95 backdrop-blur">
-        <div className="mx-auto flex w-full max-w-5xl items-center gap-2 px-3 py-2.5 sm:px-5">
+        <div className={"mx-auto flex w-full items-center gap-2 px-3 py-2.5 sm:px-5 " + (docked ? "max-w-[1400px]" : "max-w-5xl")}>
           {!embedded && (
             <Link
               href="/"
@@ -276,12 +321,12 @@ export function Recall({ section, onSection }: RecallProps = {}) {
           )}
 
           <button
-            onClick={() => setTreeOpen((v) => !v)}
+            onClick={toggleTree}
             aria-label="Toggle folder tree"
             title="Folder tree"
             className={
               "rounded-lg border p-1.5 transition " +
-              (treeOpen
+              ((wide ? treeDocked : treeOpen)
                 ? "border-brand/50 bg-brand/10 text-brand"
                 : "border-line text-ink-muted hover:text-ink")
             }
@@ -325,6 +370,9 @@ export function Recall({ section, onSection }: RecallProps = {}) {
             )}
           </div>
 
+          {/* Drive backup as a quiet status chip; the full card opens under it. */}
+          <DriveBackupCard data={data} onToast={setToast} variant="chip" />
+
           <button
             onClick={() => setSecurityOpen(true)}
             title="Security — app password and saved passwords"
@@ -356,7 +404,7 @@ export function Recall({ section, onSection }: RecallProps = {}) {
         </div>
 
         {/* Folder tree — a drawer, not permanent furniture */}
-        {treeOpen && (
+        {treeOpen && !wide && (
           <div className="border-t border-line bg-panel">
             <div className="mx-auto max-h-[50vh] w-full max-w-5xl overflow-y-auto px-3 py-3 sm:px-5">
               <div className="mb-1.5 flex items-center justify-between">
@@ -383,7 +431,59 @@ export function Recall({ section, onSection }: RecallProps = {}) {
         )}
       </header>
 
-      <main className="mx-auto w-full max-w-5xl flex-1 px-3 py-5 sm:px-5">
+      <div className={"mx-auto flex w-full flex-1 " + (docked ? "max-w-[1400px]" : "max-w-5xl")}>
+      {docked && (
+        <aside className="sticky top-[57px] hidden max-h-[calc(100dvh-57px)] w-60 shrink-0 self-start overflow-y-auto border-r border-line bg-[#05080e] px-2.5 py-4 lg:block">
+          <div className="mb-2 flex items-center justify-between px-1.5">
+            <span className="font-mono text-[9.5px] uppercase tracking-[0.16em] text-ink-faint">Folders</span>
+            <button
+              onClick={() => handleNewFolder(null)}
+              className="rounded-md p-1 text-ink-faint hover:bg-panel-2 hover:text-ink"
+              title="New top-level folder"
+              aria-label="New top-level folder"
+            >
+              <Icon.Plus width={13} height={13} />
+            </button>
+          </div>
+          <FolderTree
+            folders={data.folders}
+            items={data.items}
+            selected={folderId ?? ALL}
+            onSelect={(id) => navigate(id === ALL ? null : id)}
+            onDelete={handleDeleteFolder}
+          />
+        </aside>
+      )}
+      <main className="min-w-0 flex-1 px-3 py-5 sm:px-5">
+        {/* Ask bar — the front door to the Folders agent (⌘J). Shown wherever
+            folders are on screen; elsewhere the floating launcher stays. */}
+        {showAskBar && (
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              const text = askDraft.trim();
+              if (!text) return setAgentOpen(true);
+              setAgentSay(text);
+              setAskDraft("");
+            }}
+            className="mb-4 flex h-[42px] items-center gap-2.5 rounded-xl border border-brand/45 bg-gradient-to-r from-brand/[0.12] to-sky-400/[0.04] px-3.5 transition focus-within:border-brand focus-within:ring-2 focus-within:ring-brand/25"
+          >
+            <Icon.Sparkles width={15} height={15} className="shrink-0 text-brand" />
+            <input
+              ref={askRef}
+              value={askDraft}
+              onChange={(e) => setAskDraft(e.target.value)}
+              placeholder={
+                wide
+                  ? "Ask Jarvis about your folders — or paste something and I'll find where it belongs"
+                  : "Ask Jarvis, or paste to file…"
+              }
+              aria-label="Ask Jarvis about your folders"
+              className="min-w-0 flex-1 bg-transparent text-[12.5px] text-ink outline-none placeholder:text-[#c7c9ff]/75"
+            />
+            <kbd className="hidden shrink-0 rounded-md border border-line px-1.5 py-px font-mono text-[10px] text-ink-faint sm:inline">⌘J</kbd>
+          </form>
+        )}
         {activeTags.length > 0 && (
           <div className="mb-3 flex flex-wrap items-center gap-1.5">
             <span className="text-[11px] text-ink-faint">Filtered by</span>
@@ -466,7 +566,6 @@ export function Recall({ section, onSection }: RecallProps = {}) {
 
             {homeTab === "folders" && (
               <>
-              <DriveBackupCard data={data} onToast={setToast} />
               <FolderHome
                 data={data}
                 onOpen={navigate}
@@ -536,6 +635,7 @@ export function Recall({ section, onSection }: RecallProps = {}) {
           />
         )}
       </main>
+      </div>
 
       {/* Agent */}
       <AgentChat
@@ -556,6 +656,9 @@ export function Recall({ section, onSection }: RecallProps = {}) {
         onCalendarChanged={() => setCalendarNonce((n) => n + 1)}
         onPhotosChanged={() => setPhotosNonce((n) => n + 1)}
         label={embedded ? "Ask Jarvis" : undefined}
+        say={agentSay}
+        onSayConsumed={() => setAgentSay(null)}
+        hideLauncher={showAskBar}
       />
 
       {securityOpen && (

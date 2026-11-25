@@ -1,6 +1,17 @@
 ﻿import { NextResponse } from "next/server";
 import { aiEndpoint, aiFetch, DEFAULT_MODEL } from "@/lib/ai/provider";
 import { callerIsMember } from "@/lib/recall/lists/session";
+import { isModelId } from "@/lib/new-jarvis/chatModels";
+import {
+  buildAgentPrompt,
+  parseAgentJson,
+  type AgentPromptInput,
+  type Candidate,
+  type EventRef,
+  type FolderRef,
+  type PersonRef,
+  type ProfileRef,
+} from "@/lib/recall/agentPrompt";
 
 // POST /api/recall
 // Stages:
@@ -11,56 +22,10 @@ import { callerIsMember } from "@/lib/recall/lists/session";
 // the client falls back to its (richer) local heuristics. Never throws.
 
 export const runtime = "nodejs";
-export const maxDuration = 60;
+export const maxDuration = 120;
 
 // Endpoint + key come from the shared provider picker (OpenRouter, else
 // the Vercel gateway). Both speak the same OpenAI-compatible shape.
-
-interface Candidate {
-  id: string;
-  title: string;
-  summary: string;
-  body: string;
-  /** Text read out of the file/page itself (PDF contents, described image). */
-  extract?: string;
-  kind?: string;
-  folder: string;
-  tags: string[];
-}
-
-interface FolderRef {
-  id: string;
-  path: string;
-}
-
-interface EventRef {
-  id: string;
-  title: string;
-  date: string;
-  time: string | null;
-  location: string | null;
-  notes: string | null;
-}
-
-interface PersonRef {
-  id: string;
-  name: string;
-  role: string;
-}
-
-interface ProfileRef {
-  id: string;
-  displayName: string;
-  kind: "person" | "business";
-  role?: string;
-  headline?: string;
-  folder: string;
-  /** Non-sensitive known values, one "Label: value" per line. */
-  details?: string;
-  /** Labels still blank — what the assistant should ask about. */
-  missing?: string[];
-  accounts?: string[];
-}
 
 interface ProfileDraftBody {
   description?: string;
@@ -107,6 +72,12 @@ export async function POST(req: Request) {
     existingProfiles?: { displayName: string; kind: "person" | "business"; role?: string }[];
     liveUrl?: string;
     jsonPath?: string;
+    /** The shared Jarvis model pick (an OpenRouter/OrcaRouter id). "" = hub default. */
+    model?: string;
+    outline?: AgentPromptInput["outline"];
+    outlineOmitted?: number;
+    history?: AgentPromptInput["history"];
+    finalPass?: boolean;
   };
   try {
     body = await req.json();
@@ -132,13 +103,19 @@ export async function POST(req: Request) {
     }
 
     case "agent": {
-      if (!apiKey || !body.question) return NextResponse.json({ reply: null });
+      if (!body.question) return NextResponse.json({ reply: null, error: "Ask something first." });
+      // No key on THIS server is a different problem from a failed call, and
+      // the client says so differently — the old code reported every failure
+      // (a timeout, a model error) as "AI is off", which sent the owner hunting
+      // for a key they had already set.
+      if (!apiKey) return NextResponse.json({ reply: null, noKey: true });
+      const model = isModelId(body.model) ? body.model : "";
       try {
-        const reply = await agentWithLLM(body, apiKey);
-        return NextResponse.json({ reply });
+        const reply = await agentWithLLM(body, model);
+        return NextResponse.json({ reply, model: model || process.env.AI_MODEL || DEFAULT_MODEL });
       } catch (err) {
-        console.error("Recall agent failed, using client heuristic:", err);
-        return NextResponse.json({ reply: null });
+        console.error("Recall agent failed:", err);
+        return NextResponse.json({ reply: null, error: plainAgentError(err) });
       }
     }
 
@@ -203,10 +180,15 @@ function stripHtml(html: string): string {
 
 // ----- Gateway helper ------------------------------------------------------
 
-async function callGateway(apiKey: string, system: string, user: string): Promise<string> {
+async function callGateway(
+  apiKey: string,
+  system: string,
+  user: string,
+  opts: { model?: string; timeoutMs?: number } = {},
+): Promise<string> {
   const endpoint = aiEndpoint();
   if (!endpoint) throw new Error("No AI provider configured");
-  const model = process.env.AI_MODEL || DEFAULT_MODEL;
+  const model = opts.model || process.env.AI_MODEL || DEFAULT_MODEL;
   const res = await aiFetch({
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -219,9 +201,9 @@ async function callGateway(apiKey: string, system: string, user: string): Promis
         { role: "user", content: user },
       ],
     }),
-    signal: AbortSignal.timeout(45_000),
+    signal: AbortSignal.timeout(opts.timeoutMs ?? 45_000),
   });
-  if (!res.ok) throw new Error(`Gateway ${res.status}: ${await res.text()}`);
+  if (!res.ok) throw new Error(`Gateway ${res.status}: ${(await res.text()).slice(0, 300)}`);
   const data = await res.json();
   return String(data?.choices?.[0]?.message?.content ?? "");
 }
@@ -501,138 +483,22 @@ async function fetchLiveValue(
 
 // ----- Stage: agent --------------------------------------------------------
 
-async function agentWithLLM(
-  body: {
-    question?: string;
-    candidates?: Candidate[];
-    folderPaths?: string[];
-    folders?: FolderRef[];
-    today?: string;
-    events?: EventRef[];
-    people?: PersonRef[];
-    photoCategories?: string[];
-    pendingPhotos?: number;
-    profiles?: ProfileRef[];
-  },
-  apiKey: string,
-) {
-  const candidates = body.candidates ?? [];
-  const today = body.today || new Date().toISOString().slice(0, 10);
-  const system =
-    "You are the user's personal assistant. You can see three things they own: " +
-    "their KNOWLEDGE BASE (notes, files, photos and records they have saved), " +
-    "their CALENDAR, and the PEOPLE their photo library knows how to recognise. " +
-    `Today is ${today}.\n\n` +
-    "Answer using ONLY what you are given; cite the item ids you drew on. Each " +
-    "candidate may carry an EXTRACT — text read out of the file itself (a " +
-    "PDF's contents, a described photo). Treat the extract as the item's real " +
-    "content and quote from it when it answers the question. Photos filed by the " +
-    "camera roll are ordinary items whose extract describes what is in them, so " +
-    "\"find the picture of the receipt\" is answerable the same way anything " +
-    "else is. If what you have does not cover it, say so plainly — never invent " +
-    "a fact, a date or a person. Be concise and direct, the way a good assistant " +
-    "is: lead with the answer, not with a preamble about what you did.\n\n" +
-    "You can also see PROFILES — people and businesses the user keeps a card " +
-    "for. A profile owns a folder and a folder-note; its fields and accounts are " +
-    "listed. Use them for questions like \"what is my son's birthday\" or \"when " +
-    "does the domain renew\". Never invent a missing field: if a profile shows a " +
-    "blank placeholder, ask for it.\n\n" +
-    "You may ALSO propose actions — to reorganise the knowledge base, to put " +
-    "something on the calendar, to register a new person, or to create/update a " +
-    "profile. EVERY action is shown to the user for explicit confirmation before " +
-    "it runs, so never say you have already done something; say what you are " +
-    "proposing. Prefer the fewest, largest actions: move_items for a batch rather " +
-    "than many move_item. Only propose deletions when the user clearly asked for " +
-    "them.\n\n" +
-    "WHEN THE USER GIVES YOU FACTS TO KEEP (a purchase, a login, a renewal date, " +
-    "a domain) rather than a question: propose create_note with a precise folder " +
-    "path and one fact per line, or create_profile for a person/business. Do not " +
-    "silently answer and drop the facts. If a detail is missing (renewal date, " +
-    "registrar, login), ask for it in the answer and leave a placeholder instead " +
-    "of guessing.\n\n" +
-    "CALENDAR RULES. Resolve every relative date (\"Friday\", \"next week\", " +
-    "\"tomorrow\") against today and emit an absolute YYYY-MM-DD. If the user " +
-    "gives no date and none can be inferred, ask for it instead of proposing an " +
-    "event — an event on the wrong day is worse than no event. Times are local " +
-    "24-hour HH:MM; use null for an all-day event. `reminders` are whole minutes " +
-    "before the start (1440 = a day before, 60 = an hour before); default to " +
-    "[1440] for a dated commitment and [] for something purely informational.\n\n" +
-    "Allowed actions:\n" +
-    '  {"type":"create_folder","path":string[]}\n' +
-    '  {"type":"move_item","itemId":string,"path":string[]}\n' +
-    '  {"type":"move_items","itemIds":string[],"path":string[]}\n' +
-    '  {"type":"add_tags","itemId":string,"tags":string[]}\n' +
-    '  {"type":"remove_tags","itemId":string,"tags":string[]}\n' +
-    '  {"type":"create_note","title":string,"body":string,"path":string[],"tags":string[]}\n' +
-    '  {"type":"rename_item","itemId":string,"title":string}\n' +
-    '  {"type":"edit_note","itemId":string,"body":string}\n' +
-    '  {"type":"rename_folder","folderId":string,"name":string}\n' +
-    '  {"type":"move_folder","folderId":string,"path":string[]}\n' +
-    '  {"type":"merge_folders","sourceId":string,"targetPath":string[]}\n' +
-    '  {"type":"delete_item","itemId":string}\n' +
-    '  {"type":"delete_folder","folderId":string}\n' +
-    '  {"type":"create_event","title":string,"date":"YYYY-MM-DD","time":"HH:MM"|null,"endTime":"HH:MM"|null,"location":string,"notes":string,"reminders":number[]}\n' +
-    '  {"type":"update_event","eventId":string,"title":string,"date":"YYYY-MM-DD","time":"HH:MM"|null,"location":string,"notes":string,"reminders":number[]}\n' +
-    '  {"type":"delete_event","eventId":string}\n' +
-    '  {"type":"add_person","name":string,"role":"self"|"partner"|"child"|"relative"|"friend"|"other"}\n' +
-    '  {"type":"create_profile","kind":"person"|"business","displayName":string,"role"?:string,"fields":[{"label":string,"value":string,"type"?:string}],"accounts":[{"label":string,"provider"?:string,"kind"?:string,"openedDate"?:string,"renewalDate"?:string,"login"?:string,"value"?:string,"currency"?:string,"url"?:string}],"tags"?:string[]}\n' +
-    '  {"type":"update_profile_field","profileId":string,"label":string,"value":string}\n' +
-    '  {"type":"add_profile_account","profileId":string,"label":string,"provider"?:string,"kind"?:string,"openedDate"?:string,"renewalDate"?:string,"login"?:string,"value"?:string,"currency"?:string,"url"?:string}\n' +
-    '  {"type":"delete_profile","profileId":string}\n' +
-    "Use itemId values only from the candidates, folderId only from FOLDERS, " +
-    "eventId only from CALENDAR, and profileId only from PROFILES. `path` is an array of folder names from the " +
-    "root. Photo folders live under \"Photos\". Respond ONLY with minified " +
-    'JSON: {"answer":string,"citations":string[],"actions":object[]}. ' +
-    "Use [] when there are no actions.";
-  const candidateBlock = candidates
-    .map((c) => {
-      const head = `[${c.id}] ${c.title} (${c.kind ?? "note"}; folder: ${c.folder}; tags: ${c.tags.join(", ") || "none"})`;
-      const own = c.summary || c.body.slice(0, 200);
-      const read = c.extract ? `\nEXTRACT: ${c.extract}` : "";
-      return `${head}\n${own}${read}`;
-    })
-    .join("\n\n");
-  const folderBlock = (body.folders ?? [])
-    .map((f) => `[${f.id}] ${f.path}`)
-    .join("\n");
-  const eventBlock = (body.events ?? [])
-    .map(
-      (e) =>
-        `[${e.id}] ${e.date}${e.time ? ` ${e.time}` : " (all day)"} — ${e.title}` +
-        `${e.location ? ` @ ${e.location}` : ""}${e.notes ? ` — ${e.notes}` : ""}`,
-    )
-    .join("\n");
-  const peopleBlock = (body.people ?? [])
-    .map((p) => `[${p.id}] ${p.name} (${p.role})`)
-    .join("\n");
-  const profileBlock = (body.profiles ?? [])
-    .map((p) => {
-      const bits = [
-        `[${p.id}] ${p.displayName} (${p.kind}${p.role ? `, ${p.role}` : ""}; folder: ${p.folder})`,
-        p.headline ? `headline: ${p.headline}` : "",
-        p.details ? `details: ${p.details}` : "",
-        p.missing?.length ? `MISSING: ${p.missing.join(", ")}` : "",
-        p.accounts?.length ? `accounts: ${p.accounts.join("; ")}` : "",
-      ].filter(Boolean);
-      return bits.join("\n");
-    })
-    .join("\n\n");
-  const user =
-    `FOLDERS (id → path):\n${folderBlock || "(none)"}\n\n` +
-    `FOLDER TREE:\n${(body.folderPaths ?? []).join("\n") || "(none)"}\n\n` +
-    `CALENDAR (upcoming; id → event):\n${eventBlock || "(nothing scheduled)"}\n\n` +
-    `KNOWN PEOPLE:\n${peopleBlock || "(nobody labelled yet)"}\n\n` +
-    `PHOTO FOLDERS:\n${(body.photoCategories ?? []).join(", ") || "(none)"}\n` +
-    `PHOTOS AWAITING REVIEW: ${body.pendingPhotos ?? 0}\n\n` +
-    `PROFILES (id → subject):\n${profileBlock || "(no profiles yet)"}\n\n` +
-    `CANDIDATE ITEMS:\n${candidateBlock || "(none saved yet)"}\n\n` +
-    `QUESTION:\n${body.question ?? ""}`;
-  const content = await callGateway(apiKey, system, user);
-  const p = JSON.parse(content);
-  return {
-    answer: String(p?.answer ?? "").trim(),
-    citations: Array.isArray(p?.citations) ? p.citations.map(String) : [],
-    actions: Array.isArray(p?.actions) ? p.actions : [],
-    engine: "ai" as const,
-  };
+/** A sentence the owner can act on, never a stack. */
+function plainAgentError(err: unknown): string {
+  const t = err instanceof Error ? err.message : String(err);
+  if (/TimeoutError|aborted|timeout/i.test(t)) return "The model took too long to answer. Try again, or pick a faster model in the model menu.";
+  if (/402|credit|insufficient/i.test(t)) return "The AI account is out of credit. Top it up, or switch the model menu to Claude · my subscription.";
+  if (/401|403|unauthor|invalid.*key/i.test(t)) return "The AI key on this server was refused. Check OPENROUTER_API_KEY / AI_GATEWAY_API_KEY.";
+  if (/429|rate/i.test(t)) return "The model is rate-limited right now. Try again in a minute or pick another model.";
+  if (/404|not a valid model|no endpoints/i.test(t)) return "That model isn't available. Pick another one in the model menu.";
+  if (/JSON|Unexpected token/i.test(t)) return "The model answered in the wrong format. Try again, or pick a stronger model.";
+  return `The model call failed: ${t.slice(0, 160)}`;
+}
+
+async function agentWithLLM(body: AgentPromptInput, model: string) {
+  const { system, user } = buildAgentPrompt(body);
+  const content = await callGateway("", system, user, { model, timeoutMs: 100_000 });
+  const p = parseAgentJson(content);
+  if (!p) throw new Error("Model reply was not JSON");
+  return { ...p, engine: "ai" as const };
 }

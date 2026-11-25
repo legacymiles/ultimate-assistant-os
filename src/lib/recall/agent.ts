@@ -14,7 +14,11 @@
 // of safely-parsed commands, so it still finds things offline.
 // ---------------------------------------------------------------------------
 
-import { retrieveForQuestion } from "./search";
+import { retrieveContext, buildOutline, shareable } from "./rag";
+import { buildAgentPrompt, parseAgentJson, type AgentPromptInput, type Turn } from "./agentPrompt";
+import { readChatModel } from "@/lib/new-jarvis/useChatModel";
+import { isSubscription, modelLabel, subscriptionModel } from "@/lib/new-jarvis/chatModels";
+import { call as bridgeCall } from "@/lib/new-jarvis/bridge";
 import { folderPaths } from "./classify";
 import { folderPathString } from "./store";
 import { getEvents, upcoming } from "./calendar/store";
@@ -78,8 +82,9 @@ function heuristicActions(question: string): AgentAction[] {
 export function degradedNotice(): string {
   return [
     "AI is off - this is a keyword search, not an answer.",
-    "Set OPENROUTER_API_KEY (or AI_GATEWAY_API_KEY) in .env.local and restart " +
-      "the dev server to enable reasoning and actions such as moving folders.",
+    "This server has no AI key. Pick \"Claude · my subscription\" in the model menu " +
+      "(uses your PC's Jarvis agent), or set OPENROUTER_API_KEY (or AI_GATEWAY_API_KEY) " +
+      "in .env.local and restart the dev server.",
   ].join("\n");
 }
 
@@ -121,8 +126,97 @@ function heuristicAnswer(
   return `${lead}\n${lines.join("\n")}`;
 }
 
-export async function askAgent(question: string, data: RecallData): Promise<AgentReply> {
-  const candidates = retrieveForQuestion(question, data, 6);
+export interface AskOptions {
+  /** The shared Jarvis model pick. Defaults to the stored pick every chat uses. */
+  model?: string;
+  /** Earlier turns of this chat, oldest first. */
+  history?: Turn[];
+}
+
+type Parsed = NonNullable<ReturnType<typeof parseAgentJson>>;
+type Round =
+  | { ok: true; parsed: Parsed; model: string; brain: "subscription" | "cloud"; note?: string }
+  | { ok: false; noKey?: boolean; error?: string };
+
+/**
+ * One call through the shared Jarvis harness. "Claude · my subscription" goes
+ * to the PC agent's /brain/claude (the same brain the main chat uses); every
+ * other pick goes to the cloud route with that model. If the PC agent can't be
+ * reached, the cloud answers and the reply says so.
+ */
+async function oneRound(payload: AgentPromptInput, model: string): Promise<Round> {
+  let note: string | undefined;
+  if (isSubscription(model)) {
+    try {
+      const { system, user } = buildAgentPrompt(payload);
+      const r = await bridgeCall<{ text?: string; model?: string }>("brain/claude", {
+        system,
+        tools: [],
+        raw: true,
+        model: subscriptionModel(model),
+        messages: [{ role: "user", content: user }],
+      });
+      const text = String(r.text ?? "").trim();
+      const parsed = parseAgentJson(text);
+      if (parsed) return { ok: true, parsed, model: String(r.model ?? model), brain: "subscription" };
+      // Not JSON: Claude answered in prose. Still an answer — keep it.
+      if (text) return { ok: true, parsed: { answer: text, citations: [], actions: [], read: [] }, model: String(r.model ?? model), brain: "subscription" };
+    } catch (e) {
+      note = `Your PC's Claude wasn't reachable (${e instanceof Error ? e.message : String(e)}), so the cloud model answered.`;
+    }
+  }
+  try {
+    const res = await fetch("/api/recall", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ...payload, stage: "agent", model: isSubscription(model) ? "" : model }),
+    });
+    const out = (await res.json().catch(() => ({}))) as {
+      reply?: { answer?: string; citations?: string[]; actions?: unknown[]; read?: string[] } | null;
+      noKey?: boolean;
+      error?: string;
+      model?: string;
+    };
+    const r = out.reply;
+    if (r && (r.answer?.trim() || r.read?.length || r.actions?.length)) {
+      return {
+        ok: true,
+        parsed: {
+          answer: String(r.answer ?? "").trim(),
+          citations: (r.citations ?? []).map(String),
+          actions: r.actions ?? [],
+          read: (r.read ?? []).map(String),
+        },
+        model: out.model ?? model,
+        brain: "cloud",
+        note,
+      };
+    }
+    if (out.noKey) return { ok: false, noKey: true, error: note };
+    return { ok: false, error: out.error ?? (res.ok ? "The model sent an empty answer." : `The Folders route answered ${res.status}.`) };
+  } catch (e) {
+    return { ok: false, error: `Couldn't reach the Folders route: ${e instanceof Error ? e.message : String(e)}` };
+  }
+}
+
+function toCandidate(it: Item, data: RecallData) {
+  return {
+    id: it.id,
+    title: it.title,
+    summary: it.summary,
+    body: it.body.slice(0, 2400),
+    // The text read out of the file itself — this is what lets the agent
+    // answer from the CONTENTS of a PDF or a screenshot, not its name.
+    extract: it.extract?.slice(0, 2400),
+    kind: it.kind,
+    folder: folderPathString(data.folders, it.folderId),
+    tags: it.people?.length ? [...it.tags, ...it.people.map((p) => `person:${p}`)] : it.tags,
+  };
+}
+
+export async function askAgent(question: string, data: RecallData, opts: AskOptions = {}): Promise<AgentReply> {
+  const model = opts.model ?? readChatModel();
+  const candidates = retrieveContext(question, data, 8);
   const allEvents = getEvents();
   const soon = upcoming(allEvents, 25);
   const photos = getPhotos();
@@ -132,7 +226,6 @@ export async function askAgent(question: string, data: RecallData): Promise<Agen
   // on the device; the assistant sees the label and knows it is missing/known,
   // which is enough to ask the right question without shipping the secret.
   const profilePayload = (data.profiles ?? []).map((profile) => {
-
     const completeness = profileCompleteness(profile);
     const details = profile.fields
       .filter((f) => f.value.trim() && !isSensitiveField(f))
@@ -162,70 +255,84 @@ export async function askAgent(question: string, data: RecallData): Promise<Agen
     };
   });
 
-  try {
-    const res = await fetch("/api/recall", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        stage: "agent",
-        question,
-        candidates: candidates.map((it) => ({
-          id: it.id,
-          title: it.title,
-          summary: it.summary,
-          body: it.body.slice(0, 1200),
-          // The text read out of the file itself — this is what lets the agent
-          // answer from the CONTENTS of a PDF or a screenshot, not its name.
-          extract: it.extract?.slice(0, 2000),
-          kind: it.kind,
-          folder: folderPathString(data.folders, it.folderId),
-          tags: it.tags,
-        })),
-        folderPaths: folderPaths(data.folders),
-        // Folder ids so the agent can propose rename/move/merge/delete on them.
-        folders: data.folders.map((f) => ({
-          id: f.id,
-          path: folderPathString(data.folders, f.id),
-        })),
-        // The assistant has no clock of its own; without today, every "next
-        // Tuesday" it writes to the calendar lands on the wrong day.
-        today: todayKey(),
-        events: soon.map((e) => ({
-          id: e.id,
-          title: e.title,
-          date: e.date,
-          time: e.time ?? null,
-          location: e.location ?? null,
-          notes: e.notes?.slice(0, 200) ?? null,
-        })),
-        people: photos.people.map((p) => ({ id: p.id, name: p.name, role: ROLE_LABELS[p.role] })),
-        photoCategories: photos.categories.map((c) => c.name),
-        pendingPhotos: pendingCount,
-        profiles: profilePayload,
-      }),
-    });
-    if (res.ok) {
-      const out = (await res.json()) as { reply?: Partial<AgentReply> | null };
-      const r = out.reply;
-      if (r && typeof r.answer === "string" && r.answer.trim()) {
-        return {
-          answer: r.answer.trim(),
-          citations: sanitizeCitations(r.citations, candidates),
-          actions: sanitizeActions(r.actions, data, allEvents),
-          engine: "ai",
-        };
-      }
+  const shortlist = new Set(candidates.map((c) => c.id));
+  const outline = buildOutline(data, { skip: shortlist });
+  const payload: AgentPromptInput = {
+    question,
+    candidates: candidates.map((it) => toCandidate(it, data)),
+    folderPaths: folderPaths(data.folders),
+    // Folder ids so the agent can propose rename/move/merge/delete on them.
+    folders: data.folders.map((f) => ({ id: f.id, path: folderPathString(data.folders, f.id) })),
+    // The assistant has no clock of its own; without today, every "next
+    // Tuesday" it writes to the calendar lands on the wrong day.
+    today: todayKey(),
+    events: soon.map((e) => ({
+      id: e.id,
+      title: e.title,
+      date: e.date,
+      time: e.time ?? null,
+      location: e.location ?? null,
+      notes: e.notes?.slice(0, 200) ?? null,
+    })),
+    people: photos.people.map((p) => ({ id: p.id, name: p.name, role: ROLE_LABELS[p.role] })),
+    photoCategories: photos.categories.map((c) => c.name),
+    pendingPhotos: pendingCount,
+    profiles: profilePayload,
+    outline: outline.entries,
+    outlineOmitted: outline.omitted,
+    history: opts.history?.slice(-8),
+  };
+
+  let round = await oneRound(payload, model);
+  let used = candidates;
+
+  // Second pass: the model read the outline and asked for the items it needs.
+  if (round.ok && round.parsed.read.length) {
+    const byId = new Map(shareable(data.items).map((i) => [i.id, i]));
+    const extra: Item[] = [];
+    for (const id of round.parsed.read) {
+      const it = byId.get(id);
+      if (it && !shortlist.has(it.id)) extra.push(it);
     }
-  } catch {
-    /* fall through to heuristic */
+    if (extra.length) {
+      used = [...candidates, ...extra];
+      const again = await oneRound(
+        {
+          ...payload,
+          candidates: used.map((it) => toCandidate(it, data)),
+          outline: buildOutline(data, { skip: new Set(used.map((i) => i.id)) }).entries,
+          finalPass: true,
+        },
+        model,
+      );
+      if (again.ok) round = again;
+    }
   }
 
+  if (round.ok && (round.parsed.answer || round.parsed.actions.length)) {
+    return {
+      answer: [round.parsed.answer || "Here's what I propose:", round.note].filter(Boolean).join("\n\n"),
+      citations: sanitizeCitations(round.parsed.citations, shareable(data.items)),
+      actions: sanitizeActions(round.parsed.actions, data, allEvents),
+      engine: "ai",
+      model: round.model,
+      brain: round.brain,
+    };
+  }
+
+  const hits = heuristicAnswer(question, used, data.folders, soon);
+  if (!round.ok && !round.noKey) {
+    return {
+      answer: `${round.error ?? "The AI call failed."}\n\nMeanwhile, a plain search found:\n${hits}`,
+      citations: used.slice(0, 3).map((c) => c.id),
+      actions: [],
+      engine: "error",
+      model: modelLabel(model),
+    };
+  }
   return {
-    answer: [
-      degradedNotice(),
-      heuristicAnswer(question, candidates, data.folders, soon),
-    ].join("\n\n"),
-    citations: candidates.slice(0, 3).map((c) => c.id),
+    answer: [degradedNotice(), hits].join("\n\n"),
+    citations: used.slice(0, 3).map((c) => c.id),
     actions: heuristicActions(question),
     engine: "heuristic",
   };
@@ -331,8 +438,10 @@ export function sanitizeActions(input: unknown, data: RecallData, events: Calend
         if (itemIds.has(itemId) && tags.length) out.push({ type, itemId, tags });
         break;
       case "create_note":
-        if (title && typeof raw?.body === "string")
-          out.push({ type, title, body: raw.body, path, tags });
+        if (title && typeof raw?.body === "string") {
+          const reason = optionalText(raw?.reason);
+          out.push({ type, title, body: raw.body, path, tags, ...(reason ? { reason } : {}) });
+        }
         break;
       case "rename_item":
         if (itemIds.has(itemId) && title) out.push({ type, itemId, title });
@@ -484,5 +593,13 @@ export function sanitizeActions(input: unknown, data: RecallData, events: Calend
     }
     if (out.length >= 8) break;
   }
-  return out;
+  // A save creates its own missing folders, so a separate "create folder" for
+  // the same path (or a parent of it) is a second button doing nothing new.
+  const norm = (p: string[]) => p.map((x) => x.trim().toLowerCase());
+  const savePaths = out.filter((a): a is Extract<AgentAction, { type: "create_note" }> => a.type === "create_note").map((a) => norm(a.path));
+  return out.filter(
+    (a) =>
+      a.type !== "create_folder" ||
+      !savePaths.some((sp) => norm(a.path).length <= sp.length && norm(a.path).every((x, i) => x === sp[i])),
+  );
 }

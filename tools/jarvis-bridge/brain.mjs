@@ -123,7 +123,7 @@ let seq = 0;
  * One step of thinking. Returns the same shape the website's agent route does:
  * { toolCall, assistant, text } or { text }.
  */
-export async function think({ system = "", tools = [], messages = [], model = "" } = {}) {
+export async function think({ system = "", tools = [], messages = [], model = "", raw = false } = {}) {
   let query;
   try {
     ({ query } = await import("@anthropic-ai/claude-agent-sdk"));
@@ -133,7 +133,9 @@ export async function think({ system = "", tools = [], messages = [], model = ""
   mkdirSync(SCRATCH, { recursive: true });
 
   const { text, images } = transcript(messages);
-  const systemPrompt = [system, toolCatalog(tools), PROTOCOL].filter(Boolean).join("\n\n");
+  // `raw`: an app agent with its own reply format (the Folders agent answers in
+  // its own JSON) gets Claude's text back untouched instead of one tool move.
+  const systemPrompt = raw ? system : [system, toolCatalog(tools), PROTOCOL].filter(Boolean).join("\n\n");
 
   async function* prompt() {
     yield {
@@ -153,11 +155,19 @@ export async function think({ system = "", tools = [], messages = [], model = ""
       options: {
         cwd: SCRATCH,
         systemPrompt,
-        maxTurns: 1,
-        // Claude Code's own tools stay off: Jarvis's tools run through the
-        // page and this bridge, with their own gates.
+        // Claude Code's own tools are REMOVED, not merely denied: Jarvis's tools
+        // run through the page and this bridge, with their own gates.
+        // (`allowedTools: []` only lists what is auto-approved — the built-in
+        // tools stayed visible, Claude reached for one, the deny used up the
+        // single turn and the SDK threw "Reached maximum number of turns (1)".
+        // That was the main chat's error. `tools: []` takes them out of view.)
+        tools: [],
+        mcpServers: {},
+        // One JSON move is still the contract; the headroom only absorbs a
+        // stray tool attempt instead of failing the whole chat step.
+        maxTurns: 3,
         allowedTools: [],
-        canUseTool: async () => ({ behavior: "deny", message: "Answer with one JSON move instead of calling tools." }),
+        canUseTool: async () => ({ behavior: "deny", message: "No tools here. Reply with exactly one JSON move as text." }),
         // Nothing from the PC's Claude Code settings or CLAUDE.md files leaks
         // into Jarvis's prompt.
         settingSources: [],
@@ -176,12 +186,16 @@ export async function think({ system = "", tools = [], messages = [], model = ""
       }
     }
   } catch (e) {
-    throw Object.assign(new Error(explainBrainError(e)), { status: 502 });
+    // A turn cap after Claude already wrote its move is not a failure: use the move.
+    if (!(reply.trim() && /maximum number of turns|max_turns/i.test(String(e?.message ?? e)))) {
+      throw Object.assign(new Error(explainBrainError(e)), { status: 502 });
+    }
   }
   if (!reply && failure) throw Object.assign(new Error(explainBrainError(failure)), { status: 502 });
 
-  const move = parseMove(reply);
   const model_ = usedModel ? `claude-subscription:${usedModel}` : "claude-subscription";
+  if (raw) return { toolCall: null, text: reply.trim() || "Nothing came back.", model: model_ };
+  const move = parseMove(reply);
   if (move.tool) {
     const id = `call_${Date.now().toString(36)}_${(seq++).toString(36)}`;
     const args = JSON.stringify(move.args);

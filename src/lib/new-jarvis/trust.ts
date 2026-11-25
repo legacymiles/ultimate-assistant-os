@@ -130,6 +130,10 @@ export function alwaysAsk(op: BridgeOp): boolean {
   switch (route) {
     case "hub/record_capture":
       return true;
+    // Saving into Folders always shows the owner what and where first
+    // (owner's rule, Nov 2026: nothing is filed without a yes).
+    case "hub/dashboard_add_note":
+      return true;
     case "vault/write":
       return args.overwrite === true;
     case "shell":

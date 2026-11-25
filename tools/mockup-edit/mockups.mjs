@@ -373,11 +373,24 @@ async function start() {
   if (lock) say(`mocking up in the direction locked on ${lock.page}: "${lock.label}"`);
 
   await ensureHelper();
-  say(`photographing ${url} at ${device} width…`);
-  const shot = await shoot({ url, ...SHOT[device] }).catch((e) => fail(`Couldn't photograph the page: ${e.message}`));
-  const before = bytesOf(shot.image);
-  const beforeFile = path.join(out, `before.${before.ext}`);
-  await writeFile(beforeFile, before.bytes);
+  // --before <png|jpg>: a screenshot taken elsewhere (e.g. the app's own browser
+  // pane) for pages headless Chrome can't photograph — heavy WebGL, logins.
+  const given = flag("before");
+  let beforeFile;
+  if (given) {
+    if (!existsSync(given)) fail(`No file at --before ${given}`);
+    beforeFile = path.join(out, `before${path.extname(given).toLowerCase() || ".png"}`);
+    await writeFile(beforeFile, await readFile(given));
+    say(`using the given screenshot as "before" (${given})`);
+  } else {
+    say(`photographing ${url} at ${device} width…`);
+    const shot = await shoot({ url, ...SHOT[device] }).catch((e) =>
+      fail(`Couldn't photograph the page: ${e.message}. Take a screenshot yourself and pass it with --before <file>.`),
+    );
+    const before = bytesOf(shot.image);
+    beforeFile = path.join(out, `before.${before.ext}`);
+    await writeFile(beforeFile, before.bytes);
+  }
 
   const markup = await pageMarkup(url);
   const markupFile = path.join(out, "page.html");

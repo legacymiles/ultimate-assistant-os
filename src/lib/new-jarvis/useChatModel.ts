@@ -13,16 +13,35 @@ import { useCallback, useEffect, useState } from "react";
 import { CHAT_MODEL_KEY } from "./chatModels";
 import { loadLocal, saveSynced } from "@/lib/sync/appState";
 
+/**
+ * Fired on this page whenever any chat changes the pick, so the others follow
+ * at once instead of on the next reload (the synced key alone only reaches
+ * other devices).
+ */
+export const CHAT_MODEL_EVENT = "jarvis:chat-model";
+
+export function announceChatModel(id: string): void {
+  try {
+    window.dispatchEvent(new CustomEvent<string>(CHAT_MODEL_EVENT, { detail: id }));
+  } catch {
+    /* no window (tests, server) */
+  }
+}
+
 export function useChatModel() {
   const [model, setModelState] = useState("");
 
   useEffect(() => {
     setModelState(loadLocal<string>(CHAT_MODEL_KEY, ""));
+    const follow = (e: Event) => setModelState(String((e as CustomEvent<string>).detail ?? ""));
+    window.addEventListener(CHAT_MODEL_EVENT, follow);
+    return () => window.removeEventListener(CHAT_MODEL_EVENT, follow);
   }, []);
 
   const setModel = useCallback((id: string) => {
     setModelState(id);
     saveSynced(CHAT_MODEL_KEY, id);
+    announceChatModel(id);
   }, []);
 
   return { model, setModel };

@@ -423,11 +423,32 @@ export const AGENT_TOOLS: AgentTool[] = [
     name: "dashboard_add_note",
     kind: "hub",
     route: "hub/dashboard_add_note",
-    description: "Save a note into one of the owner's folders.",
+    description:
+      "Save a note into the owner's Folders (nested: folders inside folders). Use folders_ask first when you are not "
+      + "sure where it belongs. Keep the owner's text whole — do not summarise facts away. The owner always sees the "
+      + "content and the exact destination and confirms before it is saved.",
     parameters: {
       type: "object",
-      properties: { title: str("Note title."), body: str("The note."), folder: str("Folder name.") },
+      properties: {
+        title: str("Note title."),
+        body: str("The note, verbatim or lightly formatted."),
+        folder: str("Folder path from the root, e.g. 'Trading > Gold Strategies'. Leave empty for Unfiled."),
+      },
       required: ["title", "body"],
+    },
+  },
+  {
+    name: "folders_ask",
+    kind: "hub",
+    route: "hub/folders_ask",
+    description:
+      "Ask the owner's Folders agent (their nested knowledge base, with RAG over everything saved). Use it for "
+      + "'where did I save…', 'what did I write about…', 'summarise my X folder', and to find the best existing folder "
+      + "before dashboard_add_note. Returns the answer with each source's title and folder path. Read-only.",
+    parameters: {
+      type: "object",
+      properties: { question: str("The question, in the owner's words.") },
+      required: ["question"],
     },
   },
   {

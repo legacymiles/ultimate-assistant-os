@@ -127,3 +127,20 @@ describe("degraded mode announces itself", () => {
     expect(degradedNotice()).toMatch(/OPENROUTER_API_KEY|AI_GATEWAY_API_KEY/);
   });
 });
+
+describe("save proposals", () => {
+  it("drops a create_folder that the save already covers", () => {
+    const out = sanitizeActions(
+      [
+        { type: "create_folder", path: ["Trading", "Gold Strategies"] },
+        { type: "create_folder", path: ["Recipes"] },
+        { type: "create_note", title: "NY fade", body: "sell the 10:00 high", path: ["trading", "gold strategies"], tags: [], reason: "asked for" },
+      ],
+      DATA,
+      [],
+    );
+    expect(out.map((a) => a.type)).toEqual(["create_folder", "create_note"]);
+    expect(out[0]).toEqual({ type: "create_folder", path: ["Recipes"] });
+    expect(out[1]).toMatchObject({ reason: "asked for" });
+  });
+});

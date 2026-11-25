@@ -18,6 +18,8 @@ import { askHarness, harnessStatus, type HarnessStatus } from "./harnessBrain";
 import { offlineBrain } from "./offline";
 import { gapsFor, needsResearch, researchBlock, researchQuery, subjectOf, type WebNote } from "./research";
 import type { AgentReply, ProfilesData } from "./types";
+import { readChatModel } from "@/lib/new-jarvis/useChatModel";
+import { isSubscription, modelLabel } from "@/lib/new-jarvis/chatModels";
 
 export interface AskInput {
   data: ProfilesData;
@@ -104,10 +106,14 @@ async function viaHarness(input: AskInput, label: string, found: Found[], web: W
 }
 
 async function viaCloud(input: AskInput, found: Found[], web: WebContext): Promise<Answer> {
+  // The one model pick every Jarvis chat shares. A subscription pick means the
+  // PC harness — when the cloud is the fallback, the hub default answers.
+  const pick = readChatModel();
+  const model = pick && !isSubscription(pick) ? pick : "";
   const res = await fetch("/api/profiles/agent", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ system: systemPrompt(input.data, input.here, "", foundBlock(found), web) + scopeLine(input), history: input.history, message: input.message }),
+    body: JSON.stringify({ system: systemPrompt(input.data, input.here, "", foundBlock(found), web) + scopeLine(input), history: input.history, message: input.message, model }),
     signal: input.signal,
   });
   const json = (await res.json().catch(() => ({}))) as { text?: string; error?: string; offline?: boolean };
@@ -118,7 +124,7 @@ async function viaCloud(input: AskInput, found: Found[], web: WebContext): Promi
   }
   const { text, actions } = parseReply(json.text);
   input.onText?.(text);
-  return { text: text || "Done.", actions, by: "cloud", label: "Cloud", found };
+  return { text: text || "Done.", actions, by: "cloud", label: model ? `Cloud · ${modelLabel(model)}` : "Cloud", found };
 }
 
 function viaOffline(input: AskInput, found: Found[], note?: string): Answer {

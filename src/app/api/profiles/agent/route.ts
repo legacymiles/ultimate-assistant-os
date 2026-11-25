@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { aiFetch, describeFailure } from "@/lib/ai/provider";
+import { isModelId } from "@/lib/new-jarvis/chatModels";
 
 // ---------------------------------------------------------------------------
 // The Profiles chat's cloud brain.
@@ -22,6 +23,8 @@ interface Body {
   system?: string;
   history?: { role?: string; text?: string }[];
   message?: string;
+  /** The shared Jarvis model pick; "" = the hub default. */
+  model?: string;
 }
 
 const MAX = 120_000;
@@ -47,6 +50,7 @@ export async function POST(req: Request) {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
+        ...(isModelId(body.model) ? { model: body.model } : {}),
         temperature: 0.2,
         messages: [{ role: "system", content: system }, ...history, { role: "user", content: message }],
       }),

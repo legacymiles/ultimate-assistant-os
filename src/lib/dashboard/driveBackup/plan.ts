@@ -88,7 +88,8 @@ export interface BackupPlan {
 }
 
 /** Kinds that are a line in a folder's list rather than a file of their own. */
-const LIST_KINDS = new Set<Item["kind"]>(["link", "website", "todo", "credential", "drive"]);
+/** Kinds backed up together as one list doc per folder, not one file each. */
+export const LIST_KINDS = new Set<Item["kind"]>(["link", "website", "todo", "credential", "drive"]);
 
 /** Field names that may hold a secret. Dropped before any text is built. */
 const SECRET_FIELD = /pass|secret|token|pin|key|otp|2fa/i;

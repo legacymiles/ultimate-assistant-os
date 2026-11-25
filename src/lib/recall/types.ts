@@ -332,7 +332,7 @@ export type AgentAction =
   | { type: "move_items"; itemIds: string[]; path: string[] }
   | { type: "add_tags"; itemId: string; tags: string[] }
   | { type: "remove_tags"; itemId: string; tags: string[] }
-  | { type: "create_note"; title: string; body: string; path: string[]; tags: string[] }
+  | { type: "create_note"; title: string; body: string; path: string[]; tags: string[]; reason?: string }
   | { type: "rename_item"; itemId: string; title: string }
   | { type: "edit_note"; itemId: string; body: string }
   | { type: "rename_folder"; folderId: string; name: string }
@@ -429,7 +429,12 @@ export interface AgentReply {
   /** Item ids the answer draws from — rendered as source chips. */
   citations: string[];
   actions: AgentAction[];
-  engine: "ai" | "heuristic";
+  /** ai = a model answered; heuristic = no AI configured; error = the AI call failed. */
+  engine: "ai" | "heuristic" | "error";
+  /** Which model answered, e.g. "claude-subscription:claude-opus-5-5". */
+  model?: string;
+  /** Which half of the shared harness answered. */
+  brain?: "subscription" | "cloud";
 }
 
 export interface ChatMessage {
@@ -440,5 +445,7 @@ export interface ChatMessage {
   actions?: AgentAction[];
   /** Marks actions the user already confirmed/dismissed so chips settle. */
   actionState?: "pending" | "applied" | "dismissed";
-  engine?: "ai" | "heuristic";
+  engine?: "ai" | "heuristic" | "error";
+  model?: string;
+  brain?: "subscription" | "cloud";
 }

@@ -13,7 +13,7 @@ import {
   PHOTOS_KEY,
   UNSORTED_PEOPLE_PATH,
 } from "@/lib/recall/photos/store";
-import { PHOTO_ACCENTS, PHOTOS_ROOT } from "@/lib/recall/photos/types";
+import { PHOTOS_ROOT } from "@/lib/recall/photos/types";
 import type { PendingPhoto, PhotoCategory, PhotosData } from "@/lib/recall/photos/types";
 import {
   approvePhotos,
@@ -46,6 +46,8 @@ import { ReviewQueue, type NewAlbum } from "./ReviewQueue";
 import { PeopleManager } from "./PeopleManager";
 import { IphoneSources } from "./IphoneSources";
 import { VideosBoard } from "./VideosBoard";
+import { cachedFaces } from "@/lib/identity/faces";
+import { relTime } from "@/lib/recall/folderStats";
 import {
   ensureVideosRoot,
   importVideos,
@@ -115,6 +117,10 @@ export function PhotosBoard({
   const [albumEdit, setAlbumEdit] = useState<{ category: PhotoCategory | null } | null>(null);
   /** The user's instructions for what they are importing, read by the agent. */
   const [instruction, setInstruction] = useState("");
+  /** The example instructions show while the box is in use, not all the time. */
+  const [instructionFocus, setInstructionFocus] = useState(false);
+  /** iPhone import / Autopilot: a quiet chip that opens the full panel. */
+  const [iphoneOpen, setIphoneOpen] = useState(false);
   /** What the agent did with those instructions on the last import. */
   const [planNote, setPlanNote] = useState<{ note?: string; couldNot: string[] } | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -604,21 +610,44 @@ export function PhotosBoard({
     );
   }
 
+  /** Photos a person appears in, anywhere under Photos (by identity, else by name). */
+  const photosOf = (person: PhotosData["people"][number]) =>
+    allPhotos.filter(
+      (it) =>
+        (person.identityId && it.identityIds?.includes(person.identityId)) ||
+        it.people?.some((n) => n.toLowerCase() === person.name.toLowerCase()),
+    ).length;
+
+  /** An album's cover pictures (newest first), who is in it and when it last changed. */
+  const albumLook = (folderId: string) => {
+    const ids = descendantFolderIds(data.folders, folderId);
+    const inside = data.items
+      .filter((i) => i.folderId && ids.has(i.folderId))
+      .sort((a, b) => (b.updatedAt || b.createdAt).localeCompare(a.updatedAt || a.createdAt));
+    const people = [...new Set(inside.flatMap((i) => i.people ?? []))];
+    return {
+      covers: inside.map((i) => i.attachment?.url).filter((u): u is string => Boolean(u)).slice(0, 3),
+      people,
+      updatedAt: inside[0] ? inside[0].updatedAt || inside[0].createdAt : null,
+    };
+  };
+
   const needsSetup = photos.people.length === 0;
   const withoutFaces = photos.people.filter((p) => p.refs.length === 0);
 
   return (
     <div>
       {/* Header */}
-      <div className="mb-4 flex flex-wrap items-center gap-2">
-        <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-amber-400/15 text-amber-300">
-          <Icon.Image width={17} height={17} />
-        </span>
-        <div className="mr-auto">
-          <p className="text-sm font-semibold text-ink">Photos</p>
-          <p className="text-[11px] text-ink-muted">
-            {totalPhotos} filed · {tiles.length} {tiles.length === 1 ? "folder" : "folders"} ·{" "}
-            {photos.people.length} {photos.people.length === 1 ? "person" : "people"} labelled
+      <div className="mb-3 flex flex-wrap items-end gap-2">
+        <div className="mr-auto flex flex-wrap items-end gap-x-3 gap-y-0.5">
+          <div>
+            <p className="font-mono text-[10.5px] text-ink-faint">All › Photos</p>
+            <h1 className="text-xl font-bold tracking-tight text-ink">Photos</h1>
+          </div>
+          <p className="pb-1 text-[11px] tabular-nums text-ink-faint">
+            {totalPhotos} {totalPhotos === 1 ? "photo" : "photos"} · {photos.people.length}{" "}
+            {photos.people.length === 1 ? "person" : "people"}
+            {pending.length > 0 && ` · ${pending.length} to review`}
             {totalVideos > 0 && ` · ${totalVideos} ${totalVideos === 1 ? "clip" : "clips"}`}
           </p>
         </div>
@@ -703,21 +732,24 @@ export function PhotosBoard({
         into a collage" has to change the pictures before any of them is
         queued, not merely colour how they are filed.
       */}
-      <label className="mb-1.5 block">
-        <span className="mb-1 block text-[10px] font-semibold uppercase tracking-wider text-ink-faint">
-          Tell the agent what to do with them{" "}
-          <span className="normal-case tracking-normal text-ink-faint/70">
-            optional — applies to the next batch you add
-          </span>
+      <label
+        className="mb-1.5 flex h-[38px] items-center gap-2.5 rounded-xl border border-line bg-canvas px-3 transition focus-within:border-brand focus-within:ring-2 focus-within:ring-brand/25"
+        title="Optional — applies to the next batch you add"
+      >
+        <span className="shrink-0 font-mono text-[9.5px] uppercase tracking-[0.12em] text-ink-muted">
+          Tell the agent
         </span>
         <input
           value={instruction}
           onChange={(e) => setInstruction(e.target.value)}
+          onFocus={() => setInstructionFocus(true)}
+          onBlur={() => setTimeout(() => setInstructionFocus(false), 150)}
           placeholder='e.g. "make these into a collage and put a short quote about hard work at the bottom"'
-          className="w-full rounded-xl border border-line bg-canvas px-3 py-2 text-xs text-ink outline-none placeholder:text-ink-faint focus:border-brand focus:ring-2 focus:ring-brand/25"
+          className="min-w-0 flex-1 bg-transparent text-xs text-ink outline-none placeholder:text-ink-faint"
         />
       </label>
 
+      {(instructionFocus || instruction) && (
       <div className="mb-2 flex flex-wrap gap-1.5">
         {[
           "Make these into a collage",
@@ -733,6 +765,7 @@ export function PhotosBoard({
           </button>
         ))}
       </div>
+      )}
 
       {planNote && (
         <div className="mb-2 rounded-xl border border-brand/30 bg-brand/[0.06] px-3 py-2 text-[11.5px] leading-relaxed">
@@ -750,11 +783,58 @@ export function PhotosBoard({
         </div>
       )}
 
-      <IphoneSources
-        busy={Boolean(busy)}
-        onImport={(files) => runImport(files)}
-        onToast={onToast}
-      />
+      {/* Quiet status chips: iPhone import and who Photos can recognise. */}
+      <div className="mb-3 mt-2.5 flex flex-wrap gap-2">
+        <button
+          onClick={() => setIphoneOpen((v) => !v)}
+          aria-expanded={iphoneOpen}
+          className={
+            "inline-flex items-center gap-2 rounded-full border px-3 py-1 text-[11px] transition " +
+            (iphoneOpen ? "border-brand/50 bg-brand/10 text-ink" : "border-line bg-panel text-ink-muted hover:text-ink")
+          }
+        >
+          <span className="h-1.5 w-1.5 rounded-full bg-sky-400" />
+          Get photos from your iPhone
+          <Icon.Chevron width={10} height={10} className={"transition " + (iphoneOpen ? "-rotate-90" : "rotate-90")} />
+        </button>
+        {needsSetup ? (
+          <button
+            onClick={() => setPeopleOpen(true)}
+            title="Add yourself, your partner and your kids, with two or three clear photos of each face. New photos then sort into Selfies, Me & …, My Little Family and a folder per person — and receipts, screenshots or flyers go to your knowledge base or calendar instead."
+            className="inline-flex items-center gap-2 rounded-full border border-amber-400/40 bg-amber-400/[0.07] px-3 py-1 text-[11px] text-amber-200 transition hover:bg-amber-400/15"
+          >
+            <span className="h-1.5 w-1.5 rounded-full bg-amber-300" />
+            Teach who&apos;s who — add people so photos sort by face
+          </button>
+        ) : (
+          <span className="inline-flex items-center gap-2 rounded-full border border-line bg-panel px-3 py-1 text-[11px] text-ink-muted">
+            <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
+            {photos.people.length - withoutFaces.length} of {photos.people.length}{" "}
+            {photos.people.length === 1 ? "person" : "people"} recognisable
+          </span>
+        )}
+        {!needsSetup && withoutFaces.length > 0 && (
+          <button
+            onClick={() => setPeopleOpen(true)}
+            className="inline-flex items-center gap-2 rounded-full border border-amber-400/40 bg-amber-400/[0.07] px-3 py-1 text-[11px] text-amber-200 transition hover:bg-amber-400/15"
+          >
+            <span className="h-1.5 w-1.5 rounded-full bg-amber-300" />
+            {withoutFaces.map((p) => p.name).join(", ")} {withoutFaces.length === 1 ? "has" : "have"} no reference photos
+          </button>
+        )}
+      </div>
+
+      {iphoneOpen && (
+        <div className="mb-3">
+          <IphoneSources busy={Boolean(busy)} onImport={(files) => runImport(files)} onToast={onToast} />
+          <p className="-mt-1 mb-1 text-[11px] leading-relaxed text-ink-faint">
+            <strong className="text-ink-muted">Two ways in.</strong> <em>Import now</em> opens your camera roll and
+            you pick — a web page cannot select photos for you, which is an iOS rule, not a missing feature here.{" "}
+            <em>Autopilot</em> installs a Shortcut on the phone that takes the last N by itself and can run
+            unattended; that is the only path that syncs without you.
+          </p>
+        </div>
+      )}
 
       {busy && (
         <div className="mb-3 flex items-center gap-2 rounded-xl border border-amber-400/30 bg-amber-400/5 px-3 py-2 text-[11.5px] text-amber-200">
@@ -763,38 +843,15 @@ export function PhotosBoard({
         </div>
       )}
 
-      {/* Setup nudge — the one thing that must happen before any of this works */}
-      {needsSetup && (
-        <div className="mb-4 rounded-2xl border border-amber-400/30 bg-amber-400/[0.06] p-4">
-          <p className="text-sm font-semibold text-ink">Teach Dashboard who&apos;s who first</p>
-          <p className="mt-1 max-w-xl text-[11.5px] leading-relaxed text-ink-muted">
-            Add yourself, your partner and your kids, with two or three clear photos of each face.
-            Dashboard then sorts new photos into <em>Selfies</em>, <em>Me &amp; …</em>,{" "}
-            <em>My Little Family</em> and a folder per person on its own — and anything that turns
-            out to be a receipt, a screenshot or a flyer goes to your knowledge base or your
-            calendar instead.
-          </p>
-          <button
-            onClick={() => setPeopleOpen(true)}
-            className="mt-3 inline-flex items-center gap-1.5 rounded-xl bg-amber-500 px-3 py-2 text-[13px] font-semibold text-black transition hover:bg-amber-400"
-          >
-            <Icon.Users width={15} height={15} /> Add people
-          </button>
+      {/* Needs you — the review queue, under a heading that says what it is. */}
+      {pending.length > 0 && (
+        <div className="mb-2 mt-1 flex items-baseline gap-2.5">
+          <h2 className="text-[13px] font-bold text-ink">Needs you</h2>
+          <span className="text-[11px] text-ink-faint">
+            {pending.length} {pending.length === 1 ? "photo" : "photos"} waiting for a yes
+          </span>
         </div>
       )}
-
-      {!needsSetup && withoutFaces.length > 0 && (
-        <p className="mb-3 rounded-xl border border-amber-400/30 bg-amber-400/[0.06] px-3 py-2 text-[11.5px] text-amber-200">
-          {withoutFaces.map((p) => p.name).join(", ")}{" "}
-          {withoutFaces.length === 1 ? "has" : "have"} no reference photos yet, so{" "}
-          {withoutFaces.length === 1 ? "they can't" : "they can't"} be recognised.{" "}
-          <button onClick={() => setPeopleOpen(true)} className="underline hover:text-amber-100">
-            Add some
-          </button>
-          .
-        </p>
-      )}
-
       <ReviewQueue
         pending={pending}
         photos={photos}
@@ -809,15 +866,66 @@ export function PhotosBoard({
         onConfirmFace={(id, personId, yes) => setPending(confirmFace(id, personId, yes))}
       />
 
+      {/* People — who Photos can recognise, from Profiles. */}
+      {photos.people.length > 0 && (
+        <section className="mb-2 mt-5">
+          <div className="mb-2.5 flex items-baseline gap-2.5">
+            <h2 className="text-[13px] font-bold text-ink">People</h2>
+            <span className="text-[11px] text-ink-faint">
+              {photos.people.some((p) => p.identityId) ? "from Profiles · face recognition on" : "the faces Photos sorts by"}
+            </span>
+            <button onClick={() => setPeopleOpen(true)} className="ml-auto text-[11px] text-brand hover:underline">
+              Manage →
+            </button>
+          </div>
+          <div className="flex gap-3 overflow-x-auto pb-1">
+            {photos.people.map((person) => {
+              const face = person.identityId ? cachedFaces(person.identityId)[0] : person.refs[0];
+              const n = photosOf(person);
+              return (
+                <button
+                  key={person.id}
+                  onClick={() => setPeopleOpen(true)}
+                  className="group w-[84px] shrink-0 text-center"
+                  title={person.identityId ? `${person.name} — from Profiles` : person.name}
+                >
+                  <span className="mx-auto block h-16 w-16 overflow-hidden rounded-full border-2 border-[#1d2a44] bg-gradient-to-br from-brand/40 to-sky-400/20 transition group-hover:border-brand/60">
+                    {face ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={face} alt="" className="h-full w-full object-cover" />
+                    ) : (
+                      <span className="flex h-full w-full items-center justify-center text-lg font-semibold text-ink">
+                        {person.name.slice(0, 1).toUpperCase()}
+                      </span>
+                    )}
+                  </span>
+                  <span className="mt-1.5 block truncate text-[12px] font-semibold text-ink">{person.name}</span>
+                  <span className="block text-[10.5px] tabular-nums text-ink-faint">
+                    {n} {n === 1 ? "photo" : "photos"}
+                  </span>
+                </button>
+              );
+            })}
+            <button onClick={() => setPeopleOpen(true)} className="group w-[84px] shrink-0 text-center">
+              <span className="mx-auto flex h-16 w-16 items-center justify-center rounded-full border border-dashed border-line text-ink-faint transition group-hover:border-brand/60 group-hover:text-brand">
+                <Icon.Plus width={18} height={18} />
+              </span>
+              <span className="mt-1.5 block text-[12px] font-semibold text-ink">Add people</span>
+              <span className="block text-[10.5px] text-ink-faint">in Profiles</span>
+            </button>
+          </div>
+        </section>
+      )}
+
       {/* Folders, the whole library at once, or the video branch */}
-      <div className="mb-2 flex items-center gap-1">
+      <div className="mb-3 mt-5 flex items-center gap-1 border-b border-line">
         {(["folders", "all", "videos"] as const).map((v) => (
           <button
             key={v}
             onClick={() => setView(v)}
             className={
-              "rounded-lg px-2.5 py-1.5 text-[11.5px] font-medium transition " +
-              (view === v ? "bg-amber-400/15 text-amber-200" : "text-ink-faint hover:text-ink")
+              "-mb-px border-b-2 px-2.5 py-2 text-[12px] font-medium transition " +
+              (view === v ? "border-amber-400 text-ink" : "border-transparent text-ink-faint hover:text-ink")
             }
           >
             {v === "folders"
@@ -888,31 +996,73 @@ export function PhotosBoard({
           </button>
         </div>
       ) : (
-        <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-4">
-          {tiles.map((t, i) => {
-            const a = PHOTO_ACCENTS[i % PHOTO_ACCENTS.length];
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
+          {tiles.map((t) => {
             const disabled = !t.folderId;
             const refs = t.category?.refs?.length ?? 0;
+            const look = t.folderId ? albumLook(t.folderId) : null;
             return (
-              <div key={t.key} className="group/tile relative">
+              <div
+                key={t.key}
+                className={
+                  "group/tile relative overflow-hidden rounded-[14px] border border-line bg-gradient-to-br from-panel-2 to-panel transition " +
+                  (disabled ? "opacity-50" : "hover:border-amber-400/50")
+                }
+              >
                 <button
                   onClick={() => t.folderId && setOpenFolderId(t.folderId)}
                   disabled={disabled}
                   title={t.description}
-                  className={
-                    "flex h-[132px] w-full flex-col items-center justify-center gap-2 rounded-2xl border bg-gradient-to-br px-3 text-center transition " +
-                    a.tile +
-                    (disabled ? " opacity-45" : " hover:brightness-125")
-                  }
+                  className="block w-full text-left"
                 >
-                  <Icon.Image width={26} height={26} className={a.ink} />
-                  <span className="min-w-0">
-                    <span className="block truncate text-[13px] font-bold tracking-tight text-ink">
-                      {t.name}
+                  {/* Cover: the newest three pictures, or a quiet wash when empty */}
+                  <span className="grid h-24 grid-cols-[2fr_1fr] gap-0.5 bg-canvas">
+                    {[0, 1, 2].map((n) =>
+                      n === 0 || look?.covers[n] ? (
+                        <span
+                          key={n}
+                          className={
+                            "block overflow-hidden bg-gradient-to-br from-amber-500/20 via-panel-2 to-panel " +
+                            (n === 0 ? (look?.covers[1] ? "row-span-2" : "col-span-2 row-span-2") : "")
+                          }
+                        >
+                          {look?.covers[n] ? (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img src={look.covers[n]} alt="" className="h-full w-full object-cover" />
+                          ) : (
+                            n === 0 && (
+                              <span className="flex h-full w-full items-center justify-center text-amber-200/60">
+                                <Icon.Image width={22} height={22} />
+                              </span>
+                            )
+                          )}
+                        </span>
+                      ) : null,
+                    )}
+                  </span>
+                  <span className="block px-3.5 pb-3 pt-2.5">
+                    <span className="flex items-center gap-2">
+                      <span className="truncate text-[13.5px] font-bold tracking-tight text-ink">{t.name}</span>
+                      <span className="ml-auto shrink-0 text-[10.5px] tabular-nums text-ink-faint">
+                        {t.count === 0 ? "empty" : `${t.count} ${t.count === 1 ? "photo" : "photos"}`}
+                        {refs > 0 && ` · ${refs} ref`}
+                      </span>
                     </span>
-                    <span className="mt-0.5 block text-[10px] tabular-nums text-ink-faint">
-                      {t.count === 0 ? "empty" : `${t.count} ${t.count === 1 ? "photo" : "photos"}`}
-                      {refs > 0 && ` · ${refs} ref`}
+                    {look && look.people.length > 0 && (
+                      <span className="mt-2 flex flex-wrap gap-1.5">
+                        {look.people.slice(0, 4).map((name) => (
+                          <span
+                            key={name}
+                            className="rounded-md border border-[#1a2536] bg-[#0d1320] px-2 py-0.5 text-[10.5px] text-ink-muted"
+                          >
+                            {name}
+                          </span>
+                        ))}
+                      </span>
+                    )}
+                    <span className="mt-2 flex items-center gap-1.5 text-[10.5px] text-ink-faint">
+                      <span className={"h-1.5 w-1.5 rounded-full " + (look?.updatedAt ? "bg-emerald-400" : "bg-ink-faint/50")} />
+                      {look?.updatedAt ? `Updated ${relTime(look.updatedAt)}` : t.description || "Nothing filed here yet"}
                     </span>
                   </span>
                 </button>
@@ -925,7 +1075,7 @@ export function PhotosBoard({
                         : `Teach “${t.name}” with a reference picture`
                     }
                     aria-label={`Edit ${t.name}`}
-                    className="absolute right-2 top-2 rounded-md bg-canvas/70 p-1.5 text-ink-faint opacity-0 backdrop-blur transition hover:text-ink group-hover/tile:opacity-100"
+                    className="absolute right-2 top-2 rounded-md bg-canvas/70 p-1.5 text-ink-faint opacity-0 backdrop-blur transition hover:text-ink group-hover/tile:opacity-100 focus:opacity-100"
                   >
                     <Icon.Edit width={12} height={12} />
                   </button>
@@ -935,13 +1085,6 @@ export function PhotosBoard({
           })}
         </div>
       )}
-
-      <p className="mt-4 text-[11px] leading-relaxed text-ink-faint">
-        <strong className="text-ink-muted">Two ways in.</strong> <em>Import now</em> opens your
-        camera roll and you pick — a web page cannot select photos for you, which is an iOS rule, not
-        a missing feature here. <em>Autopilot</em> installs a Shortcut on the phone that takes the
-        last N by itself and can run unattended; that is the only path that syncs without you.
-      </p>
 
       {peopleOpen && (
         <PeopleManager

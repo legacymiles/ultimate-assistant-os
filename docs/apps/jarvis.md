@@ -2,7 +2,7 @@
 
 Route: `/apps/jarvis` · Category: AI · Live
 
-Record reviewed: 2026-11-24 — the Bills tab, the voice half and the avatar written by hand; the rest of the
+Record reviewed: 2026-11-25 — the Bills tab, the voice half, the avatar, Folders RAG and Backups written by hand; the rest of the
 Features list below is still the seeded one and wants rewriting into plain features next time this
 app is edited.
 
@@ -16,6 +16,51 @@ app is edited.
 Your memory, folders, photos, lists, calendar and Record in one place. Every request, typed or spoken, becomes a block: exactly what you said, a numbered ledger of every step it took, and what each step actually returned, rendered as the thing it is — a table, a page, a screenshot, a command's real output. Nothing is flattened into "Done" and nothing scrolls away; a block from an hour ago is still there and still re-runnable. Voice is always on rather than a button you press: it waits for its name, hears the sentence after it, and can be talked over mid-answer — with an echo test so it never replies to itself. The part no web assistant has: a local agent on the PC, so it drives a real Chromium that keeps your logins, runs shell commands, reads and writes files, lists and focuses windows, and sees the screen. It reads freely and stops for a yes on the one class of step that cannot be undone. With the agent off it still thinks, remembers and answers, and says plainly which capability is missing.
 
 ## Features
+
+- **Photos look: "Cards, people first" (Nov 25 2026, picked from three coded mockups)** — the
+  Photos tab uses the Folders card look: an "All › Photos" header with "N photos · N people · N
+  to review"; the agent instruction is one line (its example chips show while you type in it);
+  the iPhone import panel and the "teach who's who" card became quiet chips ("Get photos from
+  your iPhone" opens the full Import now / Autopilot panel; "N of N people recognisable", or an
+  amber "Teach who's who" chip with no people yet, or one naming people without reference
+  photos). The review queue sits under a **Needs you** heading. A **People** row shows each
+  person's face (Profiles faces via `cachedFaces`, else their refs) and how many filed photos
+  they are in (by `identityIds`, else name). Album cards show the newest three pictures as a
+  cover, who is in them and when they last changed; the hover Edit button is unchanged.
+- **Folders look: "Richer cards" (Nov 25 2026, picked from three coded mockups)** — the folder home
+  says what is inside each folder: counts by kind for everything nested under it (notes, files,
+  logins, links, to-dos, websites), up to four sub-folder chips you can jump into, and "Updated …
+  · <newest item>" (or "N items not backed up" in amber when a Google account is connected and
+  some aren't on Drive). A summary line reads "N items · N folders · N levels deep". On screens
+  1024 px+ the folder tree is a docked left panel with indent guides (toggle remembered as
+  `recall:tree-docked`); on a phone it stays the drawer. The Drive backup card became a quiet
+  status chip in the toolbar (dot + "backed up 2 h ago") that opens the full card. An **Ask
+  Jarvis** bar under the toolbar (⌘J) sends what is typed straight to the Folders agent and
+  replaces the floating launcher while folders are on screen. Pure numbers in
+  `src/lib/recall/folderStats.ts` (+ tests).
+- **Folders is a RAG agent on the shared Jarvis harness (Nov 2026)** — Ask Jarvis in Folders uses
+  the same model pick as every Jarvis chat (`nj.chat-model:v1`, live across chats on the page via
+  `jarvis:chat-model`), with a model menu in its header. *Claude · my subscription* goes to the PC
+  agent's `/brain/claude` (raw mode, its own JSON); any other pick goes to `/api/recall` with that
+  model. Retrieval (`src/lib/recall/rag.ts`): stemmed keyword hits, every item inside a folder the
+  question names (any nesting depth), and an OUTLINE of every saved item (title, full path, gist,
+  people in a photo) so the model finds things by meaning and asks to `read` up to 6 more items in a
+  second pass. Answers name the folder path and list clickable Sources. "Organise this", "put this
+  in Trading > Gold Strategies" and "find where this belongs" produce a **Save to Folders** card:
+  exact destination step by step (missing folders marked NEW), why, the full text, a picker to send
+  it elsewhere — nothing is written until **Save here**. A failed model call now says why (out of
+  credit, timeout, bad model) instead of "AI is off"; that notice is only for a server with no key.
+  The main chat has `folders_ask` (read-only Folders RAG) and `dashboard_add_note` takes nested
+  paths, keeps the note's text (it used to save empty: it read `content`, the tool sends `body`),
+  and always asks first on Ask/Trusted/Auto. Profiles' cloud brain follows the same model pick.
+- **Backups: several Google accounts, real storage (Nov 2026)** — the Drive backup card opens
+  **Accounts & storage**: every connected Google account with its email, storage from Drive's own
+  `about.storageQuota` (used / total / free, Drive vs Gmail & Photos vs Trash), the backup target,
+  last successful backup, last run counts, and tabs for every backed-up file (its real Drive path,
+  account, updated), Folders items not on any account, and failed/skipped items. Tokens stay in
+  memory per account; the registry (`drive-backup-accounts:v1`) syncs without them. A backup made
+  with the old single sign-in is adopted as an account automatically. When the PC agent is up, the
+  panel also lists **rclone** remotes with their real storage (`POST /rclone/remotes`, read-only).
 
 - **Camera Autopilot recognises people from Profiles (Nov 2026)** — the people Autopilot can name
   are now the Profiles identities whose face recognition is switched on, matched ONLY against the
@@ -178,6 +223,15 @@ _The flows a user would notice breaking. Sign-in, data rules, routes and keys ar
 - **The voice is always on, not a button.** Wake word, talk-over mid-answer and the echo test are
   untouched by the Voice stage; the dock still says the voice *state* in words (off / waiting for
   its name / listening / thinking / speaking), with the chosen voice's name after it.
+- Folder cards' hover Edit / Move / Delete, the Photos card opening Photos, Unfiled appearing only
+  when something is loose, and the drawer tree on phones.
+- Auto-backup to Drive keeps running from the toolbar chip (the card component stays mounted).
+- Nothing is saved or moved into Folders by any chat without the owner seeing the content and the
+  exact destination first and pressing Save / Apply (Full access excepted in the main chat).
+- Folders answers cite their sources with the full folder path; nested folders are never flattened.
+- The PC brain (`tools/jarvis-bridge/brain.mjs`) runs Claude Code with its built-in tools removed
+  (`tools: []`) — leaving them visible is what produced "Reached maximum number of turns (1)".
+- Drive storage numbers come only from the account's own Drive API; never estimated.
 - **One voice button on screen.** The empty chat has the big round button under the box and no mic
   in the bar; mid-conversation the avatar face in the bar is the only voice control. Every Jarvis
   chat (Profiles, App Builder, Website Studio, Client Review, a harness thread, the Dashboard

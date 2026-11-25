@@ -92,9 +92,10 @@ import { IphoneGuide } from "./IphoneGuide";
 import { BirthdaysSheet } from "../birthdays/BirthdaysSheet";
 import { addBirthday, deleteBirthday, getBirthdays, useBirthdays } from "@/lib/birthdays/store";
 import { birthdayDigest, birthdayEvents, formatBirthday, possessive } from "@/lib/birthdays/engine";
-import { CHAT_MODEL_KEY, isSubscription, subscriptionModel } from "@/lib/new-jarvis/chatModels";
 import { identityDigest } from "@/lib/identity/registry";
 import { identityCardsNow } from "@/lib/identity/sync";
+import { CHAT_MODEL_KEY, isSubscription, subscriptionModel } from "@/lib/new-jarvis/chatModels";
+import { CHAT_MODEL_EVENT, announceChatModel } from "@/lib/new-jarvis/useChatModel";
 import { plainBridgeError, plainSiteError } from "@/lib/new-jarvis/plainErrors";
 import { BridgeError } from "@/lib/new-jarvis/bridge";
 import { MAX_CHAT_MEDIA, buildUserContent, prepareMedia, type ChatMedia } from "@/lib/new-jarvis/chatMedia";
@@ -257,6 +258,13 @@ export function NewJarvis() {
   const setChatModel = useCallback((id: string) => {
     setChatModelState(id);
     saveSynced(CHAT_MODEL_KEY, id);
+    announceChatModel(id);
+  }, []);
+  // A pick made in another chat on this page (Folders, App Builder…) applies here at once.
+  useEffect(() => {
+    const follow = (e: Event) => setChatModelState(String((e as CustomEvent<string>).detail ?? ""));
+    window.addEventListener(CHAT_MODEL_EVENT, follow);
+    return () => window.removeEventListener(CHAT_MODEL_EVENT, follow);
   }, []);
 
   const [media, setMedia] = useState<ChatMedia[]>([]);
