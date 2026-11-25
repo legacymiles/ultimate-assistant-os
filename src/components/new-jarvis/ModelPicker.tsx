@@ -12,7 +12,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Icon } from "../icons";
 import { Popover } from "../Popover";
-import { AUTO_MODEL, CHAT_MODELS, isModelId, isSubscription, modelLabel, type ChatModel } from "@/lib/new-jarvis/chatModels";
+import { AUTO_MODEL, CHAT_MODELS, groupedChatModels, isModelId, modelLabel, type ChatModel } from "@/lib/new-jarvis/chatModels";
 
 interface Listed {
   id: string;
@@ -122,10 +122,19 @@ export function ModelPicker({
         className="p-1.5"
       >
         <div>
-          <p className="px-2 pb-1 pt-0.5 text-[10px] uppercase tracking-wider text-ink-faint">
-            Jarvis's brain
-          </p>
-          <ul>{(cloudOnly ? CHAT_MODELS.filter((m) => !isSubscription(m.id)) : CHAT_MODELS).map(option)}</ul>
+          {/* Grouped by WHO PAYS: the owner's own Claude plan, the same Claude
+              on the API, then everything else. The plan and API groups carry the
+              same models in the same order, so the row above and the row below
+              are one model on two bills. */}
+          <div className="max-h-[22rem] overflow-y-auto">
+            {groupedChatModels(cloudOnly).map((g) => (
+              <div key={g.route} className="mb-1 border-b border-line-soft pb-1 last:mb-0 last:border-0 last:pb-0">
+                <p className="px-2 pb-0.5 pt-0.5 text-[10px] uppercase tracking-wider text-ink-faint">{g.title}</p>
+                {g.note && <p className="px-2 pb-1 text-[10px] leading-snug text-ink-faint">{g.note}</p>}
+                <ul>{g.items.map(option)}</ul>
+              </div>
+            ))}
+          </div>
           <div className="mt-1 border-t border-line-soft px-1 pt-1.5">
             <input
               value={q}

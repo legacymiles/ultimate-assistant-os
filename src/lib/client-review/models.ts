@@ -54,7 +54,9 @@ export const BRIEF_MODELS: BriefModelOption[] = [
   plan("claude-opus-5-5", "Opus 5.5 · my plan", "Your own subscription. Strongest, no extra cost."),
   plan("claude-opus-5", "Opus 5 · my plan", "Your own subscription, the previous Opus."),
   plan("claude-sonnet-5-5", "Sonnet 5.5 · my plan", "Your own subscription, faster than Opus."),
-  plan("claude-sonnet-5", "Sonnet 5 · my plan", "Your own subscription, lightest on the plan."),
+  plan("claude-sonnet-5", "Sonnet 5 · my plan", "Your own subscription, the previous Sonnet."),
+  plan("claude-haiku-5-5", "Haiku 5.5 · my plan", "Your own subscription, lightest on the plan."),
+  plan("claude-fable-5-2", "Fable 5.2 · my plan", "Your own subscription, Claude's writing model."),
 
   // OpenRouter and OrcaRouter, paid per brief with the hub's key.
   {
@@ -75,6 +77,8 @@ export const BRIEF_MODELS: BriefModelOption[] = [
   { value: "anthropic/claude-sonnet-5", label: "Claude Sonnet 5", why: "The brief default, on the hub's key.", group: "cloud" },
   { value: "anthropic/claude-opus-5.5", label: "Claude Opus 5.5", why: "The strongest Claude, billed per brief.", group: "cloud" },
   { value: "anthropic/claude-opus-5", label: "Claude Opus 5", why: "Opus 5 on the hub's key.", group: "cloud" },
+  { value: "anthropic/claude-haiku-5.5", label: "Claude Haiku 5.5", why: "Pennies per brief, and fast.", group: "cloud" },
+  { value: "anthropic/claude-fable-5.2", label: "Claude Fable 5.2", why: "Claude's writing model, on the hub's key.", group: "cloud" },
   { value: "openai/gpt-6-luna-pro", label: "GPT-6 Luna Pro", why: "A different house style for the brief.", group: "cloud" },
   { value: "google/gemini-3.8-flash", label: "Gemini 3.8 Flash", why: "Long batches, quick and cheap.", group: "cloud" },
   { value: "deepseek/deepseek-v4-pro-0813", label: "DeepSeek V4 Pro 0813", why: "The uncensored lane's first model, by hand.", group: "cloud" },
@@ -179,6 +183,8 @@ const BUILD_BY_CLOUD_ID: Record<string, string> = {
   "anthropic/claude-opus-5": "claude-opus-5",
   "anthropic/claude-sonnet-5.5": "claude-sonnet-5-5",
   "anthropic/claude-sonnet-5": "claude-sonnet-5",
+  "anthropic/claude-haiku-5.5": "claude-haiku-5-5",
+  "anthropic/claude-fable-5.2": "claude-fable-5-2",
 };
 
 /** Does this pick name a model the build can actually run on? */

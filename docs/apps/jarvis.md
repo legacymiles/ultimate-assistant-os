@@ -17,6 +17,17 @@ Your memory, folders, photos, lists, calendar and Record in one place. Every req
 
 ## Features
 
+- **Every Claude twice, on the plan and on the API (Nov 25 2026)** — the model menu every Jarvis
+  chat shares (`src/lib/new-jarvis/chatModels.ts`, the picker in Chat, Folders, App Builder, the
+  Website Studio, the Redesigner, Client Review and In Queue) now carries the WHOLE Claude lineup on
+  both routes, not just Opus: Opus 5.5, Opus 5, Sonnet 5.5, Sonnet 5, Haiku 5.5 and Fable 5.2 on
+  *your subscription* (Claude Code on the PC, nothing to pay), and the same six on the *Claude API*
+  through OpenRouter (works with the PC asleep, keeps going when the plan is rate-limited). The menu
+  is grouped by who pays — "Your Claude plan · on your PC", "Claude API · OpenRouter", "Other
+  models" — with the two Claude groups in the same order, so the row above and the row below are one
+  model on two bills. Surfaces the server runs alone (In Queue's planner) still hide the plan group
+  rather than offer a brain the server cannot reach. `src/lib/new-jarvis/chatModels.test.ts` fails if
+  a model is added to one route and forgotten on the other.
 - **Photos look: "Cards, people first" (Nov 25 2026, picked from three coded mockups)** — the
   Photos tab uses the Folders card look: an "All › Photos" header with "N photos · N people · N
   to review"; the agent instruction is one line (its example chips show while you type in it);
@@ -588,6 +599,7 @@ _Rewritten by `npm run apps:records` from the source — do not edit by hand. `n
 - `src/lib/new-jarvis/browserFast.test.ts`
 - `src/lib/new-jarvis/capture.test.ts`
 - `src/lib/new-jarvis/chatMedia.test.ts`
+- `src/lib/new-jarvis/chatModels.test.ts`
 - `src/lib/new-jarvis/devops.test.ts`
 - `src/lib/new-jarvis/dictation.test.ts`
 - `src/lib/new-jarvis/errorFix.test.ts`

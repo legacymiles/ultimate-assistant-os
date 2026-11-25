@@ -17,6 +17,11 @@ Send each website client a private link: their site fills the screen with a drag
 
 _Seeded from this app's edit log. Rewrite it into plain features the next time the app is edited, then set Record reviewed._
 
+- **The brief menu carries every Claude on both routes (Nov 25 2026)** — Haiku 5.5 and Fable 5.2
+  joined Opus 5.5 / Opus 5 / Sonnet 5.5 / Sonnet 5 in both groups of the brief's model menu
+  (`src/lib/client-review/models.ts`): "Your Claude plan · on this PC" and "OpenRouter · your key".
+  The cloud→plan translation used by builds knows the two new ids as well, so picking Haiku 5.5 on
+  the API still builds on Claude Code with `claude-haiku-5-5` instead of falling back to the default.
 - **Send clients their site, collect edit requests, ship v2** — /review/<code>: private client link (no account). Site fills the screen (desktop/phone preview), with a draggable, resizable Chat Intake that shrinks to an orb (bottom sheet on phones). Clients add m…
 - **Plans now say how you'll know each feature works** — Planning was the weak link: a feature was a title, what it does and why, and nothing in it said how anyone would know it works. So every board card got the same generic acceptance criteria, the build…
 - **"Take it live anyway" works when nothing checked it** — Marking the verify report accepted was the whole of that button, and it does nothing in the state it is most likely to be pressed in: when the gate never ran there is no report to accept, so the pres…
