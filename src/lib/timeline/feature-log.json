@@ -1,5 +1,50 @@
 [
  {
+  "id": "f9794b73:baby-no-scroll",
+  "date": "2026-11-25",
+  "slug": "baby-no-scroll",
+  "title": "A strict unlock path, and nothing that lights up",
+  "detail": "Three things the owner asked for after trying the angled lock.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "f9794b73:projects-timeline",
+  "date": "2026-11-25",
+  "slug": "projects-timeline",
+  "title": "A strict unlock path, and nothing that lights up",
+  "detail": "Three things the owner asked for after trying the angled lock.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "a016afe7:baby-no-scroll",
+  "date": "2026-11-25",
+  "slug": "baby-no-scroll",
+  "title": "Unlock on an angle, and no mic outside a Jarvis chat",
+  "detail": "Two things the owner asked for on the locked nursery screen.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "a016afe7:voice",
+  "date": "2026-11-25",
+  "slug": "voice",
+  "title": "Unlock on an angle, and no mic outside a Jarvis chat",
+  "detail": "Two things the owner asked for on the locked nursery screen.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "a016afe7:projects-timeline",
+  "date": "2026-11-25",
+  "slug": "projects-timeline",
+  "title": "Unlock on an angle, and no mic outside a Jarvis chat",
+  "detail": "Two things the owner asked for on the locked nursery screen.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
   "id": "38459745:jarvis",
   "date": "2026-11-25",
   "slug": "jarvis",
