@@ -118,6 +118,25 @@ export class LiveTalking {
     }
   }
 
+  /**
+   * Play one of the avatar's action clips (a sip, a laugh, a wave) — the
+   * `audiotype` it was installed under with --customvideo_config. When it ends
+   * LiveTalking goes back to the quiet loop by itself. False when there is no
+   * such clip or LiveTalking isn't answering.
+   */
+  async act(sessionid: string, audiotype: number): Promise<boolean> {
+    try {
+      const res = await this.fetchFn(`${this.base}/set_audiotype`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ sessionid, audiotype }),
+      });
+      return res.ok && isOk(await res.json());
+    } catch {
+      return false;
+    }
+  }
+
   /** Cut the current line short — the director's barge-in. */
   async interrupt(sessionid: string): Promise<void> {
     try {

@@ -8,8 +8,12 @@
 // One sink at a time; null means "play it yourself". Browser-only state.
 
 export interface VoiceSink {
-  /** Speak this audio (WAV). Resolves true once it has been said, false if it couldn't be (play it yourself). */
-  speak(audio: Blob): Promise<boolean>;
+  /**
+   * Speak this audio (WAV). Resolves true once it has been said, false if it
+   * couldn't be (play it yourself). `text` is what the audio says — the face
+   * reacts to it (a laugh after something funny).
+   */
+  speak(audio: Blob, text?: string): Promise<boolean>;
   /** No audio to give (the voice server is down): say the TEXT in the sink's own voice. */
   speakText(text: string): Promise<boolean>;
   /** Stop mid-sentence (the owner said stop, or talked over him). */

@@ -101,3 +101,17 @@ describe("LiveTalking.say (its own voice, when the hub's is down)", () => {
     expect(await new LiveTalking("x", vi.fn().mockRejectedValue(new Error("down"))).say("1", "x")).toBe(false);
   });
 });
+
+describe("LiveTalking.act", () => {
+  it("asks /set_audiotype for the action clip", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(okJson({ code: 0, msg: "ok" }));
+    expect(await new LiveTalking("http://127.0.0.1:8010", fetchMock).act("3", 4)).toBe(true);
+    expect(fetchMock.mock.calls[0][0]).toBe("http://127.0.0.1:8010/set_audiotype");
+    expect(JSON.parse(fetchMock.mock.calls[0][1].body)).toEqual({ sessionid: "3", audiotype: 4 });
+  });
+
+  it("answers false instead of throwing when LiveTalking is gone", async () => {
+    const fetchMock = vi.fn().mockRejectedValue(new Error("down"));
+    expect(await new LiveTalking("http://x", fetchMock).act("3", 2)).toBe(false);
+  });
+});

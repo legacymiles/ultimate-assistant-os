@@ -149,7 +149,7 @@ Your memory, folders, photos, lists, calendar and Record in one place. Every req
   chosen agent. If the 3D scene's code fails to load, the glowing core shows instead of the page
   crashing (`SceneBoundary` in `JarvisAvatar.tsx`).
 - **The real face talks with real lip sync (Nov 24 2026)** — when LiveTalking runs on this PC
-  (`C:\dev\livetalking`, :8010, started with `--avatar_id alex_portrait`), the real face is Alex's
+  (`C:\dev\livetalking`, :8010, started with `--avatar_id alex_live --customvideo_config data/alex_moves.json`, see `tools/alex-moves`), the real face is Alex's
   live LiveTalking video and every spoken answer is said by him, lips moving: `useWakeVoice`'s
   `speak()` hands the WAV to a voice sink (`lib/new-jarvis/voiceSink.ts`) instead of playing it,
   and `lib/new-jarvis/avatar/liveFace.ts` sends it to `/humanaudio`, so the voice is heard once,
@@ -178,6 +178,18 @@ Your memory, folders, photos, lists, calendar and Record in one place. Every req
   so Jarvis doesn't end your turn early; the mark is never treated as words. The face popover says
   "he hears you and his lips move … all on this PC" when it's on. Recognizer off → the browser's,
   as before. Measured: "Make yourself look happier." transcribed exactly, ~0.4 s once warm.
+- **The real face moves like a live streamer (Nov 25 2026)** — Alex used to be one still photo, so
+  he stared. Now he's a chest-up streamer at a desk with a coffee mug, and every frame is real
+  video rendered free on this PC (`tools/alex-moves`: Flux 2 Klein base picture, then MiniMax H3
+  FL2VA clips that start and end on it). While quiet he blinks, glances at a second screen and
+  smiles (LiveTalking's quiet loop). While talking his head nods and sways under the lip sync
+  (avatar `alex_live`). Between lines he does short actions: sip, laugh, think, wave, lean in
+  (`/set_audiotype`, `LiveTalking.act`). `lib/new-jarvis/avatar/moves.ts` picks them: after a line
+  it reacts to the mood (a laugh after something funny, a wave on hello, the thinking pose on a
+  question, ~70% of the time), and every 18–40 s of quiet he does something on his own (sip,
+  think, lean, never the same twice running). `liveFace.ts` cuts an action short when he has to
+  speak, because LiveTalking would otherwise finish it first. No action plays while he talks
+  (a hand over the mouth breaks the lip sync).
 - **Answers speak in the voice you picked** — the hub voice sent `/api/tts` the text alone, so
   every spoken answer was Phonon's default voice; it now sends `ttsBody` with the Voice stage's
   voice, speed, expression and consistency, like the preview does.
@@ -211,6 +223,15 @@ _Seeded from this app's edit log. Rewrite it into plain features the next time t
 
 ## Must keep working
 
+- Folder cards' hover Edit / Move / Delete, the Photos card opening Photos, Unfiled appearing only
+  when something is loose, and the drawer tree on phones.
+- Auto-backup to Drive keeps running from the toolbar chip (the card component stays mounted).
+- Nothing is saved or moved into Folders by any chat without the owner seeing the content and the
+  exact destination first and pressing Save / Apply (Full access excepted in the main chat).
+- Folders answers cite their sources with the full folder path; nested folders are never flattened.
+- The PC brain (`tools/jarvis-bridge/brain.mjs`) runs Claude Code with its built-in tools removed
+  (`tools: []`) — leaving them visible is what produced "Reached maximum number of turns (1)".
+- Drive storage numbers come only from the account's own Drive API; never estimated.
 _The flows a user would notice breaking. Sign-in, data rules, routes and keys are listed from the code below by themselves._
 
 - **Recognition only from Profiles.** `buildContactSheet` is fed by `recognitionCast()`
@@ -223,15 +244,6 @@ _The flows a user would notice breaking. Sign-in, data rules, routes and keys ar
 - **The voice is always on, not a button.** Wake word, talk-over mid-answer and the echo test are
   untouched by the Voice stage; the dock still says the voice *state* in words (off / waiting for
   its name / listening / thinking / speaking), with the chosen voice's name after it.
-- Folder cards' hover Edit / Move / Delete, the Photos card opening Photos, Unfiled appearing only
-  when something is loose, and the drawer tree on phones.
-- Auto-backup to Drive keeps running from the toolbar chip (the card component stays mounted).
-- Nothing is saved or moved into Folders by any chat without the owner seeing the content and the
-  exact destination first and pressing Save / Apply (Full access excepted in the main chat).
-- Folders answers cite their sources with the full folder path; nested folders are never flattened.
-- The PC brain (`tools/jarvis-bridge/brain.mjs`) runs Claude Code with its built-in tools removed
-  (`tools: []`) — leaving them visible is what produced "Reached maximum number of turns (1)".
-- Drive storage numbers come only from the account's own Drive API; never estimated.
 - **One voice button on screen.** The empty chat has the big round button under the box and no mic
   in the bar; mid-conversation the avatar face in the bar is the only voice control. Every Jarvis
   chat (Profiles, App Builder, Website Studio, Client Review, a harness thread, the Dashboard
@@ -273,6 +285,10 @@ _The flows a user would notice breaking. Sign-in, data rules, routes and keys ar
   seconds before you speak; it never switches itself off before you've said anything.
 - **The real face talks while the galaxy shows** — with the lip-synced face live, the background
   never starves LiveTalking: spoken requests are heard in about a second and answered on his lips.
+- **Alex never just stares** — with LiveTalking started on `alex_live` + `data/alex_moves.json`,
+  he blinks and looks around while quiet, does a move on his own within about 40 s of quiet,
+  and an answer never waits for a sip or laugh to finish. LiveTalking started without the moves →
+  the set_audiotype calls do nothing and he talks as before.
 - **Local hearing never cuts you off** — with LiveTalking's recognizer on, a spoken request is
   heard whole (the turn stays open while you talk) and answered; recognizer down → the browser's
   speech recognition takes over with no error.
@@ -558,6 +574,7 @@ _Rewritten by `npm run apps:records` from the source — do not edit by hand. `n
 - `src/lib/new-jarvis/askEvent.test.ts`
 - `src/lib/new-jarvis/autopilotChat.test.ts`
 - `src/lib/new-jarvis/avatar/avatar.test.ts`
+- `src/lib/new-jarvis/avatar/moves.test.ts`
 - `src/lib/new-jarvis/avatar/wav.test.ts`
 - `src/lib/new-jarvis/board.test.ts`
 - `src/lib/new-jarvis/breath.test.ts`

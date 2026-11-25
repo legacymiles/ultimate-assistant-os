@@ -20,6 +20,7 @@
 import { LiveTalking } from "@/lib/ai-live-studio/livetalking";
 import { localAsrAvailable } from "@/lib/ai-live-studio/localRecognition";
 import { voiceSink, type VoiceSink } from "../voiceSink";
+import { MOVES, MOVE_MS, nextIdleMs, pickAfterLine, pickIdle, type Move } from "./moves";
 import { speechMsForText, wavDurationMs } from "./wav";
 
 export type LiveFaceState = "off" | "checking" | "connecting" | "live" | "unavailable";
@@ -62,6 +63,11 @@ let retry: ReturnType<typeof setTimeout> | null = null;
 let closeTimer: ReturnType<typeof setTimeout> | null = null;
 let interrupted = false;
 let hiddenTimer: ReturnType<typeof setTimeout> | null = null;
+// Alex's moves (moves.ts): a reaction after a line, something of his own while quiet.
+let idleTimer: ReturnType<typeof setTimeout> | null = null;
+let talking = false;
+let actingUntil = 0;
+let lastMove: string | null = null;
 const hidden = () => typeof document !== "undefined" && document.hidden;
 
 const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
@@ -107,6 +113,47 @@ function load() {
   snap = { ...snap, enabled };
 }
 
+/** Play one of Alex's action clips. Nothing happens when LiveTalking has no such clip. */
+async function act(move: Move | null) {
+  if (!move || snap.state !== "live" || !session || talking) return;
+  if (await lt.act(session, move.type)) {
+    actingUntil = Date.now() + MOVE_MS;
+    lastMove = move.id;
+  }
+}
+
+/** While he's quiet, now and then a sip, a glance at a thought, a lean in. */
+function scheduleIdle() {
+  if (idleTimer) clearTimeout(idleTimer);
+  idleTimer = null;
+  if (snap.state !== "live") return;
+  idleTimer = setTimeout(() => {
+    idleTimer = null;
+    if (snap.state !== "live") return;
+    if (!talking && !hidden() && Date.now() >= actingUntil) void act(pickIdle(lastMove));
+    scheduleIdle();
+  }, nextIdleMs());
+}
+
+/**
+ * A line is about to start. LiveTalking finishes a playing action before it
+ * says anything, so cut the action rather than make the answer wait for it.
+ */
+async function beginLine() {
+  talking = true;
+  if (Date.now() < actingUntil && session) {
+    actingUntil = 0;
+    await lt.interrupt(session);
+  }
+}
+
+/** A line has been said: maybe react to it, and restart the quiet clock. */
+function endLine(text: string) {
+  talking = false;
+  if (!interrupted) void act(pickAfterLine(text));
+  scheduleIdle();
+}
+
 /** LiveTalking accepts the audio before it starts saying it; this long to start, at most. */
 const START_MS = 8_000;
 
@@ -141,25 +188,35 @@ async function untilQuiet(endBy: number) {
 
 /** Jarvis's voice, routed through LiveTalking while the face is live. */
 const sink: VoiceSink = {
-  async speak(audio) {
+  async speak(audio, text = "") {
     if (snap.state !== "live" || !session) return false;
     interrupted = false;
     // A tap on the voice button has happened by now, so sound may play.
     void audioEl?.play().catch(() => undefined);
     const length = wavDurationMs(new Uint8Array(await audio.arrayBuffer()));
+    await beginLine();
     const sentAt = Date.now();
-    if (!(await lt.speak(session, audio))) return false;
+    if (!(await lt.speak(session, audio))) {
+      talking = false;
+      return false;
+    }
     await untilQuiet(sentAt + (length ?? 0) + 500);
+    endLine(text);
     return true;
   },
   async speakText(text) {
     if (snap.state !== "live" || !session) return false;
     interrupted = false;
     void audioEl?.play().catch(() => undefined);
+    await beginLine();
     const sentAt = Date.now();
-    if (!(await lt.say(session, text, FALLBACK_VOICE))) return false;
+    if (!(await lt.say(session, text, FALLBACK_VOICE))) {
+      talking = false;
+      return false;
+    }
     // LiveTalking makes the voice itself first (about a second), then reads it.
     await untilQuiet(sentAt + 1200 + speechMsForText(text));
+    endLine(text);
     return true;
   },
   interrupt() {
@@ -173,6 +230,10 @@ const sink: VoiceSink = {
 
 function close() {
   if (voiceSink.get() === sink) voiceSink.set(null);
+  if (idleTimer) clearTimeout(idleTimer);
+  idleTimer = null;
+  talking = false;
+  actingUntil = 0;
   pc?.close();
   pc = null;
   session = "";
@@ -264,6 +325,7 @@ async function connect() {
     if (pc !== peer) return;
     emit({ state: "live" });
     voiceSink.set(sink);
+    scheduleIdle();
     // Hear through LiveTalking too, when its recognizer is installed (funasr).
     void localAsrAvailable(true).then((asr) => emit({ asr }));
   } catch {
@@ -319,6 +381,10 @@ export const liveFace = {
       retry = null;
       close();
     }
+  },
+  /** Do one of Alex's moves now ("sip", "laugh", "think", "wave", "lean"). */
+  act(id: string): void {
+    void act(MOVES.find((m) => m.id === id) ?? null);
   },
   /** Try again now (LiveTalking was just started). */
   retry(): void {

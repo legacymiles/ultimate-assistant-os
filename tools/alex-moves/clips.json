@@ -1,0 +1,52 @@
+{
+  "base": {
+    "ref": "public/ai-live-studio/alex.jpg",
+    "size": "768x1360",
+    "prompt": "The same man from the reference photo: identical face, the thin scar through his right eyebrow and down his cheek, short tight hair, goatee, black t-shirt. Pull the camera back to a chest-up shot of him sitting at a desk in a cozy, dimly lit home streaming room: warm lamp light from the side, a soft purple LED glow on the wall behind him, a plant and shelves softly out of focus. He looks straight into the camera with a relaxed, friendly neutral expression, mouth closed. On the desk in front of him, by his right hand, sits a sleek matte black ceramic coffee mug with a thin gold rim and a wisp of steam. Vertical 9:16 phone livestream framing: his face in the upper third, both shoulders, his forearms resting on the desk edge. Photorealistic, natural skin texture, shallow depth of field."
+  },
+  "clips": [
+    {
+      "id": "idle",
+      "use": "quiet",
+      "prompt": "Static locked-off camera, one continuous shot, no cuts. The man sits relaxed at his desk waiting for the chat to talk. He blinks naturally, glances to the side at a second screen, looks back into the camera, gives a small easy smile and a slight head tilt. Mouth closed the whole time. Small, calm, natural movements. He ends in the same pose he started in, looking at the camera."
+    },
+    {
+      "id": "talk",
+      "use": "talking",
+      "prompt": "Static locked-off camera, one continuous shot, no cuts. The man looks into the camera and listens, with small natural head nods and gentle sways, blinking normally, eyebrows lifting a little now and then. His lips stay together and relaxed the whole time. His head stays facing the camera. He ends in the same pose he started in."
+    },
+    {
+      "id": "sip",
+      "use": "action",
+      "mood": "calm",
+      "prompt": "Static locked-off camera, one continuous shot, no cuts. The man picks up the black coffee mug beside his left hand, takes a slow sip, and sets it back down in the same spot. He gives a small satisfied nod and looks back into the camera with a relaxed smile, ending in the same pose he started in."
+    },
+    {
+      "id": "laugh",
+      "use": "action",
+      "mood": "happy",
+      "prompt": "Static locked-off camera, one continuous shot, no cuts. The man laughs warmly at something funny in the chat, shoulders shaking, head tipping back a little, eyes creasing. The laugh fades into a grin, then a relaxed smile as he settles back looking into the camera, ending in the same pose he started in."
+    },
+    {
+      "id": "think",
+      "use": "action",
+      "sound": false,
+      "mood": "thinking",
+      "prompt": "Static locked-off camera, one continuous shot, no cuts. The man raises his right hand off the desk and rests his chin on it, looking up and to the side as he thinks about a question. Then he nods slightly, lowers his hand to the desk and looks back into the camera, ending in the same pose he started in."
+    },
+    {
+      "id": "wave",
+      "use": "action",
+      "sound": false,
+      "mood": "greeting",
+      "prompt": "Static locked-off camera, one continuous shot, no cuts. The man smiles brightly and gives a friendly wave to the camera with his right hand, then lowers his hand back to the desk and settles into a relaxed smile, ending in the same pose he started in."
+    },
+    {
+      "id": "lean",
+      "use": "action",
+      "sound": false,
+      "mood": "curious",
+      "prompt": "Static locked-off camera, one continuous shot, no cuts. The man leans in toward the camera with interest, eyebrows raised, as if reading something surprising in the chat. Then he leans back slowly into his chair, nodding, ending in the same pose he started in."
+    }
+  ]
+}

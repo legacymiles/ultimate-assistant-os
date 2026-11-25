@@ -306,7 +306,7 @@ export function useWakeVoice({ onCommand, onInterrupt, speakReplies = true }: Wa
           if (sink) {
             analyser.current = sink.analyser();
             speech.current = { text: say, startedAt: performance.now(), interruptedAt: speech.current.interruptedAt };
-            const said = await sink.speak(blob);
+            const said = await sink.speak(blob, say);
             if (said) {
               speech.current = { ...speech.current, startedAt: 0 };
               analyser.current = micAnalyser.current;

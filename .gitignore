@@ -120,3 +120,6 @@ public/__dump/
 # 24/7 Queue worker bundle (built by tools/queue-worker/build.mjs)
 /tools/queue-worker/dist/
 /tools/queue-worker/.env
+
+# Alex avatar clips rendered locally in WanGP (free to re-render, 22 MB)
+/tools/alex-moves/out/
