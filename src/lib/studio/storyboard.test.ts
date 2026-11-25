@@ -17,6 +17,7 @@ import {
   parseRuntime,
   runtimeRange,
   runtimeSec,
+  SET_LABEL,
   shotPrompt,
   timecode,
   type Storyboard,
@@ -337,6 +338,46 @@ describe("the genre reaches every shot", () => {
 
   it("says so when a film has no genre at all", () => {
     expect(boardNotes(board()).some((n) => /No genre set/.test(n.text))).toBe(true);
+  });
+});
+
+describe("the set plate is a place, not a person", () => {
+  // Measured on the GPU 2026-11-24: handed the plate under the generic
+  // subject wording, H3 held the room perfectly and rendered the PLATE'S wide
+  // establishing framing in place of the close-up the shot asked for.
+  const withPlate = () => shotPrompt(board(), 0, { refLabels: ["FATHER", SET_LABEL] });
+  const retentionOf = (p: string) =>
+    p.split("retention_analysis:")[1].split("detailed_description:")[0];
+  const setLine = (p: string) =>
+    retentionOf(p).split("\n").find((l) => l.includes("(THE SET)")) ?? "";
+
+  it("defines the set as a location rather than a subject to preserve", () => {
+    const p = withPlate();
+    expect(p).toContain("<Subject 2> is THE SET, the location in <Picture 2>");
+    expect(p).toContain("geography");
+    expect(p).not.toContain("<Subject 2> is THE SET, the subject in <Picture 2>");
+  });
+
+  it("tells the model the plate is the location and not the framing", () => {
+    const p = withPlate();
+    expect(p).toContain("NOT the framing for this shot");
+    expect(setLine(p)).toContain("the framing of the photograph is not preserved");
+  });
+
+  it("never gives the room an identity, a face or a wardrobe", () => {
+    const line = setLine(withPlate());
+    expect(line).not.toMatch(/\bidentity\b/);
+    expect(line).not.toMatch(/\bface\b/);
+    expect(line).not.toMatch(/\bhair\b/);
+    expect(line).not.toMatch(/\bwardrobe\b/);
+  });
+
+  it("still describes a real cast member in the same shot as a person", () => {
+    const p = withPlate();
+    expect(p).toContain("<Subject 1> is FATHER, the person in <Picture 1>");
+    const father = retentionOf(p).split("\n").find((l) => l.includes("(FATHER)")) ?? "";
+    expect(father).toContain("fully_preserved");
+    expect(father).toContain("wardrobe");
   });
 });
 

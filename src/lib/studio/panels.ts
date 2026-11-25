@@ -18,7 +18,7 @@
 // soft at the size the sheet actually shows it.
 // ---------------------------------------------------------------------------
 
-import { castSheetPrompt, inventedIn, panelPrompt, platePrompt, type Storyboard } from "./storyboard";
+import { SET_LABEL, castSheetPrompt, inventedIn, panelPrompt, platePrompt, type Storyboard } from "./storyboard";
 
 /** Long edge of the panel that is kept. Nearly twice the card it is read in. */
 const PANEL_EDGE = 640;
@@ -116,7 +116,7 @@ export function facesFor(board: Storyboard, index: number, faces: PanelFace[]): 
   // Last, so the faces keep the first reference slots. Again ignoring `link`:
   // the sheet is checked for whether the cuts describe ONE house, which is
   // exactly the question a panel drawn without the set cannot answer.
-  const plate = board.plate ? [{ label: "THE SET", dataUrl: board.plate }] : [];
+  const plate = board.plate ? [{ label: SET_LABEL, dataUrl: board.plate }] : [];
   return [...who.slice(0, 3), ...plate].slice(0, 4);
 }
 

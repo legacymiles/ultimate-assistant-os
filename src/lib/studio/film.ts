@@ -15,7 +15,7 @@
 // ---------------------------------------------------------------------------
 
 import { BRIDGE, bridgeStatus, type CharacterRef } from "./render";
-import { inventedIn, isChained, needsPlate, shotPrompt, type Storyboard } from "./storyboard";
+import { SET_LABEL, inventedIn, isChained, needsPlate, shotPrompt, type Storyboard } from "./storyboard";
 
 export interface FilmShotView {
   n: number;
@@ -100,7 +100,7 @@ function refsFor(
   // The set, last, so the faces keep the first reference slots. A shot that
   // opens cold otherwise dresses the room from the words for it, which is how
   // a hallway became a living room between two cuts.
-  if (needsPlate(board, index)) out.push({ label: "THE SET", dataUrl: board.plate! });
+  if (needsPlate(board, index)) out.push({ label: SET_LABEL, dataUrl: board.plate! });
   return out.slice(0, 6);
 }
 

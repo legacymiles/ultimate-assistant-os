@@ -210,6 +210,16 @@ const num = (v: unknown, lo: number, hi: number, fallback: number): number => {
 const ASPECTS: AspectRatio[] = ["16:9", "9:16", "1:1"];
 const HEX = /^#[0-9a-f]{3,8}$/i;
 
+/**
+ * The label the set plate travels under, in every list of references.
+ *
+ * It is a constant because three places have to agree on it: `refsFor` and
+ * `facesFor` attach the plate under this name, and `shotPrompt` recognises it
+ * to describe the picture as a PLACE rather than as another person. A typo in
+ * any one of them silently turns the room back into a cast member.
+ */
+export const SET_LABEL = "THE SET";
+
 /** H3's window. Asking for 30 seconds does not make a 30-second clip exist. */
 export const MIN_SHOT_SEC = 4;
 export const MAX_SHOT_SEC = 15;
@@ -698,6 +708,24 @@ export function shotPrompt(board: Storyboard, index: number, opts: AttachedRefs 
     const who = board.cast.find((c) => c.name === name) ?? cast[i];
     const label = `<Subject ${i + 1}>`;
     const picture = `<Picture ${i + 1}>`;
+    // The set is not a person, and describing it as one is not harmless.
+    // Measured: handed the plate under the generic wording below — "preserving
+    // their exact identity… proportions and details" — H3 held the room
+    // perfectly and then rendered the shot at the PLATE'S framing, a wide
+    // establishing view, in place of the close-up the camera note asked for.
+    // Told to preserve a photograph exactly, it preserves the composition too.
+    // So a place gets its own words: what to keep is the geography, not an
+    // identity, and the picture is the location, not the shot.
+    if (name === SET_LABEL) {
+      return (
+        `${label} is THE SET, the location in ${picture}: the room this shot happens in. Keep its geography, `
+        + "architecture, surfaces, dressing and the position of everything in it exactly as photographed, and keep "
+        + `its light and colour. ${picture} is a photograph of the empty location, NOT the framing for this shot — `
+        + "it is not a person, it has no identity, face, hair or wardrobe, and it is not the subject of the shot. "
+        + "Frame and move the camera as the shot describes, and show whatever part of this location that framing "
+        + "falls on."
+      );
+    }
     // The photo shows who they were. By this shot they may be someone else —
     // so the definition describes the look this shot needs, and says that the
     // picture is there for the bone structure rather than the surface.
@@ -715,6 +743,17 @@ export function shotPrompt(board: Storyboard, index: number, opts: AttachedRefs 
   const retention = labels.map((name, i) => {
     const who = board.cast.find((c) => c.name === name) ?? cast[i];
     const changed = Boolean(who && lookAt(who, index) !== who.look);
+    // Same reason as the definition above: `fully_preserved - identity, face,
+    // hair … and the wardrobe stays exactly as described` is a sentence about
+    // a person, and the retention section is the part of the prompt H3 leans
+    // on hardest. The room keeps its geography; it never had a face.
+    if (name === SET_LABEL) {
+      return (
+        `<Subject ${i + 1}> (THE SET) (appears in [Shot 1]): fully_preserved - the location's geography, `
+        + "architecture, surfaces, dressing and lighting are unchanged, and the camera is free to be anywhere in "
+        + "it at any focal length; the framing of the photograph is not preserved."
+      );
+    }
     if (changed && who) {
       return (
         `<Subject ${i + 1}> (${who.name}) (appears in [Shot 1]): partially_preserved - the face, bone structure, `
