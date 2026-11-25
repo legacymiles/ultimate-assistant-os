@@ -1,5 +1,32 @@
 [
  {
+  "id": "423bacc8:profiles",
+  "date": "2026-11-25",
+  "slug": "profiles",
+  "title": "Folders RAG agent on the shared harness, Drive accounts dashboard, Folders + Photos redesign",
+  "detail": "- Fix \"Reached maximum number of turns (1)\" in the main chat: the PC brain (tools/jarvis-bridge/brain.mjs) now removes Claude Code's built-in tools (tools: []) instead of only denying them, with turn headroom. - Folders Ask Jarvis uses the shared model pick (nj.chat-model:v1) with a model menu; \"Cla",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "423bacc8:dashboard",
+  "date": "2026-11-25",
+  "slug": "dashboard",
+  "title": "Folders RAG agent on the shared harness, Drive accounts dashboard, Folders + Photos redesign",
+  "detail": "- Fix \"Reached maximum number of turns (1)\" in the main chat: the PC brain (tools/jarvis-bridge/brain.mjs) now removes Claude Code's built-in tools (tools: []) instead of only denying them, with turn headroom. - Folders Ask Jarvis uses the shared model pick (nj.chat-model:v1) with a model menu; \"Cla",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "423bacc8:jarvis",
+  "date": "2026-11-25",
+  "slug": "jarvis",
+  "title": "Folders RAG agent on the shared harness, Drive accounts dashboard, Folders + Photos redesign",
+  "detail": "- Fix \"Reached maximum number of turns (1)\" in the main chat: the PC brain (tools/jarvis-bridge/brain.mjs) now removes Claude Code's built-in tools (tools: []) instead of only denying them, with turn headroom. - Folders Ask Jarvis uses the shared model pick (nj.chat-model:v1) with a model menu; \"Cla",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
   "id": "f058ad67:jarvis",
   "date": "2026-11-24",
   "slug": "jarvis",
