@@ -1,5 +1,14 @@
 [
  {
+  "id": "d01d8d39:jarvis",
+  "date": "2026-11-24",
+  "slug": "jarvis",
+  "title": "The real face shows whole in the popover, so you can watch his lips move",
+  "detail": "The popover's real face was a wide 272x220 box over a tall portrait, so it kept only forehead-to-nose: his mouth sat at the edge under a dark shade and the \"Lip sync\" badge, and nobody could tell he was speaking. It is now a 4:5 portrait (240x300) showing forehead to chin. While the face is live, th",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
   "id": "7a5f317a:jarvis",
   "date": "2026-11-24",
   "slug": "jarvis",
