@@ -203,8 +203,11 @@
 .jav--real.jav--hero { width: min(190px, 46vw); aspect-ratio: 19 / 24; }
 /* The chat hero sizes the 3D avatar by the window height too; the real face keeps its portrait shape. */
 .njc-hero[data-avatar] .jav--real.jav--hero { width: min(190px, 46vw, 30vh); }
-.jav--real.jav--panel { width: 100%; height: 280px; }
-.jav-pop .jav--real.jav--panel { height: 220px; }
+/* Portrait-shaped, never a wide strip: a wide box cropped the tall portrait to
+   forehead-to-nose, so his mouth sat under the edge and you couldn't see him
+   speak (owner, 2026-11-24). 4:5 shows the whole face, chin included. */
+.jav--real.jav--panel { width: auto; height: 300px; aspect-ratio: 4 / 5; margin-inline: auto; }
+.jav-pop .jav--real.jav--panel { height: min(300px, 42vh); }
 
 .jrf { position: absolute; inset: 0; --rf-lvl: 0; }
 .jrf-frame {
@@ -291,9 +294,12 @@
 }
 
 /* Lip sync (LiveTalking on this PC): a live badge on the face, and its row in the popover. */
-.jrf-video { background: #05080d; }
+/* The live video moves by itself: no breathing, sway or zoom on top of it, and
+   no shade over his mouth — his lips are the thing to watch. */
+.jrf-video { background: #05080d; animation: none !important; scale: 1; transform: none; }
+.jrf[data-live="true"] .jrf-frame::after { display: none; }
 .jrf-live {
-  position: absolute; left: 10px; bottom: 10px; z-index: 3; display: inline-flex; align-items: center; gap: 6px;
+  position: absolute; left: 10px; top: 10px; z-index: 3; display: inline-flex; align-items: center; gap: 6px;
   padding: 3px 9px; border-radius: 999px; font: 500 10.5px/1.2 inherit; font-family: inherit; color: #e6f8ff;
   background: rgb(6 12 20 / 0.72); border: 1px solid rgb(127 217 255 / 0.35);
 }

@@ -117,7 +117,13 @@ Your memory, folders, photos, lists, calendar and Record in one place. Every req
   is picked (picking "Real" is the opt-in — the live site's face sat silent while it was
   localhost-only, Nov 24 2026). A "Lip sync" badge shows on the face while live, and a line under
   the 3D | Real switch always says why it isn't: "Lip sync is off · Turn on", "LiveTalking isn't
-  answering on this PC · Try again", or "Lips and hearing on this PC — tap the mic and talk". Same engine as the TikTok Live agent, so talking to it proves that pipeline.
+  answering on this PC · Try again", or "Lips and hearing on this PC — tap the mic and talk".
+  The popover's face is a 4:5 portrait (240×300), never a wide strip: the wide box cropped
+  Alex to forehead-to-nose with his mouth under the edge, so nobody could see him speak. While
+  live, the video carries no breathing/sway/zoom, no bottom shade, and the badge sits top-left —
+  his lips are the thing to watch. Measured: while his voice plays, the mouth region moves ~4×
+  more than at rest (Wav2lip on a closed-mouth photo — real but modest). His voice starts about
+  3 s after the face says "Speaking" (LiveTalking's buffering). Same engine as the TikTok Live agent, so talking to it proves that pipeline.
 - **The real face hears you on this PC too (Nov 24 2026)** — while the lip-synced face is live and
   LiveTalking's own recognizer is on (SenseVoiceSmall at `ws://127.0.0.1:8010/api/asr`, needs
   `funasr` + `modelscope` in LiveTalking's venv), Jarvis listens through it instead of the
@@ -190,6 +196,8 @@ _The flows a user would notice breaking. Sign-in, data rules, routes and keys ar
   spoken request is answered by Alex's moving lips, heard once (never twice, never the browser
   voice), and Jarvis listens again only after he finishes. LiveTalking not running → the
   portrait, and Jarvis speaks as before. Phonon down → LiveTalking's own voice, still lip-synced.
+- **You can see his whole face talk** — the popover shows Alex from forehead to chin, mouth in
+  plain view, nothing (badge, shade) over his lips, on a laptop and at 390 px.
 - **The real face works on the live site too** — on the hosted Jarvis on this PC, picking Real
   connects to LiveTalking with no setting to find; a silent face always shows the reason and its
   one-tap fix under the 3D | Real switch.
