@@ -1,0 +1,446 @@
+/* Realtime Agent — one switchboard for the three agents.
+ *
+ * DESIGN.md, held to: near-black instrument panel, colour reserved for state,
+ * monospace reserved for machine truth. The one thing that commands the page
+ * is the billing meter, and only while it is actually costing money — that is
+ * this app's single standout, and it is deliberately the thing about money.
+ */
+
+.rta {
+  --canvas: #0a0b0f;
+  --panel: #12141c;
+  --panel-2: #181b25;
+  --elevated: #1d212d;
+  --line: #262a38;
+  --line-soft: #1e222e;
+  --ink: #e9ecf3;
+  --ink-muted: #9aa3b5;
+  --ink-faint: #6b7385;
+  --brand: #6366f1;
+  --brand-2: #4f46e5;
+  --core: #22c55e;
+  --waiting: #f59e0b;
+  --failed: #ef4444;
+  --failed-ink: #f87171;
+  --mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+
+  min-height: 100dvh;
+  background: var(--canvas);
+  color: var(--ink);
+  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  font-size: 13px;
+  line-height: 1.625;
+  padding: 16px;
+  padding-bottom: max(16px, env(safe-area-inset-bottom));
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.rta-head h1 {
+  font-size: 30px;
+  font-weight: 600;
+  line-height: 1.15;
+  letter-spacing: -0.01em;
+  margin: 0;
+}
+
+.rta-head p {
+  margin: 2px 0 0;
+  color: var(--ink-muted);
+  max-width: 68ch;
+}
+
+/* ---- the picker: three agents, always all three visible ---------------- */
+
+.rta-picker {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.rta-card {
+  appearance: none;
+  text-align: left;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 10px 12px;
+  color: var(--ink);
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  transition: border-color 120ms ease, background 120ms ease;
+}
+
+.rta-card:hover:not(:disabled) {
+  background: var(--panel-2);
+  border-color: #32384a;
+}
+
+.rta-card:focus-visible {
+  outline: 2px solid var(--brand);
+  outline-offset: 2px;
+}
+
+.rta-card[data-selected="true"] {
+  border-color: var(--brand);
+  background: var(--elevated);
+}
+
+.rta-card-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.rta-card-name {
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.3;
+}
+
+.rta-card-tag {
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--ink-muted);
+}
+
+/* A cost warning on the card itself, so the billed agent is never a surprise. */
+.rta-card-cost {
+  font-family: var(--mono);
+  font-size: 11.5px;
+  font-variant-numeric: tabular-nums;
+  color: var(--waiting);
+}
+
+/* ---- state: always a dot AND a word, never colour alone ---------------- */
+
+.rta-state {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 10.5px;
+  font-weight: 500;
+  letter-spacing: 0.025em;
+  text-transform: uppercase;
+  color: var(--ink-muted);
+  white-space: nowrap;
+}
+
+.rta-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 9999px;
+  background: var(--ink-faint);
+  flex: none;
+}
+
+.rta-state[data-health="ready"] .rta-dot { background: var(--core); }
+.rta-state[data-health="billing"] .rta-dot { background: var(--waiting); }
+.rta-state[data-health="starting"] .rta-dot { background: var(--waiting); animation: rta-pulse 1.1s ease-in-out infinite; }
+.rta-state[data-health="offline"] .rta-dot { background: var(--ink-faint); }
+.rta-state[data-health="unset"] .rta-dot { background: transparent; border: 1px dashed var(--ink-faint); }
+
+@keyframes rta-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.35; }
+}
+
+/* ---- the billing meter: this app's one standout -------------------------
+ * It exists only while money is being spent, and while it exists it is the
+ * loudest thing on the page. Money is machine truth, so it is monospace with
+ * tabular figures — the digits must not jiggle as they tick.
+ */
+
+.rta-meter {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 16px;
+  background: color-mix(in oklab, #f59e0b 12%, var(--panel));
+  border: 1px solid color-mix(in oklab, #f59e0b 42%, var(--line));
+  border-radius: 10px;
+  padding: 10px 12px;
+}
+
+.rta-meter-figure {
+  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
+  font-size: 28px;
+  line-height: 1.1;
+  color: var(--waiting);
+}
+
+.rta-meter-label {
+  font-size: 10.5px;
+  font-weight: 500;
+  letter-spacing: 0.025em;
+  text-transform: uppercase;
+  color: var(--ink-muted);
+}
+
+.rta-meter-fact {
+  font-family: var(--mono);
+  font-size: 11.5px;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink);
+}
+
+.rta-meter-spacer { flex: 1 1 auto; }
+
+/* ---- the stage ---------------------------------------------------------- */
+
+.rta-stage {
+  position: relative;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  overflow: hidden;
+  min-height: 340px;
+  /* Without a cap the stage eats the viewport and leaves whatever is in it
+   * adrift in the middle of a very dark panel. */
+  max-height: 56dvh;
+  flex: 1 1 auto;
+  display: grid;
+  place-items: center;
+}
+
+/* The 3D scene sizes ITSELF: `.jav--hero` is min(340px, 70vw) with a square
+ * aspect. Stretching its container does not enlarge it, it just unanchors it —
+ * so the stage centres it and is capped above, rather than growing tall and
+ * leaving the face adrift in the dark. */
+.rta-stage[data-surface="three"] {
+  min-height: 0;
+  padding: 16px;
+}
+
+.rta-stage video {
+  width: 100%;
+  height: 100%;
+  max-height: 68dvh;
+  object-fit: contain;
+  background: #000;
+  display: block;
+}
+
+/* AvatarScene does not size itself. In new-jarvis the caller supplies the box
+ * (`.jav--hero`) and avatar.css positions `.jav-canvas` inside it. Importing
+ * the whole of avatar.css here drags in its variant and aura rules, which this
+ * layout has no wrapper for — so only the two positioning rules the canvas
+ * actually needs are restated, scoped to this app. */
+/* Fixed pixels, not a percentage of the stage.
+ *
+ * React Three Fiber measures this box to size its drawing buffer, and it
+ * measures on first layout. A height derived from the parent (`height: 100%`,
+ * or `aspect-ratio` resolved against a flexed parent) is not final at that
+ * moment, so the canvas gets measured at the wrong size and draws nothing
+ * until some later reflow — in practice, until the user scrolls. A fixed box
+ * is correct on the first layout pass, so the face is there on first paint.
+ * It must also stay smaller than the stage, which clips. */
+.rta-stage-3d {
+  position: relative;
+  width: 300px;
+  height: 300px;
+  max-width: 100%;
+}
+
+.rta-stage-3d .jav-canvas,
+.rta-stage-3d .jav-canvas > div {
+  position: absolute;
+  inset: 0;
+}
+
+/* Never a blank panel: every non-ready state explains itself (R4). */
+.rta-empty {
+  padding: 24px;
+  text-align: center;
+  max-width: 46ch;
+  color: var(--ink-muted);
+}
+
+.rta-empty strong {
+  display: block;
+  color: var(--ink);
+  font-size: 14px;
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+
+.rta-empty code {
+  font-family: var(--mono);
+  font-size: 11.5px;
+  color: var(--ink);
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  padding: 1px 5px;
+}
+
+/* ---- buttons ----------------------------------------------------------- */
+
+.rta-btn {
+  appearance: none;
+  font: inherit;
+  font-size: 12px;
+  line-height: 1.4;
+  border-radius: 6px;
+  padding: 6px 12px;
+  border: 1px solid var(--line);
+  background: transparent;
+  color: var(--ink);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.rta-btn:hover:not(:disabled) { background: var(--panel-2); }
+.rta-btn:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
+.rta-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.rta-btn[data-kind="primary"] {
+  background: var(--brand-2);
+  border-color: var(--brand-2);
+  color: #fff;
+}
+
+.rta-btn[data-kind="primary"]:hover:not(:disabled) {
+  background: color-mix(in oklab, var(--brand-2) 82%, black);
+}
+
+/* Stop is the kill switch for a thing that costs money: it never hides. */
+.rta-btn[data-kind="stop"] {
+  background: var(--failed);
+  border-color: var(--failed);
+  color: #fff;
+  font-weight: 500;
+}
+
+.rta-btn[data-kind="stop"]:hover:not(:disabled) {
+  background: color-mix(in oklab, var(--failed) 84%, black);
+}
+
+/* ---- the confirm gate -------------------------------------------------- */
+
+.rta-scrim {
+  position: fixed;
+  inset: 0;
+  background: rgba(5, 6, 9, 0.72);
+  display: grid;
+  place-items: center;
+  padding: 16px;
+  z-index: 50;
+}
+
+.rta-dialog {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 16px;
+  width: min(440px, 100%);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.rta-dialog h2 {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.3;
+}
+
+.rta-dialog p { margin: 0; color: var(--ink-muted); }
+
+.rta-quote {
+  display: grid;
+  gap: 6px;
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 10px 12px;
+}
+
+.rta-quote-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  font-family: var(--mono);
+  font-size: 11.5px;
+  font-variant-numeric: tabular-nums;
+}
+
+.rta-quote-row span:first-child {
+  font-family: ui-sans-serif, system-ui, sans-serif;
+  color: var(--ink-muted);
+}
+
+.rta-field {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.rta-field label {
+  font-size: 10.5px;
+  font-weight: 500;
+  letter-spacing: 0.025em;
+  text-transform: uppercase;
+  color: var(--ink-muted);
+}
+
+.rta-field select {
+  font: inherit;
+  font-size: 12px;
+  background: var(--panel-2);
+  color: var(--ink);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 5px 8px;
+}
+
+.rta-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.rta-error {
+  color: var(--failed-ink);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+/* ---- phone -------------------------------------------------------------- */
+
+@media (max-width: 760px) {
+  .rta { padding: 12px; }
+  .rta-head h1 { font-size: 22px; }
+  .rta-head p { font-size: 12px; }
+  .rta-picker { grid-template-columns: 1fr; }
+  .rta-card { padding: 8px 10px; }
+  .rta-card-tag { display: none; }
+  /* The stage has to stay ON SCREEN on a phone: stacked cards push it down,
+   * and once it falls below the fold AvatarScene's IntersectionObserver sets
+   * frameloop="never" and the 3D face never draws. */
+  /* `.rta-stage-3d` keeps its 300px box at every width on purpose: R3F sizes
+   * its drawing buffer once, so changing the box at a breakpoint leaves the
+   * canvas measured for the old size and drawing nothing. 300px still fits a
+   * 390px phone inside the 12px padding. */
+  .rta-stage { min-height: 320px; max-height: 52dvh; }
+  .rta-meter-figure { font-size: 24px; }
+  .rta-actions { flex-direction: column-reverse; }
+  .rta-actions .rta-btn { justify-content: center; width: 100%; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .rta-card,
+  .rta-state[data-health="starting"] .rta-dot {
+    transition: none;
+    animation: none;
+  }
+}

@@ -1255,6 +1255,7 @@
     "src/lib/new-jarvis/browserFast.test.ts",
     "src/lib/new-jarvis/capture.test.ts",
     "src/lib/new-jarvis/chatMedia.test.ts",
+    "src/lib/new-jarvis/chatModels.test.ts",
     "src/lib/new-jarvis/devops.test.ts",
     "src/lib/new-jarvis/dictation.test.ts",
     "src/lib/new-jarvis/errorFix.test.ts",
@@ -1313,6 +1314,89 @@
     "src/lib/studio/workflows.test.ts",
     "src/lib/telephony/decide.test.ts",
     "src/lib/telephony/script.test.ts"
+   ]
+  }
+ },
+ {
+  "slug": "realtime-agent",
+  "title": "Realtime Agent",
+  "route": "/apps/realtime-agent",
+  "category": "AI",
+  "reviewed": "2026-11-25",
+  "seeded": null,
+  "whatItDoes": "One switchboard for the owner's three talking agents, so they are picked from a single screen\ninstead of three different places. Two are free and one is a rented GPU that bills by the hour,\nand the whole screen is arranged around that asymmetry: the paid one is the only thing behind a\ngate, and once it is running the money is the loudest thing on the page.\n\n| Agent | What it is | Cost |\n|---|---|---|\n| 3D agent | new-jarvis's Three.js face (`AvatarScene`, `variant=\"hero\"`) | free, always there |\n| Local agent | LiveTalking on the owner's PC, `127.0.0.1:8010`, wav2lip256 at ~25 fps on the 3050 | free |\n| RunPod agent | the same LiveTalking with the MuseTalk backend on a rented RunPod GPU | **billed hourly** |\n\nBoth photoreal faces are reached over WebRTC through the existing `LiveTalking` client in\n`src/lib/ai-live-studio/livetalking.ts` — the one AI Live Studio already uses — pointed at either\nlocalhost or the pod's reported address. Nothing about an agent is re-implemented here; this app\nis the switch, the gate and the meter.\n\nThe pod image this app starts is built in the LiveTalking checkout, at\n`C:\\dev\\livetalking\\deploy\\runpod` (Dockerfile, entrypoint, model fetcher and deploy notes).",
+  "features": [
+   "The picker — all three agents always visible, each with its real state as a dot and a word (`ready` · `not running` · `starting` · `running — billing` · `not set up`), never a colour alone. Each card also says what it needs before it can answer, so none is ever silently broken. The billed card shows its hourly rate on its face, before it is ever selected.",
+   "The confirm gate (the point of the app) — choosing the RunPod agent opens a modal that quotes RunPod's own reported rate, what an hour would cost, and what the idle auto-stop caps the damage at. It says out loud that billing starts when the pod starts, not when you talk to it. Nothing is called until \"Start it and bill me\". If RunPod has not reported a rate, the dialog says so rather than showing a confident `$0.00`.",
+   "The meter (`data-standout`) — exists only while the pod is actually billing, and while it exists it owns the page: dollars spent this session at 28px in JetBrains Mono with tabular figures, elapsed time, the rate, and a countdown to the idle stop. It stays visible after switching back to a free agent, because a pod you forgot about is exactly how this gets expensive.",
+   "Stop — red, in the meter, never behind a menu, one press. On success it also drops the selection back to the 3D agent so the stage is not left pointing at a dead pod.",
+   "Idle auto-stop — 5 / 15 / 30 / 60 minutes quiet, default 15, chosen in the gate. The browser sends a keepalive every 60s while the tab is visible; the server re-checks the idle window on every status poll and stops the pod itself, so a closed tab cannot leave a GPU running. \"Never\" is deliberately not an option.",
+   "Nothing destructive is reachable — RunPod's stop (`POST /pods/{id}/action {\"action\":\"stop\"}`) frees the GPU and keeps the `/workspace` volume; terminate (`DELETE /pods/{id}`) destroys the volume and with it the MuseTalk weights and the avatar. They are one word apart in the API, so `src/lib/realtime-agent/pod.ts` exports no terminate, delete or destroy at all, and a test asserts the module surface never grows one.",
+   "Owner-only, fail-closed — the app and its route are not in any PUBLIC list, so `routeAccess` defaults them to `\"owner\"` and the middleware answers 401/403 before the handler runs. This matters more than usual: the endpoint can spend the owner's money.",
+   "The 3D stage survives a resize — React Three Fiber measures its container once, at mount, and never re-measures; a resize after load (rotating a phone, or any width change) otherwise leaves a blank canvas until an unrelated reflow. So the canvas mounts two frames late, its box is a fixed 300px at every breakpoint rather than a percentage, and a `ResizeObserver` remounts it on a real size change. Do not \"simplify\" any of those three back: each one on its own reproduces a blank stage. Verified at 1440px and 390px, and across a live resize between them.",
+   "Demo mode — with no `RUNPOD_API_KEY` / `RUNPOD_POD_ID` the RunPod card reads \"not set up\" and the stage names the exact variables to set and where the deploy files are (R4). The other two agents are unaffected."
+  ],
+  "mustKeep": [
+   "Opening the app with no keys set shows three cards and never a blank panel or a crash.",
+   "Selecting the RunPod agent always opens the confirm gate first, and dismissing it starts nothing and bills nothing.",
+   "While the pod bills, the meter is visible on every agent — not just the RunPod one.",
+   "Stop is reachable in one press whenever the pod is billing.",
+   "`pod.ts` exports no terminate/delete/destroy (`pod.test.ts` asserts this).",
+   "A failed RunPod call explains itself in plain English — rejected key, unknown pod id, no free GPU on the host, unreachable — and never echoes the API key.",
+   "The money figures never render `NaN` or a bare `$0.00` for real spend (`cost.test.ts`)."
+  ],
+  "requested": [
+   "Nothing outstanding. Asked for on 2026-11-25 as \"all my agents in 1 place … it has to confirm to start the runpod agent because it charges me\"."
+  ],
+  "code": {
+   "pages": [
+    {
+     "path": "/apps/realtime-agent",
+     "access": "owner"
+    }
+   ],
+   "folders": [
+    "src/app/api/realtime-agent/",
+    "src/components/realtime-agent/",
+    "src/lib/realtime-agent/"
+   ],
+   "api": [
+    {
+     "path": "/api/realtime-agent/pod",
+     "methods": [
+      "GET",
+      "POST"
+     ],
+     "access": "owner",
+     "file": "src/app/api/realtime-agent/pod/route.ts"
+    }
+   ],
+   "signIn": [],
+   "tables": [],
+   "buckets": [],
+   "rpcs": [],
+   "savedKeys": [],
+   "serverDocs": [],
+   "env": [
+    {
+     "what": "RUNPOD_API_KEY",
+     "files": [
+      "src/lib/realtime-agent/pod.ts"
+     ]
+    },
+    {
+     "what": "RUNPOD_POD_ID",
+     "files": [
+      "src/lib/realtime-agent/pod.ts"
+     ]
+    }
+   ],
+   "ai": [],
+   "callers": [],
+   "tests": [
+    "src/lib/realtime-agent/agents.test.ts",
+    "src/lib/realtime-agent/cost.test.ts",
+    "src/lib/realtime-agent/pod.test.ts"
    ]
   }
  },

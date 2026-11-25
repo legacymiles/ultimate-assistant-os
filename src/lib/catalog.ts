@@ -92,6 +92,28 @@ export const PROJECTS: CatalogProject[] = [
     hue: [225, 160],
   },
   {
+    slug: "realtime-agent",
+    title: "Realtime Agent",
+    tag: "Every agent in one place, and the rented one asks first",
+    category: "AI",
+    overview:
+      "Three agents on one switchboard: the Three.js face that is always there and costs nothing, the photoreal " +
+      "LiveTalking face running on this PC, and the same thing on a rented RunPod GPU with MuseTalk lip sync for " +
+      "when it has to look good on a stream. Pick one and talk to it; each card says what state it is actually in — " +
+      "a dot and a word, never a colour alone — and what it needs before it can answer. " +
+      "The rented one is the only one that can spend money, so it is the only one behind a gate: choosing it quotes " +
+      "the real hourly rate, what an hour would cost and what the auto-stop caps it at, and nothing starts until you " +
+      "say so. Once it is running the meter is the loudest thing on the page — dollars spent, minutes elapsed, rate, " +
+      "and the countdown to an idle stop — and it stays up even after you switch back to a free agent, because a pod " +
+      "you forgot about is exactly how this gets expensive. Stop is red and never more than one press away, the " +
+      "server re-checks the idle timeout on every poll so a closed tab cannot leave a GPU running, and the one API " +
+      "call that could destroy the pod's volume is not wired into the app at all.",
+    status: "live",
+    appUrl: "/apps/realtime-agent",
+    iconStyle: "orbit",
+    hue: [250, 35],
+  },
+  {
     slug: "std-safe",
     title: "Tap Safe",
     tag: "Provable results, honest about what they don't prove",

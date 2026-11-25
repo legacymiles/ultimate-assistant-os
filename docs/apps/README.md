@@ -2,13 +2,14 @@
 
 **Generated — do not edit.** `node scripts/apps-index.mjs` rewrites this from [`src/lib/catalog.ts`](../../src/lib/catalog.ts), which is the single source of truth for the hub. `node scripts/apps-index.mjs --check` fails when the two disagree.
 
-47 projects — 47 live, 0 coming soon. Every live one is a real route under this one Next.js app; none of them is a separate project, repo or deployment. A rebuild that is missing routes from this table is not this site.
+48 projects — 48 live, 0 coming soon. Every live one is a real route under this one Next.js app; none of them is a separate project, repo or deployment. A rebuild that is missing routes from this table is not this site.
 
-## AI (14)
+## AI (15)
 
 | App | Route | What it is |
 |---|---|---|
 | **Jarvis** | `/apps/jarvis` | Your memory, folders, photos, lists, calendar and Record in one place. |
+| **Realtime Agent** | `/apps/realtime-agent` | Three agents on one switchboard: the Three.js face that is always there and costs nothing, the photoreal LiveTalking face running on this PC, and the same thing on a rented RunP… |
 | **AI Rankings** | `/apps/ai-rankings` | A public leaderboard of AI models, one category at a time: LLMs, coding agents, text-to-speech, realtime voice, speech-to-text, image, image editing, text-to-video, image-to-vid… |
 | **Prompt Architect** | `/apps/prompt-architect` | Turn a vague, half-formed idea into an amazing, build-ready prompt. |
 | **Client Review** | `/apps/client-review` | Send each website client a private link: their site fills the screen with a draggable Chat Intake on top, where they type as many edit requests as they like, point at the exact … |
