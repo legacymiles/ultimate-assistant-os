@@ -1,5 +1,23 @@
 [
  {
+  "id": "f058ad67:jarvis",
+  "date": "2026-11-24",
+  "slug": "jarvis",
+  "title": "A tapped mic keeps listening, and the real face finally gets the GPU it needs to talk",
+  "detail": "Three things kept the lip-synced real face from ever answering the owner:",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "f058ad67:voice",
+  "date": "2026-11-24",
+  "slug": "voice",
+  "title": "A tapped mic keeps listening, and the real face finally gets the GPU it needs to talk",
+  "detail": "Three things kept the lip-synced real face from ever answering the owner:",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
   "id": "d01d8d39:jarvis",
   "date": "2026-11-24",
   "slug": "jarvis",
