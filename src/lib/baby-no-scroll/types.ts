@@ -26,7 +26,7 @@ export type GameId =
   | "sparkle"
   | "eggs";
 
-/** How the locked screen opens: a parent's password, or the full-screen drag. */
+/** How the locked screen opens: a parent's password, or the angled two-leg drag. */
 export type UnlockMethod = "password" | "drag";
 
 /**
@@ -51,7 +51,7 @@ export interface Show {
 export interface Settings {
   mode: Mode;
   game: GameId;
-  /** How the lock opens. Password by default; the drag stays for anyone who prefers it. */
+  /** How the lock opens. Password by default; the angled drag stays for anyone who prefers it. */
   unlock: UnlockMethod;
   /** Salted hash of the parent's password (see password.ts). Never the digits. */
   passHash: string;
@@ -62,10 +62,18 @@ export interface Settings {
   /** The puck's diameter in px. Small hides better; big is easier one-handed. */
   lockSize: "small" | "large";
   /**
-   * Whether reaching the far end is enough, or whether it must then be HELD.
-   * On by default: a baby's thumb can cross a phone, but it will not stay put.
+   * Whether reaching the far corner is enough, or whether the lock must then
+   * be HELD there. Off by default since the unlock became an angle: turning a
+   * corner is already something a thumb does not do by accident, and a parent
+   * should get out of the room in one movement.
    */
   holdToConfirm: boolean;
+  /**
+   * Whether the parent has had a say about the hold since it stopped being on
+   * by default. Without it, the old default is sitting in every saved blob and
+   * would quietly make the new unlock harder than the one just asked for.
+   */
+  holdChosen: boolean;
   /** Ask for real fullscreen, which is what actually hides the browser's own UI. */
   fullscreen: boolean;
   /** Hold the screen awake with the Wake Lock API where it exists. */
@@ -84,7 +92,8 @@ export const DEFAULT_SETTINGS: Settings = {
   passLength: 0,
   corner: "br",
   lockSize: "large",
-  holdToConfirm: true,
+  holdToConfirm: false,
+  holdChosen: true,
   fullscreen: true,
   keepAwake: true,
   loop: true,

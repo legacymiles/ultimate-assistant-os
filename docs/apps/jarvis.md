@@ -92,15 +92,19 @@ Your memory, folders, photos, lists, calendar and Record in one place. Every req
   while its row stays in the profile.
 - **One voice for the whole hub (Nov 2026)** — the always-listening voice no longer lives only in
   Chat: it is mounted once in the root layout (`src/components/voice/VoiceProvider.tsx`), keeps
-  listening across pages, and shows as a small orb in the bottom-left of every owner page (Jarvis
-  itself keeps its reactor for the same voice). "Jarvis, …" goes to the chat or harness thread in
+  listening across pages, and lives INSIDE the chat it is talking to (Jarvis itself keeps its
+  reactor for the same voice). "Jarvis, …" goes to the chat or harness thread in
   use — Jarvis chat, Profiles, an open harness thread, a running build (Client Review / Website
   Studio), App Builder, Website Studio drafts, the Dashboard agent — and the answer is read back
   (a harness's answer when its turn finishes, or the gate it stopped at). With no chat on the
   page it types into the box you were in, and with no box it opens Jarvis and runs it here.
-  Owner pages only, never inside a frame, only the visible tab listens.
-- **Start / stop, not always listening** — nothing listens until you tap the orb (or Jarvis's
-  mic): it hears ONE request, answers, and switches the microphone off by itself; **Stop** cuts
+  Owner pages only, never inside a frame, only the visible tab listens. **Only pages that have a
+  Jarvis chat or harness thread have a microphone at all (Nov 2026)** — the floating orb that used
+  to put one in the bottom-left corner of every other owner page is gone (owner: "there is a
+  microphone in every app on my jarvis, you can remove this; this is only for apps with a jarvis
+  chatbot harness"), and with no chat on the page nothing listens even with Hands-free left on.
+- **Start / stop, not always listening** — nothing listens until you tap a chat's voice face (or
+  Jarvis's mic): it hears ONE request, answers, and switches the microphone off by itself; **Stop** cuts
   listening and speaking at once. Always listening for "Jarvis" is **Hands-free**, an opt-in
   switch remembered on this device (Jarvis's "Wait for the name" is the same switch), so it
   never picks up a conversation in the room and starts a task.
@@ -113,7 +117,8 @@ Your memory, folders, photos, lists, calendar and Record in one place. Every req
   Jarvis", "Speak answers aloud"), closed by a click elsewhere or Escape. Nothing floats over the
   page — the first version's top-right pill covered a navigation button (owner, 2026-11-22). On
   Jarvis tabs with no chat box the face sits in the bottom status bar. The old orb, the voice
-  chamber and its Talk / "Wait for the name" / "Speak answers aloud" buttons are gone. It is one procedural body that melts
+  chamber, its Talk / "Wait for the name" / "Speak answers aloud" buttons and the hub's floating
+  corner orb are gone. It is one procedural body that melts
   between nine forms (human, robot, wolf, cat, dragon, alien, orb, crystal, liquid blob) and six
   materials (hologram, glass, metal, plasma, solid, wireframe), with an energy surge at each change;
   on its own it transforms every 5 s, and a tap makes it flinch and change at once. It breathes,
@@ -130,7 +135,8 @@ Your memory, folders, photos, lists, calendar and Record in one place. Every req
   is on the page — a registered voice target: Jarvis chat, Profiles, a harness thread, Website
   Studio drafts, App Builder, a running Client Review build, the Dashboard agent — and nowhere
   else** — each of those chat boxes carries the face in place of its own mic (Profiles' Dictate
-  mic and its bar's decorative orb are now the avatar); other owner pages keep the small orb. All
+  mic and its bar's decorative orb are now the avatar); a page with no Jarvis chat has no voice
+  button and no microphone. All
   avatars on a page run on one shared clock, so they always show the same form. Code:
   `src/components/new-jarvis/avatar/` (`AvatarScene.tsx` renderer, `shaders.ts`,
   `JarvisAvatar.tsx` hero + big voice button), `src/components/voice/ChatVoiceAvatar.tsx`,

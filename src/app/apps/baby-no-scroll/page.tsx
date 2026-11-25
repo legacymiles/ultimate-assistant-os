@@ -6,7 +6,7 @@ export const metadata: Metadata = {
   description:
     "Hand over the screen, not the device. One video or one game fills it, everything else is taken "
     + "away, and the only thing left that answers to a touch is a padlock that opens by being dragged "
-    + "the width of the screen.",
+    + "along two dotted lines and round a corner.",
   // Its own manifest, so it installs as a fullscreen app: the one way to get rid
   // of the browser's "swipe down to exit" (see manifest.webmanifest/route.ts).
   manifest: "/apps/baby-no-scroll/manifest.webmanifest",
