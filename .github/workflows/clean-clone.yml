@@ -38,6 +38,11 @@ jobs:
       - name: docs/apps/README.md matches the catalog
         run: npm run check:apps
 
+      # docs/apps/<slug>.md is the truth about each app; its "From the code"
+      # block must match the code (routes, sign-in, tables + RLS, keys, tests).
+      - name: every app record matches its code
+        run: npm run check:records
+
       - name: every webfont is committed
         run: npm run check:fonts
 

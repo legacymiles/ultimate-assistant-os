@@ -23,7 +23,7 @@
 // Three ways out, because a hook that cannot be escaped is a hook that gets
 // deleted:
 //
-//   Nothing to check. No tracked file under src/, tools/, scripts/ or
+//   Nothing to check. No tracked file under src/, tools/, scripts/, docs/apps/ or
 //   package.json differs from HEAD, so a session that only read, or only
 //   touched docs, ends immediately.
 //   Already checked. A pass is stamped against the exact tree hash, so the
@@ -40,7 +40,7 @@ const ROOT = dirname(dirname(fileURLToPath(import.meta.url)));
 const STAMP = join(ROOT, "node_modules", ".cache", "verify-gate", "passed");
 
 /** The paths a change to which makes the gate worth running. */
-const MATTERS = /^(src\/|tools\/|scripts\/|package\.json|package-lock\.json|tsconfig|next\.config|vitest\.config)/;
+const MATTERS = /^(src\/|tools\/|scripts\/|docs\/apps\/|package\.json|package-lock\.json|tsconfig|next\.config|vitest\.config)/;
 
 function git(args) {
   try {
@@ -130,6 +130,10 @@ block(
     "",
     "  check:apps  fails whenever a catalog entry was added without regenerating",
     "              docs/apps/README.md. Run `npm run apps:index` and commit it.",
+    "  check:records  fails when an app's record (docs/apps/<slug>.md) no longer matches",
+    "              its code — a new route, key, table, policy or test. Run",
+    "              `npm run apps:records`, update the record's Features / Must keep",
+    "              working if the app changed, and commit it.",
     "  npm run build  is the only check that sees an App Router mistake. A route.ts may",
     "              export nothing but route handlers; move any helper a test imports",
     "              into src/lib/<slug>/. tsc --noEmit passes while this fails.",

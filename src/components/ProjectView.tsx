@@ -10,9 +10,10 @@ import { Icon } from "./icons";
 import { KnowledgeInbox } from "./KnowledgeInbox";
 import { VersionTimeline } from "./VersionTimeline";
 import { EditProjectModal } from "./modals/EditProjectModal";
-import { SuperPromptModal } from "./modals/SuperPromptModal";
+import { SuperPromptModal, type SuperPromptMode } from "./modals/SuperPromptModal";
 import { Markdown } from "./Markdown";
 import { AppEditsSection } from "./AppEditsSection";
+import { AppRecordSection } from "./AppRecordSection";
 
 type Tab = "overview" | "features" | "versions" | "knowledge";
 
@@ -21,6 +22,11 @@ export function ProjectView({ project }: { project: Project }) {
   const [tab, setTab] = useState<Tab>("features");
   const [editing, setEditing] = useState(false);
   const [superPrompt, setSuperPrompt] = useState(false);
+  const [promptMode, setPromptMode] = useState<SuperPromptMode>("change");
+  const openPrompt = (mode: SuperPromptMode) => {
+    setPromptMode(mode);
+    setSuperPrompt(true);
+  };
 
   // Reset to the default (Features) tab whenever a different project is opened.
   useEffect(() => {
@@ -118,8 +124,8 @@ export function ProjectView({ project }: { project: Project }) {
           })}
         </div>
         <button
-          onClick={() => setSuperPrompt(true)}
-          title="Generate a build-ready super prompt"
+          onClick={() => openPrompt("change")}
+          title="Super Prompt — Change it (edit the app) or Rebuild (from scratch)"
           className="flex shrink-0 items-center gap-1.5 rounded-xl border border-brand/40 bg-brand/10 px-3 py-2 text-sm font-semibold text-brand transition hover:bg-brand/20"
         >
           <Icon.Sparkles width={15} height={15} />
@@ -166,6 +172,7 @@ export function ProjectView({ project }: { project: Project }) {
         )}
         {tab === "features" && (
           <div className="space-y-4">
+            <AppRecordSection project={project} onChangeIt={() => openPrompt("change")} />
             <AppEditsSection project={project} />
             <FeaturesSection project={project} />
           </div>
@@ -178,6 +185,7 @@ export function ProjectView({ project }: { project: Project }) {
       <SuperPromptModal
         project={project}
         open={superPrompt}
+        initialMode={promptMode}
         onClose={() => setSuperPrompt(false)}
       />
     </div>

@@ -78,3 +78,56 @@ Auth and session gating are shared with the rest of the hub (`src/middleware.ts`
 Projects Timeline is intentionally self-contained: it owns its data and shares only the
 auth + design layer, so it slots into the larger modular OS alongside every other app in
 [`docs/apps/README.md`](README.md).
+
+<!-- code:start -->
+## From the code
+
+_Rewritten by `npm run apps:records` from the source — do not edit by hand. `npm run check:records` fails when it is out of date._
+
+### Where it lives
+
+- Page `/apps/projects-timeline` — owner's sign-in
+- `src/app/api/regenerate/`
+- `src/app/api/timeline-unlock/`
+- `src/lib/repo/`
+- `src/lib/timeline/`
+
+### Sign-in & who can use it
+
+- Needs a signed-in user (requireUser / auth.getUser) — `src/lib/repo/supabase.ts`, `src/lib/timeline/records.ts`
+- Owner-only check (requireOwner / isOwner) — `src/lib/timeline/records.ts`
+
+### Server routes
+
+| Methods | Route | Who can call it |
+|---|---|---|
+| POST | `/api/regenerate` | owner's sign-in |
+| POST DELETE | `/api/timeline-unlock` | owner's sign-in |
+
+### Data & database rules
+
+- Table `features` (public.features) · RLS on — used in `src/lib/repo/supabase.ts`
+  - policy public.features · features_owner — for all using (public.owns_project(project_id)) with check (public.owns_project(project_id))
+- Table `files` (public.files) · RLS on — used in `src/lib/repo/supabase.ts`
+  - policy public.files · files_owner — for all using (public.owns_version(version_id)) with check (public.owns_version(version_id))
+- Table `knowledge_entries` (public.knowledge_entries) · RLS on — used in `src/lib/repo/supabase.ts`
+  - policy public.knowledge_entries · knowledge_owner — for all using (public.owns_project(project_id)) with check (public.owns_project(project_id))
+- Table `name` (not created in supabase/migrations) · RLS unknown — used in `src/lib/timeline/records.ts`
+- Table `projects` (public.projects) · RLS on — used in `src/lib/repo/supabase.ts`
+  - policy public.projects · projects_owner — for all using (user_id = auth.uid()) with check (user_id = auth.uid())
+- Table `versions` (public.versions) · RLS on — used in `src/lib/repo/supabase.ts`
+  - policy public.versions · versions_owner — for all using (public.owns_project(project_id)) with check (public.owns_project(project_id))
+- Saved data `projects-timeline:v1` — `src/lib/repo/local.ts`
+- Server docs (server_docs via readDoc/writeDoc) — `src/lib/timeline/records.ts`
+
+### Keys & outside services
+
+- `AI_MODEL` — `src/app/api/regenerate/route.ts`
+- `TIMELINE_PASSWORD` — `src/app/api/timeline-unlock/route.ts`
+- AI calls through `src/lib/ai/provider.ts` — `src/app/api/regenerate/route.ts`
+
+### Tests
+
+- `src/lib/timeline/appEdits.test.ts`
+- `src/lib/timeline/records.test.ts`
+<!-- code:end -->

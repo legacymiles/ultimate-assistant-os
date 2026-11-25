@@ -121,6 +121,18 @@ of it is the **New Dashboard** app (`/apps/new-dashboard`).
   `npm run timeline:log` and commit `src/lib/timeline/feature-log.json` with it (a log-only commit
   is ignored by the log itself). Write commit subjects as "<App>: <what changed, in plain words>"
   — the subject becomes the feature's title on the timeline and in Jarvis's Improvements.
+- **Every app has a record, `docs/apps/<slug>.md` — read it before you change the app, update it in
+  the same commit.** Start an edit with `npm run change-it -- <slug> "what to change"` (or Projects
+  Timeline › Super Prompt › Change it — the same prompt, built by `src/lib/timeline/records.ts`
+  `buildChangeItPrompt`). After the change: add it to the record's Features, add anything a user
+  would notice breaking to Must keep working, move a built request out of Requested, set
+  `Record reviewed: <today>`, then `npm run apps:records`. The record's "From the code" block is
+  generated (`scripts/app-records.mjs`: pages, routes + who can call them, sign-in, tables + RLS
+  policies, buckets, saved keys, env keys, scheduled callers, tests) and `npm run check:records`
+  — part of verify and CI — fails when it no longer matches the code. A new catalog app gets its
+  record seeded from the edit log by `npm run apps:records`. Projects Timeline shows each record at
+  the top of the app's Features tab, with an "N edits behind" badge when edits shipped after the
+  review date.
 
 - Be direct and concise. Lead with what needs action.
 - They like dense, database-style UIs over card grids.
