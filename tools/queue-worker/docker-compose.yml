@@ -1,0 +1,26 @@
+# The 24/7 Queue worker on the VPS (WSL2 Ubuntu + Docker).
+#   docker compose up -d --build      start / update
+#   docker compose logs -f --tail 100 watch it work
+# Secrets live in ./.env (gitignored) — see .env.example.
+services:
+  queue-worker:
+    build: .
+    image: jarvis-queue-worker:latest
+    container_name: queue-worker
+    restart: always
+    env_file: .env
+    environment:
+      QUEUE_WORKER_HOST: vps
+    # Resource limits: concurrency is also capped in-process (QUEUE_CONCURRENCY,
+    # per-executor limits, QUEUE_MAX_RSS_MB); these stop a runaway step from
+    # starving SearXNG on the same box.
+    mem_limit: 2g
+    cpus: 2.0
+    stop_grace_period: 30s
+    tmpfs:
+      - /tmp/queue247:size=3g,uid=1000,gid=1000
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"

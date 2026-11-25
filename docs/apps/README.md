@@ -2,9 +2,9 @@
 
 **Generated — do not edit.** `node scripts/apps-index.mjs` rewrites this from [`src/lib/catalog.ts`](../../src/lib/catalog.ts), which is the single source of truth for the hub. `node scripts/apps-index.mjs --check` fails when the two disagree.
 
-46 projects — 46 live, 0 coming soon. Every live one is a real route under this one Next.js app; none of them is a separate project, repo or deployment. A rebuild that is missing routes from this table is not this site.
+47 projects — 47 live, 0 coming soon. Every live one is a real route under this one Next.js app; none of them is a separate project, repo or deployment. A rebuild that is missing routes from this table is not this site.
 
-## AI (13)
+## AI (14)
 
 | App | Route | What it is |
 |---|---|---|
@@ -21,6 +21,7 @@
 | **Find My Life** | `/apps/find-my-life` | Your phone, laptop, Meta glasses, car, keys and wallet in one place, on a live radar with you in the middle. |
 | **Contradicting** | `/apps/contradicting` | A clip-on recorder (the Omi pendant, or the Omi app on your phone) streams what was said, and Contradicting keeps each person's words with the exact time. |
 | **Personas Studio** | `/apps/personas-studio` | A content studio for people who run several creator personas at once — a rap channel, an explainer page, a baby-growth diary. |
+| **24/7 Queue** | `/apps/queue-247` | The central nervous system of the hub: tell Jarvis what you want in plain words and it becomes real background work on your own server, still running with the laptop off and the… |
 
 ## Image (2)
 

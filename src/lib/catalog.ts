@@ -1096,6 +1096,31 @@ export const PROJECTS: CatalogProject[] = [
     iconStyle: "orbit",
     hue: [243, 187],
   },
+  {
+    slug: "queue-247",
+    title: "24/7 Queue",
+    tag: "The command center for every autonomous AI task",
+    category: "AI",
+    overview:
+      "The central nervous system of the hub: tell Jarvis what you want in plain words and it becomes real "
+      + "background work on your own server, still running with the laptop off and the browser closed. Jarvis "
+      + "reads which app you mean, picks the agent, decides whether it is a one-off, a scheduled job, a "
+      + "recurring task or a standing 24/7 workflow, splits big requests into parts that wait for each other, "
+      + "and files them. A worker on the VPS claims each task from Postgres with a lock no second worker can "
+      + "take, runs it one bounded step at a time, retries with backoff, and saves everything between steps — "
+      + "so a restart, a reboot or a dropped connection only costs the step in flight. The board shows what "
+      + "is running right now with real progress, what waits in the queue, what is scheduled, every 24/7 "
+      + "workflow, what failed and what needs your yes; open any task for its full log, every run, its "
+      + "results and a conversation with Jarvis about it. Agents built in: research that never reports the "
+      + "same source twice, MT4 bot discovery that reads EA source for martingale, grid, repainting and "
+      + "unsafe code and ranks what it finds, H3 video recreation that cuts an uploaded or linked video into "
+      + "shots and writes new H3 prompts with your characters, monitors that alert only on change, and code "
+      + "changes handed to Claude Code in its own worktree. Outside websites connect with a key and an API.",
+    status: "live",
+    appUrl: "/apps/queue-247",
+    iconStyle: "pulse",
+    hue: [168, 262],
+  },
 ];
 
 export function getProject(slug: string): CatalogProject | null {
@@ -1111,6 +1136,8 @@ export function getProject(slug: string): CatalogProject | null {
  * panel. Neither is wanted, so they keep the animated icon instead.
  */
 const UNPREVIEWABLE = new Set([
+  // The owner's live task board; it polls the queue every few seconds.
+  "queue-247",
   // The owner's prompting research; the page polls the lab and nudges its agent.
   "h3-experiments",
   "money-agent-studio",

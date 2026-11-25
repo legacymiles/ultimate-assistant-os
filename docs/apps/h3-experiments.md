@@ -2,7 +2,7 @@
 
 Route: `/apps/h3-experiments` · Category: Video · Live
 
-Record reviewed: 2026-11-24
+Record reviewed: 2026-11-25
 
 > **This file is the truth about this app.** Read it before changing the app and update it in the
 > same commit. Everything above the "From the code" block is written by hand and kept; that block
@@ -17,6 +17,13 @@ Design spec: `docs/superpowers/specs/2026-11-24-h3-prompt-lab-design.md`. PC wor
 
 ## Features
 
+- **Run in 24/7 Queue (Nov 25 2026)** — Video Reverse Engineering has a "Run in 24/7 Queue" panel
+  (`research/QueueRunPanel.tsx`): upload a video (mp4/mov/webm/m4v/mkv) or paste a social link,
+  say what to change (characters, outfits, locations, style) and how many variations, and it files
+  an `h3-recreate` task. The VPS worker downloads it, finds shots with ffmpeg scene detection,
+  extracts keyframes, runs this lab's own analysis (`server/brain.ts`) and recreate/compile/lint,
+  and leaves a storyboard plus one H3 prompt per shot with variations in the task's Results — the
+  page can be closed meanwhile. A link that cannot be imported asks for an upload instead.
 - **Master Prompt Guide** — v1 consolidates `h3-prompt` (everything in it survives), MiniMax's official base/Ref2VA formats, the measured long-video rules from the seesee75 Director paper (rules only; its GPL code is not used) and this PC's WanGP facts: 14 core sections + 43 genre modules across narrative, cinematic, action, gaming and commercial. Read it all, copy as SKILL.md, view any version, roll back.
 - **Genre modules inside the one guide** — each genre has its own compiler settings, scoring weights, rules, pacing, camera language and continuity list; the agent researches per genre.
 - **Deterministic compiler + linter** (`compile.ts`, `lint.ts`) — official base or six-section Ref2VA prompt from a shot spec and the bibles; the linter checks length per shot, two-positions, dialogue that cannot fit at 2.5 words/s, beats, duration, bracket camera tags, phantom references, missing sound, body contact and off-frame entrances.

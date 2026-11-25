@@ -392,6 +392,28 @@ export const TOOLS: ToolDef[] = [
       required: ["review_id", "version_id", "preview_url"],
     },
   },
+  // --- 24/7 Queue (src/lib/queue247/server/connector.ts runs these) ---] = [
+  {
+    name: "task_list",
+    description:
+      "The owner's 24/7 Queue — background tasks running on their server (research, MT4 bot discovery, H3 video recreation, monitors, code changes handed to Claude Code). Lists what is running, what needs the owner, what is scheduled and what finished, grouped like the board.",
+    inputSchema: { type: "object", properties: { all: { type: "boolean", description: "Include completed and terminated tasks." } } },
+  },
+  {
+    name: "task_get",
+    description: "One 24/7 Queue task in full: config, steps, recent log lines and its top findings.",
+    inputSchema: { type: "object", properties: { id: { type: "string" } }, required: ["id"] },
+  },
+  {
+    name: "task_command",
+    description:
+      "Tell the 24/7 Queue what to do, in plain words, exactly as the owner would tell Jarvis: file background / recurring / 24/7 tasks, or pause, resume, stop, reschedule or answer an existing one (pass task_id). The queue's planner picks the app, executor and schedule. Returns Jarvis's reply and the tasks it created or changed.",
+    inputSchema: {
+      type: "object",
+      properties: { text: { type: "string" }, task_id: { type: "string", description: "Optional existing task this is about." } },
+      required: ["text"],
+    },
+  },
 ];
 
 export interface RpcRequest {

@@ -598,6 +598,21 @@ export const AGENT_TOOLS: AgentTool[] = [
       required: ["app", "request"],
     },
   },
+  {
+    name: "queue_command",
+    kind: "hub",
+    route: "hub/queue_command",
+    description:
+      "Give work to the owner's 24/7 Queue — the background engine on their server that keeps running with the PC off and the browser closed. Use it for anything that should run in the BACKGROUND, on a SCHEDULE, or CONTINUOUSLY: research and keep researching a topic, find/evaluate MT4 trading bots, recreate a video as H3 prompts, monitor sites/systems and report problems, recurring jobs ('every day at 9'), standing autonomous workflows ('24/7', 'keep finding'). Also to ask about or control queue tasks: what is running, pause/resume/stop one, change its schedule, answer its question. Pass the owner's words; the queue's own planner picks the app, agent, schedule and sub-tasks. Not for one quick lookup you can answer now (use web_search).",
+    parameters: {
+      type: "object",
+      properties: {
+        text: str("What the owner wants, in their words, with every detail they gave (apps, schedule, sources, what to change)."),
+        task_id: str("Optional: the id of an existing queue task the owner is talking about."),
+      },
+      required: ["text"],
+    },
+  },
 
   // --- a coding agent, for the jobs one edit cannot finish -----------------
   // These are the difference between an assistant that can read and one that

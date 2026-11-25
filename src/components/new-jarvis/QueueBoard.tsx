@@ -36,6 +36,7 @@ import type { UseRequests } from "@/lib/new-jarvis/useRequests";
 import { FinishedLog, RequestComposer, RequestList } from "./QueueFolder";
 import { Agents } from "./Agents";
 import { useAgents } from "@/lib/new-jarvis/agents/useAgents";
+import { CommandCenter } from "../queue247/CommandCenter";
 
 const KINDS: QueueKind[] = ["task", "app", "skill", "workflow"];
 
@@ -47,18 +48,20 @@ const KIND_ICON: Record<QueueKind, keyof typeof Icon> = {
 };
 
 /**
- * The two halves of In Queue.
+ * The 24/7 Queue's command center comes first: what the AI ecosystem is
+ * doing right now, and the board of tasks the VPS workers run. Then the two
+ * older halves of In Queue.
  *
- * "Queue" is work a PERSON will read and act on. "24/7 agents" is work a
+ * "Requests" is work a PERSON will read and act on. "Machine agents" is work a
  * MACHINE will: goals that need Pinokio, Blender or Unreal and are picked up
  * by whichever machine wakes up able to run them. They share a tab strip
  * because they are the same question asked of two different workers.
  */
-type QueueTab = "queue" | "agents";
+type QueueTab = "center" | "queue" | "agents";
 
 export function QueueBoard({ queue }: { queue: UseQueue }) {
   const { rows, counts, filter, setFilter, loading, error, requests } = queue;
-  const [tab, setTab] = useState<QueueTab>("queue");
+  const [tab, setTab] = useState<QueueTab>("center");
   // Polls only while it is the tab being looked at; see useAgents.
   const agents = useAgents(tab === "agents");
   const [open, setOpen] = useState<string | null>(null);
@@ -114,8 +117,9 @@ export function QueueBoard({ queue }: { queue: UseQueue }) {
       {/* --- which worker: a person, or a machine ------------------------- */}
       <div role="tablist" aria-label="In Queue" className="flex shrink-0 border-b border-line bg-panel">
         {([
-          ["queue", "Queue", counts.wip],
-          ["agents", "24/7 agents", agents.live],
+          ["center", "Command center", 0],
+          ["queue", "Requests", counts.wip],
+          ["agents", "Machine agents", agents.live],
         ] as const).map(([id, label, n]) => {
           const on = tab === id;
           return (
@@ -140,7 +144,11 @@ export function QueueBoard({ queue }: { queue: UseQueue }) {
         })}
       </div>
 
-      {tab === "agents" ? (
+      {tab === "center" ? (
+        <div className="min-h-0 flex-1">
+          <CommandCenter embedded />
+        </div>
+      ) : tab === "agents" ? (
         <div className="min-h-0 flex-1">
           <Agents agents={agents} apps={apps} />
         </div>

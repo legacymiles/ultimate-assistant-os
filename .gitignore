@@ -116,3 +116,7 @@ public/__dump/
 /tools/dtf-print-station/state.json
 /tools/dtf-print-station/state.corrupt-*.json
 /tools/dtf-print-station/*.local.json
+
+# 24/7 Queue worker bundle (built by tools/queue-worker/build.mjs)
+/tools/queue-worker/dist/
+/tools/queue-worker/.env

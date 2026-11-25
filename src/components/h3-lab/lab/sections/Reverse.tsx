@@ -15,6 +15,7 @@ import { ResearchStyles } from "../research/ResearchStyles";
 import { GenreSelect } from "../research/ShotSpecEditor";
 import { DEFAULT_CUT, detectShots, grabKeyframes, sampleDistances, sampleVideo, threshold, timecode, type SampledVideo } from "../research/shotDetect";
 import { audioSummary } from "../research/audioSummary";
+import { QueueRunPanel } from "../research/QueueRunPanel";
 
 const BODY_LIMIT = 3_900_000;
 const PASSES = [
@@ -264,6 +265,8 @@ export default function Reverse({ lab, go, focus }: SectionProps) {
           ) : null}
         </div>
       </Panel>
+
+      <QueueRunPanel />
 
       <Blueprints state={state} lab={lab} go={go} openId={openId} setOpenId={setOpenId} />
     </div>

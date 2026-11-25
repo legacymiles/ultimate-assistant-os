@@ -167,7 +167,7 @@ const GROUPS: { id: string; label: string; icon: keyof typeof Icon; items: Tab[]
     items: [
       // In Queue answers "what should I work on". A local agent still runs as
       // a capability of Chat; the thread opens over it, not as another tab.
-      { id: "queue", label: "Queue", icon: "ListChecks" },
+      { id: "queue", label: "24/7 Queue", icon: "ListChecks" },
       // The crash log. It sat on the Dashboard until 2026-10-19; it is a
       // fix-it list for whoever builds, so it lives with the build tools.
       { id: "site-errors", label: "Site errors", icon: "Flag" },
@@ -863,6 +863,33 @@ export function NewJarvis() {
           queued: job.app ? job.app.title : "Inbox",
           already: !data?.added?.length,
           note: `${data?.added?.length ? "Filed" : "That exact request was already waiting"} in In Queue › ${job.app ? job.app.title : "Inbox"}. Claude Code builds it from the repo and clears it when it's done — the owner can watch it in the Queue tab. Tell them that in one short line.`,
+        };
+      }
+
+      if (tool === "queue_command") {
+        // Background, scheduled and 24/7 work — the 24/7 Queue's own planner
+        // files the tasks; they run on the server with the PC off.
+        const text = String(args.text ?? "").trim();
+        if (text.length < 3) throw new Error("Say what the queue should do.");
+        const res = await fetch("/api/queue247/command", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            text,
+            taskId: typeof args.task_id === "string" && args.task_id ? args.task_id : undefined,
+            tz: Intl.DateTimeFormat().resolvedOptions().timeZone,
+            from: "jarvis-chat",
+          }),
+        }).catch(() => null);
+        const data = (await res?.json().catch(() => null)) as
+          | { reply?: string; created?: { id: string; title: string; kind: string; status: string }[]; acted?: { id: string; title: string; status: string }[]; error?: string }
+          | null;
+        if (!res || !res.ok) throw new Error(data?.error ?? "The 24/7 Queue didn't answer. Sign in to Jarvis and try again.");
+        return {
+          reply: data?.reply ?? "",
+          created: (data?.created ?? []).map((t) => ({ id: t.id, title: t.title, kind: t.kind, status: t.status })),
+          acted: (data?.acted ?? []).map((t) => ({ id: t.id, title: t.title, status: t.status })),
+          note: "Relay the queue's reply in one or two short lines. Tasks run on the server and show live in Jarvis › 24/7 Queue.",
         };
       }
 

@@ -346,6 +346,12 @@ export function classify(op: BridgeOp): Verdict {
       // Only files a request in In Queue, where the owner can see or delete it.
       return free(`Hand "${truncate(String(args.request ?? "a change"), 50)}" to Claude Code for ${truncate(String(args.app ?? "the app"), 30)}.`);
 
+    case "hub/queue_command":
+      // Files or adjusts tasks in the owner's own 24/7 Queue, where every one
+      // can be seen, paused or terminated. Executors that spend money, trade
+      // or post stop for the owner's approval inside the queue itself.
+      return free(`Tell the 24/7 Queue: "${truncate(String(args.text ?? "a task"), 60)}".`);
+
     // --- the workbench -----------------------------------------------------
     // Starting an agent is the job the owner asked for, and it works in a
     // worktree that is not their checkout. The harness's OWN gate is what stops

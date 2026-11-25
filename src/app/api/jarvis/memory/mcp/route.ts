@@ -13,6 +13,7 @@ import { after, NextResponse } from "next/server";
 // ---------------------------------------------------------------------------
 
 import { handleRpc, TOOLS, type RpcRequest } from "@/lib/jarvis/mcpProtocol";
+import { runTaskTool } from "@/lib/queue247/server/connector";
 import { mcpConfig, mcpContext, mcpReady } from "@/lib/jarvis/server/mcpAuth";
 import {
   deleteMemory,
@@ -91,6 +92,7 @@ async function runTool(
 ): Promise<string> {
   if (name.startsWith("queue_")) return runQueueTool(ctx, name, args, origin, client);
   if (name.startsWith("agent_")) return runAgentTool(ctx, name, args, client);
+  if (name.startsWith("task_")) return runTaskTool(ctx.userId, name, args, client);
   switch (name) {
     case "search_memory": {
       const query = str(args.query);

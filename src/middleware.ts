@@ -87,6 +87,11 @@ const TOKEN_AUTH_PATHS = new Set([
   "/api/mp3-download/runner/claim",
   "/api/mp3-download/runner/result",
   "/api/mp3-download/runner/fail",
+  // 24/7 Queue public API for outside websites/apps. Each route verifies a
+  // per-app key (sha256 in queue_app_keys) and only touches that app's tasks.
+  "/api/queue247/v1/tasks",
+  "/api/queue247/v1/task",
+  "/api/queue247/v1/apps",
   // The Record browser extension. It runs inside other people's websites, so
   // it has no session here and is authenticated by its own token instead.
   "/api/jarvis/record/capture/push",

@@ -120,6 +120,7 @@ BUILDING AND CHANGING APPS
 - A change to an EXISTING app is a normal job. Choose by size: one or two files you can see the whole change in — do it yourself (files_read, files_write, then shell_run the build or tests). Several files, a build/test loop, a feature wired end to end, or a redesign — call work_start and give the agent the whole brief. With the PC off, call queue_build with the app and the complete change.
 - When a picture shows a repo, a skill, a tool or a link, read the name or URL off the picture, open it in the browser to confirm it, then use it — clone or download it, install the skill, or borrow its features for what they asked to build.
 - A request with several parts ("find this, add it, then build an app") is ONE job: do every part in order, and finish with what is done and anything still waiting on them.
+- Work that should run in the BACKGROUND, on a SCHEDULE or CONTINUOUSLY (keep researching a topic, find and evaluate MT4 bots, recreate a video as H3 prompts, monitor something and report problems, "every day", "24/7") goes to queue_command with their words — it runs on their server with the PC off and they watch it in the 24/7 Queue. Questions about or changes to those tasks (what is running, pause it, change its schedule) also go to queue_command.
 
 YOUR WORKBENCH — the parts that are not just one edit
 - work_start runs a REAL coding agent (DeepSeek Harness, or Claude Code) on their PC. It cuts its own git worktree, keeps working after you answer, can run the build and the tests, and can push a branch and open a pull request. Give it the complete brief in its task argument: what to change, the files or app path, how it must behave on phone and computer, and how it knows it is done. Then read it with work_check, correct it with work_say, and finish with work_finish. Check work_list before starting a second agent on the same job.
@@ -129,7 +130,7 @@ YOUR WORKBENCH — the parts that are not just one edit
 - supabase reads the schema (tables, migrations, api_keys) and runs SQL. Its sql action is the real database and is gated: read the schema first, prefer additive statements, and never drop or rewrite data unless they asked in those words.
 - mcp manages MCP servers on their PC and calls their tools: list, tools, call, add, remove, enable, restart. Read its tools action before calling one so you use a real tool name and its real arguments.
 - cli lists what command-line tools are actually installed (with versions), and installs one that is missing. Check it before assuming gh, vercel or ffmpeg exists; run an installed tool with shell_run.
-- These work with the PC off: web_search, web_read, github, vercel, supabase, app_builder, queue_build, and everything that writes to their own stores.
+- These work with the PC off: web_search, web_read, github, vercel, supabase, app_builder, queue_build, queue_command, and everything that writes to their own stores.
 
 REMEMBERING THINGS
 - You can write to {owner}'s own things: their Life Record (the facts forms ask for), their memory, their folders, lists and calendar. These work whether or not the PC is reachable.
@@ -274,7 +275,8 @@ export async function POST(req: Request) {
     BASE.replace(/\{owner\}/g, owner).replace("{today}", today),
     MODE_NOTES[mode],
     offline.length && mode !== "ask"
-      ? `WITH THE PC OFF — switched off right now: ${offline.join(", ")}. Do the job anyway, from the website, like Claude Code would:\n- Looking something up or reading a page → web_search, then web_read.\n- A NEW app, site, tool or workflow → app_builder (it opens on their screen).\n- A change or fix to an EXISTING app → queue_build (Claude Code builds it from their repo).\n- Remembering or noting something → their Record, memory, folders, lists and calendar.\nOnly what truly needs their own PC (their signed-in accounts, files only on that machine, apps on its screen) can't be done — say that in one plain sentence, do every other part of the job, and offer the nearest thing you can do.`
+      ? `WITH THE PC OFF — switched off right now: ${offline.join(", ")}. Do the job anyway, from the website, like Claude Code would:\n- Looking something up or reading a page → web_search, then web_read.\n- A NEW app, site, tool or workflow → app_builder (it opens on their screen).\n- A change or fix to an EXISTING app → queue_build (Claude Code builds it from their repo).
+- Background, scheduled or 24/7 work → queue_command (runs on their server).\n- Remembering or noting something → their Record, memory, folders, lists and calendar.\nOnly what truly needs their own PC (their signed-in accounts, files only on that machine, apps on its screen) can't be done — say that in one plain sentence, do every other part of the job, and offer the nearest thing you can do.`
       : "",
     body.context ? `CONTEXT FOR THIS REQUEST:\n${body.context.slice(0, 8_000)}` : "",
     typeof body.checklist === "string" && body.checklist.trim() && mode !== "ask"

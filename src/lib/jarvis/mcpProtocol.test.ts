@@ -55,6 +55,9 @@ describe("mcp protocol", () => {
       "save_memory",
       "save_skill",
       "search_memory",
+      "task_command",
+      "task_get",
+      "task_list",
     ]);
     for (const t of tools) expect(t.inputSchema).toHaveProperty("type", "object");
   });

@@ -12,7 +12,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Icon } from "../icons";
 import { Popover } from "../Popover";
-import { AUTO_MODEL, CHAT_MODELS, isModelId, modelLabel, type ChatModel } from "@/lib/new-jarvis/chatModels";
+import { AUTO_MODEL, CHAT_MODELS, isModelId, isSubscription, modelLabel, type ChatModel } from "@/lib/new-jarvis/chatModels";
 
 interface Listed {
   id: string;
@@ -27,11 +27,20 @@ export function ModelPicker({
   value,
   onChange,
   up = false,
+  cloudOnly = false,
+  className,
+  triggerLabel,
 }: {
   value: string;
   onChange: (id: string) => void;
   /** Open the list upward — for a composer docked at the bottom of the page. */
   up?: boolean;
+  /** Hide the "my subscription" brains, which only the PC can run (the 24/7 Queue plans on the server). */
+  cloudOnly?: boolean;
+  /** Replaces the trigger's own look, for a surface with its own style. */
+  className?: string;
+  /** Words on the trigger instead of the picked model's name. */
+  triggerLabel?: string;
 }) {
   const [open, setOpen] = useState(false);
   const [q, setQ] = useState("");
@@ -89,12 +98,16 @@ export function ModelPicker({
         onClick={() => setOpen(!open)}
         aria-expanded={open}
         title="Which model Jarvis thinks with"
-        className={`inline-flex max-w-[170px] items-center gap-1 rounded px-1.5 py-0.5 text-[10.5px] font-medium transition ${
-          value ? "bg-brand-2/15 text-ink" : "text-ink-muted hover:bg-elevated hover:text-ink"
-        }`}
+        data-picked={value ? "true" : undefined}
+        className={
+          className ??
+          `inline-flex max-w-[170px] items-center gap-1 rounded px-1.5 py-0.5 text-[10.5px] font-medium transition ${
+            value ? "bg-brand-2/15 text-ink" : "text-ink-muted hover:bg-elevated hover:text-ink"
+          }`
+        }
       >
         <Icon.Sparkles width={11} height={11} aria-hidden />
-        <span className="truncate">{modelLabel(value)}</span>
+        <span className="truncate">{triggerLabel ?? modelLabel(value)}</span>
         <Icon.Chevron width={10} height={10} className="rotate-90 opacity-60" aria-hidden />
       </button>
 
@@ -112,7 +125,7 @@ export function ModelPicker({
           <p className="px-2 pb-1 pt-0.5 text-[10px] uppercase tracking-wider text-ink-faint">
             Jarvis's brain
           </p>
-          <ul>{CHAT_MODELS.map(option)}</ul>
+          <ul>{(cloudOnly ? CHAT_MODELS.filter((m) => !isSubscription(m.id)) : CHAT_MODELS).map(option)}</ul>
           <div className="mt-1 border-t border-line-soft px-1 pt-1.5">
             <input
               value={q}
