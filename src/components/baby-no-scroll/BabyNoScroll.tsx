@@ -13,8 +13,8 @@
 // text, no menu, no tab bar and no button anywhere — except the padlock, which
 // is the only thing in the app that answers to a touch.
 //
-// Pressing Hand it over crosses between them. Dragging the padlock the width of
-// the screen crosses back.
+// Pressing Hand it over crosses between them. Dragging the padlock along two
+// dotted lines, round a right-angle corner, crosses back.
 // ---------------------------------------------------------------------------
 
 import { useCallback, useEffect, useMemo, useState, type PointerEvent as ReactPointerEvent } from "react";
@@ -470,8 +470,11 @@ export function BabyNoScroll({ initialMode }: { initialMode?: Mode }) {
                 </div>
               ) : (
                 <p className="mt-3 text-[11px] leading-snug text-ink-faint">
-                  The padlock opens by being dragged the full width of the screen, then held on the
-                  latch. Nothing to remember — but an older child who has watched you can copy it.
+                  The padlock opens by being dragged along a line of dots to the next corner, then
+                  turned and dragged along a second line to the corner opposite. Two sides of the
+                  screen, one right-angle turn: quick once you know it, and not something a thumb
+                  does by accident. Nothing to remember — but an older child who has watched you can
+                  copy it.
                 </p>
               )}
             </section>
@@ -517,7 +520,7 @@ export function BabyNoScroll({ initialMode }: { initialMode?: Mode }) {
                 {settings.unlock === "drag" && (
                 <Toggle
                   label="Hold at the end"
-                  hint="After the drag, the lock must be held on the latch for a second. A thumb can cross a phone by luck; it will not then sit still."
+                  hint="One more second on the last corner before it opens. Off by default — the right-angle turn is the hard part now — but on if you want the slowest possible way out."
                   on={settings.holdToConfirm}
                   onChange={(v) => patch({ holdToConfirm: v })}
                 />

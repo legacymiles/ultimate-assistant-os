@@ -35,6 +35,12 @@ export function ChatVoiceAvatar({ busy, size = "md" }: { busy?: boolean; size?: 
   const hub = useHubVoice();
   const [open, setOpen] = useState(false);
   const wrap = useRef<HTMLSpanElement>(null);
+  // Saying "there is a Jarvis chat on this page". The hub keeps the microphone
+  // off every page that has none (App Builder and Website Studio hand their
+  // chat's sentence straight to their own composer rather than registering a
+  // voice target, so the registry alone would miss them).
+  const announceChat = hub?.announceChat;
+  useEffect(() => announceChat?.(), [announceChat]);
   if (!hub || !hub.allowed) return null;
   const voice = hub.voice;
   const live = voice.state === "hearing" || voice.state === "thinking" || voice.state === "speaking";

@@ -46,84 +46,116 @@
   pointer-events: none;
 }
 
-/* --- the rail ------------------------------------------------------------ */
+/* --- the two dotted legs ------------------------------------------------- */
+/*                                                                           */
+/*  The way out is an angle: dots along one edge, a corner, then dots along   */
+/*  another. Dots and not a rail, widely spaced and dim, because a drawn line */
+/*  is something a baby can put a finger on and follow. There is no solid     */
+/*  track behind them at all — only the lit part, which exists while a hand   */
+/*  is actually on the lock.                                                  */
 
-.bns-rail {
+.bns-leg {
   position: absolute;
   opacity: 0;
-  transform: scale(0.96);
-  transition: opacity 0.26s ease, transform 0.34s cubic-bezier(0.22, 1.4, 0.4, 1);
+  transition: opacity 0.3s ease;
 }
-.bns-rail.is-open {
+.bns-leg.is-open {
   opacity: 1;
-  transform: scale(1);
 }
-.bns-rail.is-x {
+.bns-leg.is-x {
   height: 10px;
   margin-top: -5px;
 }
-.bns-rail.is-y {
+.bns-leg.is-y {
   width: 10px;
   margin-left: -5px;
 }
 
-.bns-rail__track,
-.bns-rail__fill,
-.bns-rail__shimmer {
+.bns-leg__dots,
+.bns-leg__fill,
+.bns-leg__shimmer {
   position: absolute;
   inset: 0;
   border-radius: 999px;
 }
 
-.bns-rail__track {
-  background: rgba(255, 255, 255, 0.07);
-  box-shadow:
-    inset 0 0 0 1px rgba(255, 255, 255, 0.12),
-    0 2px 18px rgba(0, 0, 0, 0.5);
-  /* A dashed inner edge reads as a track to travel rather than a drawn line. */
-  background-image: repeating-linear-gradient(
-    var(--bns-dash-angle, 90deg),
-    rgba(255, 255, 255, 0.16) 0 6px,
-    transparent 6px 16px
+/* Spread far apart on purpose: 44px between one dot and the next, so the path
+   reads as a few checkpoints rather than a trail. */
+.bns-leg__dots {
+  --bns-dot-gap: 44px;
+  background-image: radial-gradient(
+    circle,
+    rgba(255, 255, 255, 0.3) 0 2.6px,
+    transparent 2.9px
+  );
+  background-repeat: repeat-x;
+  background-position: left center;
+  background-size: var(--bns-dot-gap) 100%;
+  filter: drop-shadow(0 1px 3px rgba(0, 0, 0, 0.6));
+}
+.bns-leg.is-y .bns-leg__dots {
+  background-repeat: repeat-y;
+  background-position: center top;
+  background-size: 100% var(--bns-dot-gap);
+}
+/* The leg being travelled brightens; the one already behind the puck dims back
+   down, so there is never a question which dots are next. */
+.bns-leg.is-live .bns-leg__dots {
+  background-image: radial-gradient(
+    circle,
+    rgba(255, 255, 255, 0.52) 0 2.8px,
+    transparent 3.1px
   );
 }
-.bns-rail.is-y .bns-rail__track {
-  --bns-dash-angle: 180deg;
+.bns-leg.is-done .bns-leg__dots {
+  opacity: 0.35;
 }
 
-/* How far across the puck has got. It is the one lit thing about the lock, and
-   it only exists while a hand is on it. Blue, like the rest of the app. */
-.bns-rail__fill {
+/* How far along this leg the puck has got. Blue, like the rest of the app. */
+.bns-leg__fill {
   background: linear-gradient(90deg, hsl(196 100% 66%), hsl(214 95% 58%));
   transform-origin: left center;
   transform: scaleX(var(--p, 0));
   box-shadow: 0 0 22px hsl(205 95% 58% / 0.5);
 }
-.bns-rail.is-y .bns-rail__fill {
+.bns-leg.is-y .bns-leg__fill {
   background: linear-gradient(180deg, hsl(196 100% 66%), hsl(214 95% 58%));
   transform-origin: center top;
   transform: scaleY(var(--p, 0));
 }
+/* A leg travelled right-to-left or bottom-to-top fills from its far end. */
+.bns-leg.is-x.is-rev .bns-leg__fill {
+  transform-origin: right center;
+}
+.bns-leg.is-y.is-rev .bns-leg__fill {
+  transform-origin: center bottom;
+}
 
-/* A pulse that travels the way the puck has to go — the only instruction in the
-   app, and it is not a word. */
-.bns-rail__shimmer {
+/* A pulse that travels the way the puck has to go, on the live leg only — the
+   only instruction in the app, and it is not a word. */
+.bns-leg__shimmer {
   background: linear-gradient(
     90deg,
     transparent 0%,
-    rgba(255, 255, 255, 0.55) 45%,
+    rgba(255, 255, 255, 0.5) 45%,
     transparent 70%
   );
   background-size: 40% 100%;
   background-repeat: no-repeat;
-  animation: bns-travel 2.2s linear infinite;
-  opacity: 0.8;
+  animation: bns-travel 2.4s linear infinite;
+  opacity: 0.75;
 }
-.bns-rail.is-y .bns-rail__shimmer {
-  background: linear-gradient(180deg, transparent 0%, rgba(255, 255, 255, 0.55) 45%, transparent 70%);
+.bns-leg.is-x.is-rev .bns-leg__shimmer {
+  animation-direction: reverse;
+}
+.bns-leg.is-y .bns-leg__shimmer {
+  background: linear-gradient(180deg, transparent 0%, rgba(255, 255, 255, 0.5) 45%, transparent 70%);
   background-size: 100% 40%;
   background-repeat: no-repeat;
   animation-name: bns-travel-y;
+}
+.bns-leg.is-y.is-rev .bns-leg__shimmer {
+  animation-direction: reverse;
 }
 @keyframes bns-travel {
   from { background-position: -40% 0; }
@@ -132,6 +164,34 @@
 @keyframes bns-travel-y {
   from { background-position: 0 -40%; }
   to { background-position: 0 140%; }
+}
+
+/* --- the corner the swipe turns at --------------------------------------- */
+
+.bns-elbow {
+  position: absolute;
+  width: 30px;
+  height: 30px;
+  margin: -15px 0 0 -15px;
+  border-radius: 999px;
+  opacity: 0;
+  transform: scale(0.6);
+  transition: opacity 0.28s ease, transform 0.36s cubic-bezier(0.22, 1.4, 0.4, 1);
+  box-shadow:
+    inset 0 0 0 1.5px rgba(255, 255, 255, 0.34),
+    0 2px 10px rgba(0, 0, 0, 0.5);
+}
+.bns-elbow.is-open {
+  opacity: 1;
+  transform: scale(1);
+}
+/* Once the turn has been taken it lights up and stays lit: the drag cannot go
+   back round it, and the puck should look like it has passed a gate. */
+.bns-elbow.is-turned {
+  background: hsl(199 95% 66% / 0.22);
+  box-shadow:
+    inset 0 0 0 2px hsl(199 95% 72% / 0.85),
+    0 0 18px hsl(205 95% 58% / 0.55);
 }
 
 /* --- the latch ----------------------------------------------------------- */
@@ -526,7 +586,7 @@
 /*  they are broken.                                                         */
 /* ------------------------------------------------------------------------- */
 @media (prefers-reduced-motion: reduce) {
-  .bns-rail__shimmer,
+  .bns-leg__shimmer,
   .bns-puck__breathe,
   .bns-egg.is-open .bns-egg__prize {
     animation: none;

@@ -17,7 +17,14 @@
 // was in, and with no box either it hands the request to Jarvis's agent,
 // which has the PC harness, the browser and every hub tool.
 //
-// Three guards:
+// Four guards:
+//   · a Jarvis chat or harness thread must be on the page. The voice used to
+//     float a microphone orb over every other owner page as well, which put a
+//     mic in apps that have nothing to say to it — Baby No Scroll's locked
+//     nursery screen among them (owner, Nov 2026: "there is a microphone in
+//     every app on my jarvis, you can remove this; this is only for apps with
+//     a jarvis chatbot harness"). No registered target now means no
+//     microphone at all on that page, not even with Hands-free left on;
 //   · owner pages only — clients, public apps and the login page never get a
 //     microphone (routeAccess);
 //   · never inside a frame — a framed app would start a second microphone
@@ -31,7 +38,6 @@ import { routeAccess } from "@/lib/hubAccess";
 import { ASK_EVENT } from "@/lib/new-jarvis/askEvent";
 import { useWakeVoice, type UseWakeVoice } from "@/lib/new-jarvis/useWakeVoice";
 import { pickTarget, register, shouldStopListening, speakable, touch, unregister, type Registered, type Registry, type VoiceTarget } from "@/lib/voice/targets";
-import { VoiceOrb } from "./VoiceOrb";
 import { avatarStore } from "@/lib/new-jarvis/avatar/store";
 
 /** Hands-free = always listening for "Jarvis". Off unless the owner turns it on. */
@@ -46,6 +52,12 @@ export interface HubVoice {
   allowed: boolean;
   registerTarget: (t: VoiceTarget) => () => void;
   touchTarget: (id: string) => void;
+  /**
+   * A Jarvis chat on the page saying so, whether or not it registers a voice
+   * target of its own. Call it from an effect and keep the cleanup: it is what
+   * turns the microphone on for this page at all.
+   */
+  announceChat: () => () => void;
   /** Read answers aloud (on by default). One switch for every chat. */
   speakReplies: boolean;
   setSpeakReplies: (on: boolean) => void;
@@ -113,13 +125,6 @@ function typeInto(el: HTMLElement, words: string): void {
 }
 
 /**
- * Pages that own the microphone and speakers themselves, so the floating orb
- * stays off them: Jarvis's own chat; and AI Live Studio, a live broadcast
- * where a second voice listening while the AI host talks out loud would hear
- * the host, and where the orb would sit on top of the Go live button.
- */
-const NO_ORB = ["/apps/jarvis", "/apps/ai-live-studio"];
-/**
  * Pages where Jarvis's voice may not listen at all, even with Hands-free on.
  * AI Live Studio has its own private director mic; a second listener there
  * would hear the host on air and the owner's private directions.
@@ -137,12 +142,23 @@ export function VoiceProvider({ children }: { children: ReactNode }) {
       setFramed(true);
     }
   }, []);
-  const allowed = !framed && routeAccess(pathname, new Set()) === "owner" && !NO_LISTEN.some((p) => pathname.startsWith(p));
-
+  const ownerPage =
+    !framed &&
+    routeAccess(pathname, new Set()) === "owner" &&
+    !NO_LISTEN.some((p) => pathname.startsWith(p));
 
   const [speakReplies, setSpeakReplies] = useState(true);
   const regRef = useRef<Registry>(new Map());
   const [reg, setReg] = useState<Registry>(regRef.current);
+  // A Jarvis chat box or harness thread on the page is what makes the voice
+  // available at all: that chat carries its own voice button (ChatVoiceAvatar),
+  // and a page with no chat has no microphone of any kind.
+  const [chats, setChats] = useState(0);
+  const announceChat = useCallback(() => {
+    setChats((n) => n + 1);
+    return () => setChats((n) => Math.max(0, n - 1));
+  }, []);
+  const allowed = ownerPage && (reg.size > 0 || chats > 0);
   const commit = (next: Registry) => {
     regRef.current = next;
     setReg(next);
@@ -324,6 +340,7 @@ export function VoiceProvider({ children }: { children: ReactNode }) {
       allowed,
       registerTarget,
       touchTarget,
+      announceChat,
       speakReplies,
       setSpeakReplies,
       tap,
@@ -332,17 +349,15 @@ export function VoiceProvider({ children }: { children: ReactNode }) {
       handsFree,
       setHandsFree,
     }),
-    [voice, target, allowed, registerTarget, touchTarget, speakReplies, tap, stop, handsFree, setHandsFree],
+    [voice, target, allowed, registerTarget, touchTarget, announceChat, speakReplies, tap, stop, handsFree, setHandsFree],
   );
 
   return (
     <Ctx.Provider value={value}>
       {children}
-      {/* Pages with a Jarvis chat (a registered target) carry the avatar
-          INSIDE their chat box as its one voice button (ChatVoiceAvatar), so
-          nothing floats over the page. Every other owner page keeps the small
-          orb as its one voice button — except the pages in NO_ORB below. */}
-      {allowed && voice.supported && !target && !NO_ORB.some((p) => pathname.startsWith(p)) ? <VoiceOrb /> : null}
+      {/* Nothing floats over the page. A Jarvis chat carries the voice INSIDE
+          its own chat box (ChatVoiceAvatar); Jarvis draws its reactor. A page
+          without one has no microphone, so there is nothing to draw. */}
     </Ctx.Provider>
   );
 }

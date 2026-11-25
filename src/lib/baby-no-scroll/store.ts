@@ -24,6 +24,11 @@ export function loadSettings(): Settings {
     passHash: typeof raw.passHash === "string" ? raw.passHash : "",
     passSalt: typeof raw.passSalt === "string" ? raw.passSalt : "",
     passLength: typeof raw.passLength === "number" ? raw.passLength : 0,
+    // The hold at the end used to be on by default, and that default is saved
+    // in every blob written before the unlock became an angle. A parent who
+    // has not touched the switch since gets the easier lock they asked for.
+    holdToConfirm: raw.holdChosen === true && raw.holdToConfirm === true,
+    holdChosen: true,
     // A bad shows array would take the setup screen down, and a parent would
     // have no way to clear it.
     shows: Array.isArray(raw.shows) ? raw.shows.filter(isShow) : [],
