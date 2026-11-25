@@ -17,14 +17,18 @@
 //
 // The angle is the whole safeguard (owner, Nov 2026: "so its not easy for
 // babies to follow and do"). A thumb dragged across a phone travels one way
-// and stops; it does not turn a corner on purpose. Because the turn does the
-// work, the rest is deliberately easy: dots to follow rather than a rail to
-// stay on, a wide band of forgiveness either side, and no hold at the end
-// unless a parent asks for one.
+// and stops; it does not turn a corner on purpose.
 //
-// Letting go anywhere short of the end springs it back with a knock. The
-// geometry and the thresholds all live in src/lib/baby-no-scroll/lock.ts, where
-// they are tested; what is here is the gesture and the drawing of it.
+// Nothing lights up while it is being dragged, and nothing is drawn behind the
+// puck (owner, Nov 2026: "it shouldnt glow and show the line while
+// unlocking"). The dots are the only mark on the screen, they do not change,
+// and the drag has to follow them within a fingertip — stray off, and the lock
+// goes home. Letting go anywhere at all, on the puck or off it, sends it home
+// too: the window hears the release, not just the puck, so a finger that slips
+// off the edge of the screen can never leave the lock parked mid-path.
+//
+// The geometry and the thresholds all live in src/lib/baby-no-scroll/lock.ts,
+// where they are tested; what is here is the gesture and the drawing of it.
 // ---------------------------------------------------------------------------
 
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -37,7 +41,6 @@ import {
   advance,
   distance,
   isDone,
-  legFill,
   nextCorner,
   pathFor,
   pointAt,
@@ -165,6 +168,41 @@ export function Padlock({ corner, onMoveCorner, onUnlock, holdToConfirm, size }:
     window.setTimeout(() => setKnock(false), 420);
   }, []);
 
+  // --- the end of a drag, wherever the finger happens to be ----------------
+  //
+  // Owner, Nov 2026: "lock resets back to base position when it is let go".
+  // Not "when it is let go ON the puck" — a drag that ends with the finger off
+  // the side of the screen, a pointer the browser cancels, or the app losing
+  // the window has to put the lock home just the same, or it sits parked
+  // halfway along the path waiting to be nudged the rest of the way.
+  const endDrag = useCallback(() => {
+    if (!moved.current) return;
+    moved.current = false;
+    setDragging(false);
+    if (opening) return;
+    // With holding switched off, arriving IS finishing — the turn was the
+    // test. With it on, arriving and then letting go is a thumb sliding off
+    // rather than a decision, so it goes home.
+    if (isDone(stepRef.current) && !holdToConfirm) open();
+    else springBack();
+    openRail();
+  }, [holdToConfirm, open, opening, openRail, springBack]);
+
+  useEffect(() => {
+    if (!dragging) return;
+    const release = () => endDrag();
+    window.addEventListener("pointerup", release);
+    window.addEventListener("pointercancel", release);
+    // Backgrounded mid-drag (a call, the app switcher): the release is never
+    // delivered at all, so the lock would still be out when the parent looks.
+    window.addEventListener("blur", release);
+    return () => {
+      window.removeEventListener("pointerup", release);
+      window.removeEventListener("pointercancel", release);
+      window.removeEventListener("blur", release);
+    };
+  }, [dragging, endDrag]);
+
   // --- pointer -------------------------------------------------------------
   const onPointerDown = (e: React.PointerEvent) => {
     if (opening) return;
@@ -205,18 +243,9 @@ export function Padlock({ corner, onMoveCorner, onUnlock, holdToConfirm, size }:
       /* already released, or a pointer the browser has forgotten */
     }
     if (opening) return;
-
-    if (moved.current) {
-      setDragging(false);
-      // With holding switched off, arriving IS finishing — the corner was the
-      // test. With it on, arriving and then letting go is a thumb sliding off
-      // rather than a decision, so it springs back.
-      if (isDone(stepRef.current) && !holdToConfirm) open();
-      else springBack();
-      moved.current = false;
-      openRail();
-      return;
-    }
+    // A drag is ended by endDrag, on the window — see the effect below. This
+    // event bubbles up to it, so doing it here as well would do it twice.
+    if (moved.current) return;
 
     taps.current += 1;
     const action = tapAction(taps.current);
@@ -278,53 +307,41 @@ export function Padlock({ corner, onMoveCorner, onUnlock, holdToConfirm, size }:
           stripe a baby can trace with a finger. */}
       {path.legs.map((leg, i) => {
         const horizontal = leg.axis === "x";
-        // Travelling right-to-left or bottom-to-top: the lit part has to grow
-        // from the far end, so it grows the way the finger goes.
-        const reversed = horizontal ? leg.to.x < leg.from.x : leg.to.y < leg.from.y;
         return (
           <div
             key={i}
-            className={`bns-leg ${railOpen ? "is-open" : ""} ${horizontal ? "is-x" : "is-y"} ${
-              reversed ? "is-rev" : ""
-            } ${step.leg === i ? "is-live" : ""} ${step.leg > i ? "is-done" : ""}`}
+            className={`bns-leg ${railOpen ? "is-open" : ""} ${horizontal ? "is-x" : "is-y"}`}
             style={{
               left: horizontal ? Math.min(leg.from.x, leg.to.x) : leg.from.x,
               top: horizontal ? leg.from.y : Math.min(leg.from.y, leg.to.y),
               width: horizontal ? leg.length : undefined,
               height: horizontal ? undefined : leg.length,
-              // How much of this leg is behind the puck.
-              ["--p" as string]: legFill(step, i === 0 ? 0 : 1),
-              ["--delay" as string]: `${i * 0.6}s`,
             }}
             aria-hidden
           >
             <div className="bns-leg__dots" />
-            <div className="bns-leg__fill" />
-            {railOpen && step.leg === i ? <div className="bns-leg__shimmer" /> : null}
           </div>
         );
       })}
 
-      {/* The corner the swipe has to turn at. It is the instruction: the dots
-          stop here and set off again at a right angle. */}
+      {/* The corner the swipe has to turn at, and the corner it ends in. Both
+          are plain unlit marks: they say where, never how far you have got. */}
       <div
-        className={`bns-elbow ${railOpen ? "is-open" : ""} ${step.leg === 1 ? "is-turned" : ""}`}
+        className={`bns-elbow ${railOpen ? "is-open" : ""}`}
         style={{ left: path.legs[1].from.x, top: path.legs[1].from.y }}
         aria-hidden
       />
 
-      {/* The end: where the drag has to arrive, and the ring that fills while
-          it is held there when a parent has asked for a hold. */}
+      {/* The end. Its ring only exists while a parent's hold is being counted;
+          the rest of the time it is the same dim mark as the corner. */}
       <div
-        className={`bns-latch ${railOpen ? "is-open" : ""} ${atEnd ? "is-armed" : ""}`}
+        className={`bns-latch ${railOpen ? "is-open" : ""} ${hold > 0 ? "is-holding" : ""}`}
         style={{ left: end.x, top: end.y, ["--hold" as string]: hold }}
         aria-hidden
       >
         <svg viewBox="0 0 48 48" className="bns-latch__ring">
-          <circle className="bns-latch__ring-bg" cx="24" cy="24" r="21" />
           <circle className="bns-latch__ring-fg" cx="24" cy="24" r="21" />
         </svg>
-        <span className="bns-latch__hole" />
       </div>
 
       <button
@@ -332,7 +349,7 @@ export function Padlock({ corner, onMoveCorner, onUnlock, holdToConfirm, size }:
         data-baby-lock="1"
         className={`bns-puck ${dragging ? "is-dragging" : ""} ${opening ? "is-open" : ""} ${
           knock ? "is-knock" : ""
-        } ${railOpen ? "is-lit" : ""}`}
+        }`}
         style={{
           left: at.x,
           top: at.y,

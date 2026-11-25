@@ -472,9 +472,11 @@ export function BabyNoScroll({ initialMode }: { initialMode?: Mode }) {
                 <p className="mt-3 text-[11px] leading-snug text-ink-faint">
                   The padlock opens by being dragged along a line of dots to the next corner, then
                   turned and dragged along a second line to the corner opposite. Two sides of the
-                  screen, one right-angle turn: quick once you know it, and not something a thumb
-                  does by accident. Nothing to remember — but an older child who has watched you can
-                  copy it.
+                  screen, one right-angle turn, and the dots have to be followed within a fingertip:
+                  stray off them, or let go anywhere along the way, and the lock goes straight home.
+                  Nothing lights up as you drag, so there is no line to watch and nothing on screen
+                  that shows how it is done. Nothing to remember — but an older child who has
+                  watched you can copy it.
                 </p>
               )}
             </section>

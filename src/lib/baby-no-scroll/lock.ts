@@ -16,7 +16,9 @@
 //
 //   Both legs hug an EDGE, and the two of them sit on opposite sides of the
 //   screen — far apart, so nothing is ever drawn across the thing the baby is
-//   watching, and there is no single stripe to trace.
+//   watching, and there is no single stripe to trace. Nothing lights up as the
+//   drag travels either (owner, Nov 2026: "it shouldnt glow and show the line
+//   while unlocking"), so the dots are followed from memory, not read off.
 //
 //   The turn has to be EARNED. Leg two does not start counting until leg one
 //   has been travelled, and once the turn is taken the drag cannot go back —
@@ -64,24 +66,27 @@ export const START: Step = { leg: 0, t: 0 };
 export const CORNERS: readonly Corner[] = ["tl", "tr", "br", "bl"] as const;
 
 /**
- * How far along the last leg counts as finished. The turn is what makes this
- * gesture hard, so the end itself is forgiving — a pointer never lands exact,
- * and an adult doing this one-handed in the dark should not have to.
+ * How far along the last leg counts as finished. Nearly all of it: the first
+ * version stopped at 0.9 and the owner found the whole thing too easy, so the
+ * only slack left is the pixel or two a pointer cannot land on exactly.
  */
-export const UNLOCK_AT = 0.9;
+export const UNLOCK_AT = 0.97;
 
 /** How far along leg one counts as reaching the corner, so the turn opens. */
-export const LEG_DONE = 0.86;
+export const LEG_DONE = 0.96;
 
 /**
- * How far off the edge it is travelling the finger may stray and still count.
+ * How far off the edge it is travelling the finger may stray before the drag
+ * is thrown away and the lock goes home.
  *
- * Generous, because nobody drags a straight line one-handed in the dark — but
- * it has to exist, or the angle is no angle at all: one diagonal swipe from
- * the lock to the opposite corner would cover the whole travel of both legs
- * at once and open the lock without ever turning the corner.
+ * About a fingertip. It has to exist at all, or the angle is no angle: one
+ * diagonal swipe from the lock to the opposite corner would cover the whole
+ * travel of both legs at once and open the lock without ever turning. It is
+ * this tight, and leaving it resets rather than pausing, because the owner
+ * found the forgiving version too easy — the dots have to be FOLLOWED, and
+ * with no lit line to follow (the glow is gone) that is the whole gesture.
  */
-export const ON_PATH_PX = 110;
+export const ON_PATH_PX = 48;
 
 /** Movement past this many px is a drag rather than a tap. */
 export const DRAG_SLOP_PX = 10;
@@ -182,11 +187,11 @@ export function offPath(leg: Leg, p: Vec): number {
  * the corner does not undo the turn — it reads as nothing travelled on leg
  * two, which is exactly where the puck then sits.
  *
- * A finger that has left the edge it was travelling stops counting rather than
- * springing back: the drag simply waits where it was until the finger returns.
+ * A finger that leaves the edge it was travelling throws the whole drag away
+ * and sends the lock home — there is no wandering off and coming back.
  */
 export function advance(path: UnlockPath, step: Step, p: Vec): Step {
-  if (offPath(path.legs[step.leg], p) > ON_PATH_PX) return step;
+  if (offPath(path.legs[step.leg], p) > ON_PATH_PX) return START;
   if (step.leg === 0) {
     const t = legProgress(path.legs[0], p);
     return t >= LEG_DONE ? { leg: 1, t: 0 } : { leg: 0, t };
@@ -207,13 +212,6 @@ export function pointAt(path: UnlockPath, step: Step): Vec {
     x: leg.from.x + (leg.to.x - leg.from.x) * k,
     y: leg.from.y + (leg.to.y - leg.from.y) * k,
   };
-}
-
-/** How lit a leg should be: full behind the puck, partial under it, dark ahead. */
-export function legFill(step: Step, leg: LegIndex): number {
-  if (step.leg > leg) return 1;
-  if (step.leg < leg) return 0;
-  return Math.min(1, Math.max(0, step.t));
 }
 
 export type TapAction = "show-rail" | "move-corner" | "none";

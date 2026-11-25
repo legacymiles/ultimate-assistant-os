@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import * as lock from "./lock";
 import {
   CORNERS,
   LEG_DONE,
@@ -7,7 +8,6 @@ import {
   advance,
   distance,
   isDone,
-  legFill,
   legProgress,
   lockAnchor,
   nextCorner,
@@ -164,23 +164,34 @@ describe("taking the turn", () => {
     expect(isDone(diagonal)).toBe(false);
   });
 
-  it("stops counting when the finger leaves the edge, and waits there", () => {
+  // The owner found the forgiving version too easy, so leaving the dots is
+  // not a pause any more — the drag is thrown away and the lock goes home.
+  it("sends the lock home when the finger leaves the dots", () => {
     const half = advance(path, START, onLegOne(0.5));
-    const strayed = advance(path, half, { x: onLegOne(1).x, y: PHONE.h / 2 });
-    expect(strayed).toEqual(half);
-    // ...and picks up again where it left off when the finger comes back.
+    const strayed = advance(path, half, { x: onLegOne(0.6).x, y: PHONE.h / 2 });
+    expect(strayed).toEqual(START);
+    // Coming back does not restore what was travelled; it starts again.
     const back = advance(path, strayed, onLegOne(0.7));
     expect(back).toEqual({ leg: 0, t: 0.7 });
   });
 
-  it("forgives a wobble inside the band", () => {
-    const wobbled = advance(path, START, { x: onLegOne(0.5).x, y: PHONE.h - INSET - 80 });
-    expect(wobbled.t).toBeCloseTo(0.5, 1);
+  it("throws away a drag that has already turned the corner", () => {
+    const turned = advance(path, START, onLegOne(1));
+    const strayed = advance(path, turned, { x: PHONE.w / 2, y: onLegTwo(0.5).y });
+    expect(strayed).toEqual(START);
   });
 
-  it("does not undo the turn when the finger slides back", () => {
+  it("forgives only a fingertip of wobble", () => {
+    const inside = advance(path, START, { x: onLegOne(0.5).x, y: PHONE.h - INSET - 40 });
+    expect(inside.t).toBeCloseTo(0.5, 1);
+    const outside = advance(path, START, { x: onLegOne(0.5).x, y: PHONE.h - INSET - 60 });
+    expect(outside).toEqual(START);
+  });
+
+  it("does not undo the turn when the finger slides back along leg two", () => {
     const turned = advance(path, START, onLegOne(1));
-    const backwards = advance(path, turned, onLegOne(0.2));
+    // Still on leg two's line (the corner is on both), just no distance along it.
+    const backwards = advance(path, turned, onLegTwo(0));
     expect(backwards.leg).toBe(1);
     expect(backwards.t).toBe(0);
   });
@@ -197,13 +208,21 @@ describe("taking the turn", () => {
     expect(isDone({ leg: 0, t: 1 })).toBe(false);
   });
 
-  // Forgiving at the end, because the turn is the hard part; never so
-  // forgiving that a drag which stopped short counts.
-  it("asks for nearly the whole of each leg", () => {
-    expect(UNLOCK_AT).toBeGreaterThan(0.85);
+  // Both legs have to be travelled essentially end to end: the only slack is
+  // the pixel or two a pointer cannot land on exactly.
+  it("asks for all but a sliver of each leg", () => {
+    expect(UNLOCK_AT).toBeGreaterThan(0.95);
     expect(UNLOCK_AT).toBeLessThan(1);
-    expect(LEG_DONE).toBeGreaterThan(0.8);
+    expect(LEG_DONE).toBeGreaterThan(0.95);
     expect(LEG_DONE).toBeLessThan(1);
+  });
+
+  it("does not finish a leg that stopped short of the threshold", () => {
+    const nearly = advance(path, START, onLegOne(0.93));
+    expect(nearly.leg).toBe(0);
+    const turned = advance(path, START, onLegOne(1));
+    const almost = advance(path, turned, onLegTwo(0.95));
+    expect(isDone(almost)).toBe(false);
   });
 });
 
@@ -218,11 +237,10 @@ describe("drawing it", () => {
     expect(pointAt(path, { leg: 1, t: -1 })).toEqual(path.legs[1].from);
   });
 
-  it("lights the legs behind the puck and none ahead of it", () => {
-    expect(legFill({ leg: 0, t: 0.4 }, 0)).toBe(0.4);
-    expect(legFill({ leg: 0, t: 0.4 }, 1)).toBe(0);
-    expect(legFill({ leg: 1, t: 0.4 }, 0)).toBe(1);
-    expect(legFill({ leg: 1, t: 0.4 }, 1)).toBe(0.4);
+  // Nothing is drawn from how far the drag has got — there is no progress to
+  // read off the screen at all, which is half of why it is hard.
+  it("has no notion of a lit part", () => {
+    expect("legFill" in lock).toBe(false);
   });
 });
 
