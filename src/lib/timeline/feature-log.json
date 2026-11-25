@@ -1,82 +1,10 @@
 [
  {
-  "id": "f9794b73:baby-no-scroll",
+  "id": "e59e356e:dtf",
   "date": "2026-11-25",
-  "slug": "baby-no-scroll",
-  "title": "A strict unlock path, and nothing that lights up",
-  "detail": "Three things the owner asked for after trying the angled lock.",
-  "group": "supporting",
-  "source": "git"
- },
- {
-  "id": "f9794b73:projects-timeline",
-  "date": "2026-11-25",
-  "slug": "projects-timeline",
-  "title": "A strict unlock path, and nothing that lights up",
-  "detail": "Three things the owner asked for after trying the angled lock.",
-  "group": "supporting",
-  "source": "git"
- },
- {
-  "id": "a016afe7:baby-no-scroll",
-  "date": "2026-11-25",
-  "slug": "baby-no-scroll",
-  "title": "Unlock on an angle, and no mic outside a Jarvis chat",
-  "detail": "Two things the owner asked for on the locked nursery screen.",
-  "group": "supporting",
-  "source": "git"
- },
- {
-  "id": "a016afe7:voice",
-  "date": "2026-11-25",
-  "slug": "voice",
-  "title": "Unlock on an angle, and no mic outside a Jarvis chat",
-  "detail": "Two things the owner asked for on the locked nursery screen.",
-  "group": "supporting",
-  "source": "git"
- },
- {
-  "id": "a016afe7:projects-timeline",
-  "date": "2026-11-25",
-  "slug": "projects-timeline",
-  "title": "Unlock on an angle, and no mic outside a Jarvis chat",
-  "detail": "Two things the owner asked for on the locked nursery screen.",
-  "group": "supporting",
-  "source": "git"
- },
- {
-  "id": "38459745:jarvis",
-  "date": "2026-11-25",
-  "slug": "jarvis",
-  "title": "The set plate is a place, not a person",
-  "detail": "Handed the set plate under the generic subject wording, H3 held the room perfectly and then rendered the plate's wide establishing framing in place of the close-up the shot actually asked for (measured on the GPU, 2026-11-24). It also gave the room an identity to preserve.",
-  "group": "supporting",
-  "source": "git"
- },
- {
-  "id": "99649c5c:ai-live-studio",
-  "date": "2026-11-25",
-  "slug": "ai-live-studio",
-  "title": "The real face moves like a live streamer instead of staring",
-  "detail": "Alex was one still photo, so he stared. He is now a chest-up streamer at a desk, and every frame is real video rendered free on this PC.",
-  "group": "supporting",
-  "source": "git"
- },
- {
-  "id": "99649c5c:jarvis",
-  "date": "2026-11-25",
-  "slug": "jarvis",
-  "title": "The real face moves like a live streamer instead of staring",
-  "detail": "Alex was one still photo, so he stared. He is now a chest-up streamer at a desk, and every frame is real video rendered free on this PC.",
-  "group": "supporting",
-  "source": "git"
- },
- {
-  "id": "4c5a6c96:projects-timeline",
-  "date": "2026-11-25",
-  "slug": "projects-timeline",
-  "title": "A record per app, generated from the code and checked in CI",
-  "detail": "Every app now has docs/apps/<slug>.md as the one truth about it: a hand-written half (what it does, Features, Must keep working, Requested, Record reviewed) and a generated \"From the code\" half.",
+  "slug": "dtf",
+  "title": "Print station checks its folder path by its own machine's rules, so CI passes",
+  "detail": "normalizeConfig used path.isAbsolute on exportDir, which follows the host OS. The default C:\\DTF\\Print Jobs is absolute on Windows but not on Linux, so the clean-clone CI run (ubuntu) reported \"exportDir must be a full path that starts with a drive letter\" and the config test failed there while pass",
   "group": "supporting",
   "source": "git"
  },

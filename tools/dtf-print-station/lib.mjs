@@ -147,9 +147,12 @@ export function backoffMs(failures, baseMs, maxMs = 5 * 60_000) {
 /**
  * Validate and fill a station config. Returns plain-English problems; an empty
  * token is not a problem (the station runs and shows "not paired").
+ * `win` picks the path rules for exportDir (a drive-letter path on Windows, a
+ * /-rooted one elsewhere); it defaults to the machine the station runs on.
  * @param {Record<string, unknown>} raw
+ * @param {boolean} [win]
  */
-export function normalizeConfig(raw) {
+export function normalizeConfig(raw, win = process.platform === "win32") {
   /** @type {string[]} */
   const errors = [];
   /** @type {string[]} */
@@ -163,7 +166,9 @@ export function normalizeConfig(raw) {
   }
   const exportDir = String(c.exportDir ?? "").trim();
   if (!exportDir) errors.push("exportDir must be a folder path, like C:\\DTF\\Print Jobs.");
-  else if (!path.isAbsolute(exportDir)) errors.push("exportDir must be a full path that starts with a drive letter.");
+  else if (!(win ? path.win32 : path.posix).isAbsolute(exportDir)) {
+    errors.push(win ? "exportDir must be a full path that starts with a drive letter." : "exportDir must be a full path that starts with /.");
+  }
   const openMode = c.openMode === "argument" ? "argument" : "reveal";
   if (c.openMode !== undefined && c.openMode !== "reveal" && c.openMode !== "argument") {
     warnings.push('openMode must be "reveal" or "argument"; using "reveal".');
