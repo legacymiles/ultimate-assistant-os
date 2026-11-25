@@ -148,7 +148,7 @@ function LipSyncLine() {
   if (lf.state === "unavailable") {
     return (
       <p className="jav-lipline" data-state="unavailable" role="status">
-        LiveTalking isn&rsquo;t answering on this PC
+        {lf.busy ? "LiveTalking is busy — other open Jarvis tabs hold every face" : <>LiveTalking isn&rsquo;t answering on this PC</>}
         <button type="button" onClick={() => liveFace.retry()}>
           Try again
         </button>

@@ -181,7 +181,9 @@ function LipSyncRow() {
         : lf.state === "checking" || lf.state === "connecting"
           ? "Connecting to LiveTalking on this PC…"
           : lf.state === "unavailable"
-            ? "LiveTalking isn't running on this PC — start it, then try again."
+            ? lf.busy
+              ? "LiveTalking is busy — other open Jarvis tabs hold every face. Close one, then try again."
+              : "LiveTalking isn't running on this PC — start it, then try again."
             : "Waiting for the face to show.";
   return (
     <div className="jav-lips">

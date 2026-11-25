@@ -23,6 +23,12 @@
 //             mic, Jarvis through its voice) brightens it, squeezes it with
 //             each syllable and tints it — Jarvis warm, you cool.
 //
+// Yields the GPU to LiveTalking: while Jarvis's lip-synced real face is live on
+// this PC, the world drops to the light tier and draws 24 times a second. On a
+// 6 GB laptop card the full galaxy took 99% of the GPU, so the face's lip sync
+// and hearing crawled (owner, 2026-11-24: "i still havent seen this start
+// talking yet"). It's a slow background; the face is what you're watching.
+//
 // Budgets: one draw per object (~8), ~26k points, bloom at half resolution.
 // Phones and weak GPUs get no bloom, a capped pixel ratio and half the stars;
 // a frame-time probe drops quality further if it must. Hidden tab → the loop
@@ -33,6 +39,7 @@
 
 import { useEffect, useRef, useState, type MutableRefObject, type ReactNode } from "react";
 import type * as THREE_NS from "three";
+import { liveFace } from "@/lib/new-jarvis/avatar/liveFace";
 import { breathCurve } from "@/lib/new-jarvis/breath";
 import { BAND_COUNT, bandsFrom, loudness, smoothTo, speechEnvelope } from "@/lib/new-jarvis/spectrum";
 import { talkDrive, talkHue, type TalkVoice } from "@/lib/new-jarvis/talk";
@@ -1107,6 +1114,22 @@ export function WorldField({ busy = false, anchorRef, fallback = null, voice, hi
       let raf = 0;
       let probeFrames = 0;
       let probeTime = 0;
+      /** Drop to the light tier: no bloom, no nebula, fewer steps through the smoke and mist. */
+      const lighten = () => {
+        if (quality <= 0) return;
+        quality--;
+        tier = "low";
+        composer = null;
+        if (nebula) nebula.visible = false;
+        // Fewer steps through the smoke and mist: the cheapest big saving.
+        for (const v of volumes) {
+          v.mat.defines.STEPS = Math.max(8, Math.round(Number(v.mat.defines.STEPS) * 0.55));
+          v.mat.needsUpdate = true;
+        }
+        size();
+      };
+      /** While the real face is live, one frame per this many ms (24 fps). */
+      const YIELD_FRAME_MS = 1000 / 24;
       const tiltNow = { x: 0, y: 0 };
 
       const camWorld = new THREE.Vector3();
@@ -1214,6 +1237,14 @@ export function WorldField({ busy = false, anchorRef, fallback = null, voice, hi
 
       const frame = (now: number) => {
         if (hiddenRef.current) return; // paused until shown again
+        // LiveTalking needs the GPU while the real face is live: light tier, 24 fps.
+        if (liveFace.get().state === "live") {
+          if (now - last < YIELD_FRAME_MS) {
+            raf = requestAnimationFrame(frame);
+            return;
+          }
+          if (tier !== "low") lighten();
+        }
         const dt = (now - last) / 1000;
         last = now;
         step(dt);
@@ -1225,18 +1256,7 @@ export function WorldField({ busy = false, anchorRef, fallback = null, voice, hi
         probeTime += dt;
         if (!pinned && probeTime > 2.5 && probeFrames > 3) {
           const avg = probeTime / probeFrames;
-          if (avg > 0.024 && quality > 0) {
-            quality--;
-            tier = "low";
-            composer = null;
-            if (nebula) nebula.visible = false;
-            // Fewer steps through the smoke and mist: the cheapest big saving.
-            for (const v of volumes) {
-              v.mat.defines.STEPS = Math.max(8, Math.round(Number(v.mat.defines.STEPS) * 0.55));
-              v.mat.needsUpdate = true;
-            }
-            size();
-          }
+          if (avg > 0.024 && quality > 0) lighten();
           probeFrames = 0;
           probeTime = 0;
         }

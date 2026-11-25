@@ -31,17 +31,26 @@ export interface LiveFaceSnapshot {
   enabled: boolean;
   /** LiveTalking's own speech recognition answers too — Jarvis hears through it while live. */
   asr: boolean;
+  /** LiveTalking is running but every face slot is taken (other open tabs hold them). */
+  busy: boolean;
 }
 
 const PREF_KEY = "jarvis-avatar:livetalking";
 const RETRY_MS = 30_000;
+/**
+ * A tab nobody can see gives its LiveTalking slot back after this long. Each
+ * slot is a lip-sync run on the GPU, LiveTalking allows five, and background
+ * tabs were holding all of them — so the tab in front was refused (owner,
+ * 2026-11-24: "it said LiveTalking wasn't working").
+ */
+const HIDDEN_RELEASE_MS = 15_000;
 const SPEAK_CEILING_MS = 90_000;
 /** LiveTalking's own voice (Edge), used only when the hub's voice server is down. Suits Alex. */
 const FALLBACK_VOICE = "en-US-AndrewNeural";
 
 const lt = new LiveTalking();
 const listeners = new Set<() => void>();
-let snap: LiveFaceSnapshot = { state: "off", stream: null, enabled: false, asr: false };
+let snap: LiveFaceSnapshot = { state: "off", stream: null, enabled: false, asr: false, busy: false };
 let loaded = false;
 let wanted = 0;
 let pc: RTCPeerConnection | null = null;
@@ -52,6 +61,8 @@ let level: AnalyserNode | null = null;
 let retry: ReturnType<typeof setTimeout> | null = null;
 let closeTimer: ReturnType<typeof setTimeout> | null = null;
 let interrupted = false;
+let hiddenTimer: ReturnType<typeof setTimeout> | null = null;
+const hidden = () => typeof document !== "undefined" && document.hidden;
 
 const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 
@@ -66,6 +77,25 @@ function load() {
   // A reload or a closed tab doesn't close WebRTC cleanly: LiveTalking would keep
   // running that session's lip sync on the GPU until it timed out. Close it now.
   window.addEventListener("pagehide", () => close());
+  // Only the tab in front holds a slot: hand it back a while after the tab is
+  // hidden, take one again when it's shown.
+  document.addEventListener("visibilitychange", () => {
+    if (hiddenTimer) {
+      clearTimeout(hiddenTimer);
+      hiddenTimer = null;
+    }
+    if (hidden()) {
+      hiddenTimer = setTimeout(() => {
+        hiddenTimer = null;
+        if (hidden() && snap.state !== "off") close();
+      }, HIDDEN_RELEASE_MS);
+    } else if (wanted > 0 && snap.enabled && (snap.state === "off" || snap.state === "unavailable")) {
+      if (retry) clearTimeout(retry);
+      retry = null;
+      emit({ state: "off" });
+      void connect();
+    }
+  });
   let enabled = true;
   try {
     const v = localStorage.getItem(PREF_KEY);
@@ -153,12 +183,14 @@ function close() {
 
 async function connect() {
   if (typeof window === "undefined" || !snap.enabled || wanted === 0) return;
+  // A background tab waits until it's shown (the visibility handler connects it).
+  if (hidden()) return;
   if (snap.state === "checking" || snap.state === "connecting" || snap.state === "live") return;
   if (retry) {
     clearTimeout(retry);
     retry = null;
   }
-  emit({ state: "checking" });
+  emit({ state: "checking", busy: false });
   if (!(await lt.reachable())) {
     emit({ state: "unavailable", stream: null });
     // Started LiveTalking after opening the page? Try again in a while.
@@ -218,6 +250,15 @@ async function connect() {
     const local = peer.localDescription;
     if (!local) throw new Error("no offer");
     const answer = await lt.offer({ sdp: local.sdp, type: local.type });
+    // A full LiveTalking answers 200 with {code: -1, msg: "Maximum session limit reached"}.
+    const refused = answer as unknown as { code?: number; sdp?: string };
+    if (refused.code === -1 || !refused.sdp) {
+      peer.close();
+      if (pc === peer) pc = null;
+      emit({ state: "unavailable", stream: null, busy: true });
+      if (wanted > 0 && snap.enabled) retry = setTimeout(() => void connect(), RETRY_MS);
+      return;
+    }
     session = String(answer.sessionid);
     await peer.setRemoteDescription({ sdp: answer.sdp, type: answer.type as RTCSdpType });
     if (pc !== peer) return;

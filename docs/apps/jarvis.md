@@ -196,11 +196,29 @@ _The flows a user would notice breaking. Sign-in, data rules, routes and keys ar
   spoken request is answered by Alex's moving lips, heard once (never twice, never the browser
   voice), and Jarvis listens again only after he finishes. LiveTalking not running → the
   portrait, and Jarvis speaks as before. Phonon down → LiveTalking's own voice, still lip-synced.
+- **A tapped mic keeps listening until you've spoken (Nov 24 2026)** — tapping the mic waits up to
+  10 s for your first word (`FIRST_WORD_WAIT_MS` in `wake.ts`); the 1.1 s end-of-sentence pause
+  only counts once something was heard. Before, the mic switched itself off 1.1 s after a tap —
+  opening the mic through LiveTalking's recognizer alone takes about that long.
+- **The galaxy gives the GPU to the real face (Nov 24 2026)** — while the lip-synced face is live,
+  the galaxy background (`WorldField.tsx`) drops to its light tier and draws at 24 fps. Measured on
+  the owner's RTX 3050 laptop: the full galaxy took 99% of the GPU, which starved LiveTalking (its
+  speech recognition took 88 s for 1.3 s of audio and its server stopped answering); yielding, the
+  page takes ~28% and hearing is back to ~1 s.
+- **Only the tab in front holds a LiveTalking face (Nov 24 2026)** — LiveTalking allows 5
+  sessions and every open Jarvis tab held one, so the tab you were using was refused. A tab gives
+  its slot back 15 s after it's hidden and takes one again when shown (`liveFace.ts`); a full
+  LiveTalking shows "LiveTalking is busy — other open Jarvis tabs hold every face" instead of
+  "isn't answering".
 - **You can see his whole face talk** — the popover shows Alex from forehead to chin, mouth in
   plain view, nothing (badge, shade) over his lips, on a laptop and at 390 px.
 - **The real face works on the live site too** — on the hosted Jarvis on this PC, picking Real
   connects to LiveTalking with no setting to find; a silent face always shows the reason and its
   one-tap fix under the 3D | Real switch.
+- **Tapping the mic keeps it listening** — after a tap the mic stays on through a pause of several
+  seconds before you speak; it never switches itself off before you've said anything.
+- **The real face talks while the galaxy shows** — with the lip-synced face live, the background
+  never starves LiveTalking: spoken requests are heard in about a second and answered on his lips.
 - **Local hearing never cuts you off** — with LiveTalking's recognizer on, a spoken request is
   heard whole (the turn stays open while you talk) and answered; recognizer down → the browser's
   speech recognition takes over with no error.

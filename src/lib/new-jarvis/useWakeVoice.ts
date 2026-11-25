@@ -164,6 +164,8 @@ export function useWakeVoice({ onCommand, onInterrupt, speakReplies = true }: Wa
   const buffer = useRef("");
   const lastWordAt = useRef(0);
   const armedAt = useRef(0);
+  /** Anything heard since the capture was armed — before that, the turn waits for the first word. */
+  const heardAny = useRef(false);
   const endpointTimer = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // What is being said aloud right now — the echo test compares against it.
@@ -460,6 +462,7 @@ export function useWakeVoice({ onCommand, onInterrupt, speakReplies = true }: Wa
 
   const arm = useCallback(() => {
     armed.current = true;
+    heardAny.current = false;
     buffer.current = "";
     // The moment it hears its name. Stamped here rather than when the sentence
     // finishes, because that is a full second later and the point is to show
@@ -475,7 +478,7 @@ export function useWakeVoice({ onCommand, onInterrupt, speakReplies = true }: Wa
     // the owner says is followed by silence, and silence produces no events.
     endpointTimer.current = setInterval(() => {
       if (!armed.current) return;
-      if (shouldEndpoint({ lastWordAt: lastWordAt.current, startedAt: armedAt.current, now: Date.now() })) fire();
+      if (shouldEndpoint({ lastWordAt: lastWordAt.current, startedAt: armedAt.current, now: Date.now(), heard: heardAny.current })) fire();
     }, 150);
   }, [fire]);
 
@@ -488,7 +491,10 @@ export function useWakeVoice({ onCommand, onInterrupt, speakReplies = true }: Wa
       // LiveTalking's recognizer saying "still hearing you" (no words yet):
       // keep the turn open, but never treat it as words.
       if (said === HEARING_MARK) {
-        if (armed.current) lastWordAt.current = Date.now();
+        if (armed.current) {
+          lastWordAt.current = Date.now();
+          heardAny.current = true;
+        }
         return;
       }
 
@@ -513,6 +519,7 @@ export function useWakeVoice({ onCommand, onInterrupt, speakReplies = true }: Wa
           if (hit.rest) {
             buffer.current = hit.rest;
             lastWordAt.current = Date.now();
+            heardAny.current = true;
             setHeard(hit.rest);
           }
         }
@@ -522,6 +529,7 @@ export function useWakeVoice({ onCommand, onInterrupt, speakReplies = true }: Wa
       if (armed.current) {
         buffer.current = said;
         lastWordAt.current = Date.now();
+        heardAny.current = true;
         setHeard(said);
         return;
       }
@@ -532,6 +540,7 @@ export function useWakeVoice({ onCommand, onInterrupt, speakReplies = true }: Wa
       if (hit.rest) {
         buffer.current = hit.rest;
         lastWordAt.current = Date.now();
+        heardAny.current = true;
         setHeard(hit.rest);
       }
     },

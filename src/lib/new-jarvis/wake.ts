@@ -136,19 +136,28 @@ export function isInterruption(text: string): boolean {
 export const ENDPOINT_SILENCE_MS = 1_100;
 /** A long instruction still gets cut off eventually rather than never firing. */
 export const MAX_UTTERANCE_MS = 25_000;
+/**
+ * After a tap (or the name), how long the mic waits for the FIRST word. The
+ * end-of-sentence pause is the wrong clock before anyone has spoken: opening
+ * the mic alone can take a second, and people take a breath before they talk
+ * (owner, 2026-11-24: the mic "just clicks again to stop").
+ */
+export const FIRST_WORD_WAIT_MS = 10_000;
 
 /**
  * Has the owner finished talking?
  *
  * Endpointing on silence alone strands a turn forever if recognition stops
  * emitting without ending — which Chrome does — so the age of the utterance is
- * a second, independent reason to go.
+ * a second, independent reason to go. Until something has been heard
+ * (`heard: false`), only the first-word wait ends the turn.
  */
 export function shouldEndpoint(
-  { lastWordAt, startedAt, now }: { lastWordAt: number; startedAt: number; now: number },
+  { lastWordAt, startedAt, now, heard = true }: { lastWordAt: number; startedAt: number; now: number; heard?: boolean },
   silenceMs = ENDPOINT_SILENCE_MS,
 ): boolean {
   if (now - startedAt >= MAX_UTTERANCE_MS) return true;
+  if (!heard) return now - startedAt >= FIRST_WORD_WAIT_MS;
   return now - lastWordAt >= silenceMs;
 }
 

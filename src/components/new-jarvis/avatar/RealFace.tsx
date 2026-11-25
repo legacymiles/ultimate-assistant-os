@@ -27,7 +27,7 @@ import type { AvatarVariant, AvatarVoice } from "./AvatarScene";
 /** The real face. Shared with AI Live Studio's host. */
 export const REAL_FACE_SRC = "/ai-live-studio/alex.jpg";
 
-const OFF = { state: "off" as const, stream: null, enabled: false, asr: false };
+const OFF = { state: "off" as const, stream: null, enabled: false, asr: false, busy: false };
 
 export function useLiveFace() {
   return useSyncExternalStore(liveFace.subscribe, liveFace.get, () => OFF);

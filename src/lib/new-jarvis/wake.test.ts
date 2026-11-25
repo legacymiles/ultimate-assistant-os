@@ -7,6 +7,7 @@ import {
   restartDelayMs,
   shouldEndpoint,
   ENDPOINT_SILENCE_MS,
+  FIRST_WORD_WAIT_MS,
   MAX_UTTERANCE_MS,
 } from "./wake";
 
@@ -96,6 +97,21 @@ describe("shouldEndpoint", () => {
 
   it("goes eventually even if words never stop arriving", () => {
     expect(shouldEndpoint({ lastWordAt: now, startedAt: now - MAX_UTTERANCE_MS - 1, now })).toBe(true);
+  });
+
+  // Owner, 2026-11-24: tapping the mic "just clicks again to stop" — a tapped
+  // mic ended after 1.1 s of silence, before anyone had started talking.
+  it("waits for the first word after a tap, not just the end-of-sentence pause", () => {
+    expect(shouldEndpoint({ lastWordAt: now - 3_000, startedAt: now - 3_000, now, heard: false })).toBe(false);
+    expect(shouldEndpoint({ lastWordAt: now - 8_000, startedAt: now - 8_000, now, heard: false })).toBe(false);
+  });
+
+  it("gives up on a tap nobody spoke to, after the first-word wait", () => {
+    expect(shouldEndpoint({ lastWordAt: now - FIRST_WORD_WAIT_MS, startedAt: now - FIRST_WORD_WAIT_MS, now, heard: false })).toBe(true);
+  });
+
+  it("ends on the usual pause once something was said", () => {
+    expect(shouldEndpoint({ lastWordAt: now - ENDPOINT_SILENCE_MS - 1, startedAt: now - 4_000, now, heard: true })).toBe(true);
   });
 });
 
