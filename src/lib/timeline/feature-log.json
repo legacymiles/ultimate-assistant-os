@@ -1,5 +1,23 @@
 [
  {
+  "id": "1ab7fa81:realtime-agent",
+  "date": "2026-11-25",
+  "slug": "realtime-agent",
+  "title": "Every agent in one place, and the rented one asks first",
+  "detail": "One switchboard for the 3D Three.js face, the photoreal LiveTalking face on this PC, and the same thing on a rented RunPod GPU with MuseTalk lip sync.",
+  "group": "core",
+  "source": "git"
+ },
+ {
+  "id": "1ab7fa81:projects-timeline",
+  "date": "2026-11-25",
+  "slug": "projects-timeline",
+  "title": "Every agent in one place, and the rented one asks first",
+  "detail": "One switchboard for the 3D Three.js face, the photoreal LiveTalking face on this PC, and the same thing on a rented RunPod GPU with MuseTalk lip sync.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
   "id": "d2e918e9:baby-no-scroll",
   "date": "2026-11-25",
   "slug": "baby-no-scroll",
